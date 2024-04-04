@@ -1,0 +1,13 @@
+-- 解决 clangd 无法正确处理 utf-16 编码的文件的问题
+return {
+  {
+    "neovim/nvim-lspconfig",
+    opts = {
+      setup = {
+        clangd = function(_, opts)
+          opts.capabilities.offsetEncoding = { "utf-16" }
+        end,
+      },
+    },
+  },
+}

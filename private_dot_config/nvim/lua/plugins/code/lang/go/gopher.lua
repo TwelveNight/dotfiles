@@ -1,0 +1,43 @@
+-- Go plugin for neovim
+return {
+  -- {
+  --   "olexsmir/gopher.nvim",
+  --   commands = {
+  --     go = "go",
+  --     gomodifytags = "gomodifytags",
+  --     gotests = "~/go/bin/gotests", -- also you can set custom command path
+  --     impl = "impl",
+  --     iferr = "iferr",
+  --   },
+  --
+  --   keys = {
+  --     --dependency
+  --     { "<leader>oi", "<cmd>GoInstallDeps<cr>", desc = "Installation requires this go tool" },
+  --     --test
+  --     { "<leader>oo", "<cmd>GoTestAdd<cr>", desc = "Generate one test for spesific function/method" },
+  --
+  --     { "<leader>oa", "<cmd>GoTestsAll<cr>", desc = "Generate one test for spesific function/method" },
+  --     {
+  --       "<leader>op",
+  --       "<cmd>GoTestsExp<cr>",
+  --       desc = "Generate tests only for exported functions/methods in current file",
+  --     },
+  --     --mod
+  --     { "<leader>omt", "<cmd>GoMod tidy<cr>", desc = "Runs `go mod tidy`" },
+  --     --TODO :🐛run go mod init ...
+  --     { "<leader>omi", "<cmd>GoMod init mod<cr>", desc = "Runs `go mod init`TODO" },
+  --     --tag
+  --     { "<leader>ota", "<cmd>GoTagAdd<cr>", desc = "Add tag (default:json)" },
+  --     { "<leader>otr", "<cmd>GoTagRm<cr>", desc = "Remove tag (default:json)" },
+  --     --TODO:🐛run go get ...
+  --     { "<leader>og", "<cmd>GoGet<cr>", desc = "Runs `go get` TODO" },
+  --     --generate
+  --     { "<leader>on", "<cmd>GoGenerate<cr>", desc = "Run `go generate` in cwd path" },
+  --     { "<leader>of", "<cmd>GoGenerate %<cr>", desc = "Run `go generate` for current file" },
+  --     --doc
+  --     { "<leader>od", "<cmd>GoCmt<cr>", desc = "Generate doc comment" },
+  --     --err
+  --     { "<leader>oe", "<cmd>GoIfErr<cr>", desc = "Generate if err" },
+  --   },
+  -- },
+}

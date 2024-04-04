@@ -1,0 +1,54 @@
+[pyprland]
+plugins = [
+  "scratchpads",
+  "magnify",
+  "expose",
+  "shift_monitors",
+  "toggle_special",
+]
+
+[scratchpads.term]
+lazy = true
+command = "kitty ~/.config/hypr/scripts/tmux-scrachpad.sh"
+
+# FIXME: this is not working
+[scratchpads.warp]
+lazy = true
+command = "warp-terminal"
+
+[scratchpads.volume]
+animation = "fromtop"
+command = "pavucontrol"
+class = "pavucontrol"
+lazy = true
+size = "70% 40%"
+unfocus = "hide"
+
+[scratchpads.thunar]
+lazy = true
+command = "thunar"
+
+[scratchpads.nautilus]
+lazy = true
+command = "nautilus"
+
+
+[scratchpads.firefox]
+lazy = true
+command = "firefox"
+
+
+[scratchpads.firefox-nightly]
+lazy = true
+command = "firefox-nightly"
+
+[scratchpads.thorium]
+lazy = true
+command = "thorium-browser"
+
+
+[scratchpads.edge]
+lazy = true
+command = "microsoft-edge-stable"
+
+

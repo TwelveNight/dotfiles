@@ -1,0 +1,664 @@
+{
+  "workbench.colorTheme": "Catppuccin Mocha",
+  "window.menuBarVisibility": "toggle",
+  "editor.fontFamily": "'FiraCode Nerd Font','Maple Mono', 'monospace', monospace",
+  "editor.fontLigatures": true,
+  "editor.fontSize": 18,
+  "editor.scrollbar.vertical": "hidden",
+  "editor.scrollbar.verticalScrollbarSize": 0,
+  "security.workspace.trust.untrustedFiles": "newWindow",
+  "security.workspace.trust.startupPrompt": "never",
+  "security.workspace.trust.enabled": false,
+  //"editor.minimap.side": "left",
+  "extensions.autoUpdate": false,
+  // "workbench.statusBar.visible": false,
+  "terminal.external.linuxExec": "kitty",
+  "terminal.explorerKind": "both",
+  "terminal.sourceControlRepositoriesKind": "both",
+  "telemetry.telemetryLevel": "off",
+  "[c]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+  },
+  "[cpp]": {
+    "editor.defaultFormatter": "xaver.clang-format"
+  },
+  "[go]": {
+    "editor.defaultFormatter": "golang.go"
+  },
+  "[html]": {
+    "editor.defaultFormatter": "vscode.html-language-features"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python",
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4,
+    "editor.formatOnType": true
+  },
+  "[css]": {
+    "editor.defaultFormatter": "vscode.css-language-features"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "C_Cpp.autocompleteAddParentheses": true,
+  "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google}",
+  "C_Cpp.formatting": "disabled",
+  "C_Cpp.vcFormat.indent.braces": true,
+  "C_Cpp.vcFormat.indent.caseContentsWhenBlock": true,
+  "clang-format.executable": "clang-format",
+  "clangd.onConfigChanged": "restart",
+  "clangd.arguments": [
+    // "--compile-commands-dir=${workspaceFolder}/build", // compile data base path
+    "--query-driver=/usr/bin/clang-*,/usr/bin/g++-*",
+    "--background-index", // 后台建立索引，并持久化到disk
+    "--clang-tidy", // 开启clang-tidy
+    "--completion-style=detailed",
+    "--header-insertion=iwyu",
+    "--pch-storage=memory",
+    // 启用这项时，补全函数时，将会给参数提供占位符，键入后按 Tab 可以切换到下一占位符
+    "--function-arg-placeholders=false",
+    "--log=verbose",
+    // 输入建议中，已包含头文件的项与还未包含头文件的项会以圆点加以区分
+    "--header-insertion-decorators",
+    "-j=12",
+    "--pretty",
+    "--inlay-hints=true"
+    // 建议排序模型
+  ],
+  "cmake.cmakePath": "cmake",
+  "cmake.build.workspaceTargets": [],
+  "cmake.configureOnOpen": true,
+  "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+  "cmake.cpptools.intelliSenseMode": "gcc-x64",
+  "editor.mouseWheelZoom": true,
+  "editor.tabCompletion": "on",
+  "errorLens.enabledDiagnosticLevels": [
+    "warning",
+    "error"
+  ],
+  /* vim settings start */
+  "vim.camelCaseMotion.enable": true,
+  "vim.easymotion": true,
+  "vim.foldfix": true, // to avoid fold open up autocamatically
+  "vim.sneak": false,
+  "vim.surround": true,
+  "vim.useCtrlKeys": true,
+  "vim.useSystemClipboard": true,
+  "vim.vimrc.enable": true,
+  "vim.vimrc.path": "$HOME/.vsvimrc",
+  "vim.handleKeys": {
+    "<C-a>": false,
+    "<C-f>": false,
+    "<C-i>": true,
+    "<C-o>": true,
+    "<C-r>": true,
+    "<C-s>": false,
+    "<C-v>": true,
+    "<C-w>": true,
+    "<C-u>": false,
+    "<C-d>": false,
+    "<C-n>": false,
+    "<C-p>": true,
+  },
+  "vim.hlsearch": true,
+  "vim.incsearch": true,
+  "vim.statusBarColorControl": true,
+  "vim.statusBarColors.insert": "#5f0000",
+  "vim.statusBarColors.normal": "#005f5f",
+  "vim.statusBarColors.visual": "#5f00af",
+  "vim.statusBarColors.visualline": "#005f87",
+  "vim.statusBarColors.visualblock": "#86592d",
+  "vim.statusBarColors.replace": "#00000",
+  "vim.leader": ";",
+  "vim.normalModeKeyBindings": [
+    {
+      // which key
+      "before": [
+        "<space>"
+      ],
+      "commands": [
+        "whichkey.show"
+      ]
+    }
+  ],
+  "vim.normalModeKeyBindingsNonRecursive": [
+    {
+      "before": [
+        "tab"
+      ],
+      "commands": [
+        "editor.action.indentLines"
+      ]
+    },
+    {
+      "before": [
+        "<s-tab>"
+      ],
+      "commands": [
+        "editor.action.outdentLines"
+      ]
+    },
+    {
+      "before": [
+        "E"
+      ],
+      "after": [
+        "g",
+        "T"
+      ]
+    },
+    {
+      "before": [
+        "R"
+      ],
+      "after": [
+        "g",
+        "t"
+      ]
+    },
+    {
+      "before": [
+        "K"
+      ],
+      "commands": [
+        // "editor.action.showDefinitionPreviewHover"
+        "editor.action.showHover"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "f"
+      ],
+      "commands": [
+        "editor.action.formatDocument"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "g",
+        "q"
+      ],
+      "commands": [
+        "workbench.action.closeEditorsInGroup"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "w",
+        "d"
+      ],
+      "commands": [
+        "workbench.action.closeEditorsInGroup"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "b",
+        "d"
+      ],
+      "commands": [
+        "workbench.action.closeActiveEditor"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "u"
+      ],
+      "commands": [
+        "editor.action.referenceSearch.trigger"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "U"
+      ],
+      "commands": [
+        "references-view.findReferences"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "i",
+        "n"
+      ],
+      "commands": [
+        "references-view.showCallHierarchy"
+      ]
+    },
+    // -- run
+    {
+      "before": [
+        "<leader>",
+        "r"
+      ],
+      "commands": [
+        "workbench.action.files.save",
+        "workbench.action.debug.run"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "d",
+        "r"
+      ],
+      "commands": [
+        "workbench.action.files.save",
+        "workbench.action.debug.start"
+      ]
+    },
+    // -- debug
+    {
+      "before": [
+        "<leader>",
+        "d",
+        "b"
+      ],
+      "commands": [
+        "editor.debug.action.toggleBreakpoint"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "d",
+        "c"
+      ],
+      "commands": [
+        "editor.debug.action.conditionalBreakpoint"
+      ]
+    },
+    // -- problem nav
+    // fix <C-d> and <C-u>
+    {
+      "before": [
+        "<leader>",
+        "d",
+        "k"
+      ],
+      "commands": [
+        "editor.action.marker.prev"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "d",
+        "j"
+      ],
+      "commands": [
+        "editor.action.marker.next"
+      ]
+    },
+    // -- git hunk nav
+    {
+      "before": [
+        "<leader>",
+        "k"
+      ],
+      "commands": [
+        "workbench.action.editor.previousChange",
+        "editor.action.dirtydiff.previous"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "j"
+      ],
+      "commands": [
+        "workbench.action.editor.nextChange",
+        "editor.action.dirtydiff.next"
+      ]
+    },
+    // git (un)stage
+    {
+      "before": [
+        "<leader>",
+        "h",
+        "s"
+      ],
+      "commands": [
+        "git.stage"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "h",
+        "u"
+      ],
+      "commands": [
+        "git.unstage"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "h",
+        "r"
+      ],
+      "commands": [
+        "git.revertSelectedRanges"
+      ]
+    },
+    // -- rename symbol
+    {
+      "before": [
+        "<leader>",
+        "r",
+        "n"
+      ],
+      "commands": [
+        "editor.action.rename"
+      ]
+    },
+    // search
+    {
+      "before": [
+        "<leader>",
+        "f",
+        "w"
+      ],
+      "commands": [
+        "extension.searchUnderCursor"
+      ]
+    },
+    // gg and G jump mark
+    {
+      "before": [
+        "g",
+        "g"
+      ],
+      "after": [
+        "m",
+        "a",
+        "g",
+        "g"
+      ]
+    },
+    // easy motion
+    {
+      "before": [
+        "s"
+      ],
+      "after": [
+        "<leader>",
+        "<leader>",
+        "s"
+      ]
+    },
+    {
+      "before": [
+        "f"
+      ],
+      "after": [
+        "<leader>",
+        "<leader>",
+        "f"
+      ]
+    },
+    {
+      "before": [
+        "F"
+      ],
+      "after": [
+        "<leader>",
+        "<leader>",
+        "F"
+      ]
+    },
+    // open settings
+    {
+      "before": [
+        "<leader>",
+        "s"
+      ],
+      "commands": [
+        "workbench.action.openSettings"
+      ]
+    },
+    // 窗口分割与移动
+    {
+      "before": [
+        "<leader>",
+        "\\"
+      ],
+      "commands": [
+        "workbench.action.splitEditor"
+      ]
+    },
+    {
+      "before": [
+        "<leader>",
+        "-"
+      ],
+      "commands": [
+        "workbench.action.splitEditorDown"
+      ]
+    },
+    // {
+    //   "before": [
+    //     "K"
+    //   ],
+    //   "commands": [
+    //     "editor.action.moveLinesUpAction"
+    //   ]
+    // },
+    // {
+    //   "before": [
+    //     "J"
+    //   ],
+    //   "commands": [
+    //     "editor.action.moveLinesDownAction"
+    //   ]
+    // }
+  ],
+  "vim.visualModeKeyBindings": [
+    {
+      "before": [
+        "K"
+      ],
+      "commands": [
+        "editor.action.moveLinesUpAction"
+      ]
+    },
+    {
+      "before": [
+        "J"
+      ],
+      "commands": [
+        "editor.action.moveLinesDownAction"
+      ]
+    },
+    {
+      // which key
+      "before": [
+        "<space>"
+      ],
+      "commands": [
+        "whichkey.show"
+      ]
+    },
+    // repeatly indent in visual mode
+    {
+      "before": [
+        ">"
+      ],
+      "commands": [
+        "editor.action.indentLines"
+      ]
+    },
+    {
+      "before": [
+        "<"
+      ],
+      "commands": [
+        "editor.action.outdentLines"
+      ]
+    }
+  ],
+  "vim.visualModeKeyBindingsNonRecursive": [
+    {
+      "before": [
+        "<leader>",
+        "f"
+      ],
+      "commands": [
+        "editor.action.formatSelection"
+      ]
+    },
+    {
+      // p action will not override clipboard content
+      "before": [
+        "p"
+      ],
+      "after": [
+        "p",
+        "g",
+        "v",
+        "y"
+      ]
+    },
+    {
+      "before": [
+        "tab"
+      ],
+      "commands": [
+        "editor.action.indentLines"
+      ]
+    },
+    {
+      "before": [
+        "<s-tab>"
+      ],
+      "commands": [
+        "editor.action.outdentLines"
+      ]
+    },
+  ],
+  /* vim settings end */
+  "vsicons.dontShowNewVersionMessage": true,
+  /* which key bindings */
+  "whichkey.bindings": [
+    {
+      "key": "e",
+      "name": "Show tree/explorer view",
+      "type": "conditional",
+      "bindings": [
+        {
+          "key": "",
+          "name": "default",
+          "type": "command",
+          "command": "workbench.view.explorer"
+        },
+        {
+          "key": "when:sideBarVisible && explorerViewletVisible",
+          "name": "Hide explorer",
+          "type": "command",
+          "command": "workbench.action.toggleSidebarVisibility"
+        }
+      ]
+    },
+    {
+      "key": "o",
+      "name": "Outline",
+      "type": "command",
+      "command": "workbench.action.toggleAuxiliaryBar"
+    },
+    {
+      "key": "h",
+      "name": "bookmark",
+      "type": "command",
+      "command": "lineHighlightBookmark.toogleBookmarks"
+    },
+    {
+      "key": "g",
+      "name": "Source contrl",
+      "type": "command",
+      "command": "workbench.view.scm"
+    },
+    {
+      "command": "workbench.action.quickOpen",
+      "key": "f",
+      "name": "Find file",
+      "type": "command"
+    },
+    {
+      "command": "workbench.view.search",
+      "key": "F",
+      "name": "Search Word",
+      "type": "command"
+    },
+    {
+      "command": "search.action.openEditor",
+      "key": "w",
+      "name": "New Search Editor",
+      "type": "command"
+    },
+    {
+      "command": "workbench.action.gotoSymbol",
+      "key": "s",
+      "name": "Search document symbol",
+      "type": "command"
+    },
+    {
+      "command": "workbench.action.showAllSymbols",
+      "key": "S",
+      "name": "Search project symbol",
+      "type": "command"
+    },
+    {
+      "command": "code-runner.run",
+      "key": "r",
+      "name": "Run code",
+      "type": "command"
+    },
+    {
+      "command": "workbench.view.extensions",
+      "key": "m",
+      "name": "open extension market",
+      "type": "command"
+    },
+    {
+      "command": "workbench.action.files.openFolderViaWorkspace",
+      "key": "p",
+      "name": "open folder",
+      "type": "command"
+    },
+  ],
+  "files.autoSave": "afterDelay", // 自动保存
+  "workbench.colorCustomizations": {
+    "statusBar.background": "#005f5f",
+    "statusBar.noFolderBackground": "#005f5f",
+    "statusBar.debuggingBackground": "#005f5f",
+    "statusBar.foreground": "#ffffff",
+    "statusBar.debuggingForeground": "#ffffff"
+  },
+  "terminal.integrated.fontFamily": "'JetBrainsMono Nerd Font Mono'",
+  "terminal.integrated.fontSize": 18,
+  "window.zoomLevel": 1,
+  "extensions.experimental.affinity": {
+    "vscodevim.vim": 1,
+    "vscode.git": 5
+  },
+  "editor.formatOnSave": true,
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "code-runner.runInTerminal": true,
+  "RainbowBrackets.depreciation-notice": false,
+  "workbench.iconTheme": "vscode-icons",
+  "terminal.integrated.gpuAcceleration": "on",
+}

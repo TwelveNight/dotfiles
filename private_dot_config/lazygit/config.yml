@@ -1,0 +1,14 @@
+gui:
+  nerdFontsVersion: "3"
+confirmOnQuit: true
+git:
+  paging:
+    colorArg: always
+    pager: delta --dark --paging=never
+  overrideGpg: true
+keybinding:
+  universal:
+    return: "<Esc>"
+    # return: "<C-c>"
+    # prevBlock-alt: "<c-j>"
+    # nextBlock-alt: "<c-k>"

@@ -1,0 +1,29 @@
+[user]
+	name = TwelveNight
+	email = 1315640046@qq.com
+	signingkey = ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCRbXqG4WqPoLhKCY+q3jxNHxacckYbHHZVMHmvgETLfrICVUZNH31iGwpC/2W2nOAwOZS+Fpw1TnH63S4FlXjX05RSpqLZ+aDKbX1zBfKbXIb0pTnGfrbVJo4ucOR+z3avhMUjghyPw5/vc+qOGtuNteeRqvgsIN6AyXMQLvmWXipHuhx6SGZFfuxJrbb/qh7fzYtjPSI/5RLa4s2zZPO0igm1MvrBwroF/09srxmyRmJkL3YEr5AOBfBedFDlHEgJ4C0NTLCUaXY3uSKRnAbgrfo62JQEGI8O3eGVTpAOC/YPoPr2KjHaYahVo7iBeMvv0DryigkK7j9hZ0VMZI0Dsxc1uJ+vAzZZvOwsxTmwjSoBpWPrau+cdMzd2hxNZUg1P754Wgb7YEqWPl1kPn5cmpff4l1BK2PzlCcn4Naiv52A694T+0Wss9oPNM/qH0HzyS2kn1nsIkzFLqfyuytEn2WLyjedvU7k8mDXimYb8QhbuZDkfWSZSJ7zPvBmBsk=
+[core]
+	autocrlf = input
+  pager = delta
+; [url "git@github.com:"]
+; 	insteadOf = https://github.com/
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	program = /opt/1Password/op-ssh-sign
+[commit]
+	gpgsign = true
+[init]
+	defaultBranch = main
+
+[interactive]
+  diffFilter = delta --color-only
+[delta]
+  syntax-theme = Nord
+  features = side-by-side line-numbers decorations
+  navigate = true    # use n and N to move between diff sections
+  light = false      # set to true if you're in a terminal w/ a light background color (e.g. the default macOS terminal)
+[merge]
+  conflictstyle = diff3
+[diff]
+  colorMoved = default

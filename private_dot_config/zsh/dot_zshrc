@@ -1,0 +1,61 @@
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+# Created by Zap installer
+[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/zap/zap.zsh" ] && source "${XDG_DATA_HOME:-$HOME/.local/share}/zap/zap.zsh"
+
+# exports
+plug "$HOME/.config/zsh/utils/exports.zsh"
+
+# prompt
+# plug "zap-zsh/zap-prompt"
+# plug "romkatv/powerlevel10k"
+
+# plugins
+plug "zsh-users/zsh-autosuggestions"
+plug "zap-zsh/supercharge"
+plug "zsh-users/zsh-syntax-highlighting"
+plug "zsh-users/zsh-history-substring-search"
+plug "zap-zsh/sudo"
+plug "MichaelAquilina/zsh-you-should-use"
+plug "agkozak/zsh-z"
+plug "$HOME/.config/zsh/plugins/fzf/fzf.plugin.zsh"
+plug "zap-zsh/fzf"
+plug "Aloxaf/fzf-tab"
+plug "Freed-Wu/fzf-tab-source"
+export VI_MODE_ESC_INSERT="jk" && plug "zap-zsh/vim"
+
+# function zvm_config() {
+#   ZVM_LINE_INIT_MODE=$ZVM_MODE_INSERT
+#   ZVM_VI_INSERT_ESCAPE_BINDKEY=jk
+# }
+# plug "jeffreytse/zsh-vi-mode"
+
+plug "joshskidmore/zsh-fzf-history-search"
+plug "wintermi/zsh-golang"
+# plug "chivalryq/git-alias"
+
+# source
+plug "$HOME/.config/zsh/utils/aliases.zsh"
+plug "$HOME/.config/zsh/utils/bindkey.zsh"
+
+# Load and initialise completion system
+autoload -Uz compinit
+compinit
+
+
+compinit -d "$XDG_CACHE_HOME"/zsh/zcompdump-"$ZSH_VERSION"
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ${ZDOTDIR:-~}/.p10k.zsh ]] || source ${ZDOTDIR:-~}/.p10k.zsh
+
+export GOPATH="$HOME/go"; export GOROOT="$HOME/.go"; export PATH="$GOPATH/bin:$PATH"; # g-install: do NOT edit, see https://github.com/stefanmaric/g
+
+#fuck
+eval $(thefuck --alias)
+
+source /home/night/.config/broot/launcher/bash/br
