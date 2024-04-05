@@ -26,6 +26,9 @@ export JUPYTER_CONFIG_DIR="$XDG_CONFIG_HOME"/jupyter
 # ipython
 export IPYTHONDIR="$XDG_CONFIG_HOME/ipython"
 
+# go
+export GOPATH="$XDG_DATA_HOME"/go
+
 # icons
 export XCURSOR_PATH=/usr/share/icons:$XDG_DATA_HOME/icons
 
