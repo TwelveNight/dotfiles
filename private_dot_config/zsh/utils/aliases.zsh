@@ -134,8 +134,17 @@ alias dklf='docker logs -f'
 alias cl='clear'
 
 # ranger
-alias ra='ranger'
+# alias ra='ranger'
+function ranger_wrapper {
+    /usr/bin/env ranger $*
+    local quit_cd_wd_file="$HOME/.cache/ranger/quit_cd_wd"
+    if [ -s "$quit_cd_wd_file" ]; then
+        cd "$(cat $quit_cd_wd_file)"
+        true > "$quit_cd_wd_file"
+    fi
+}
 
+alias ra='ranger_wrapper'
 
 # zsh
 alias zshrc='nvim ~/.zshrc'
@@ -176,7 +185,6 @@ alias wget=wget --hsts-file="$XDG_DATA_HOME/wget-hsts"
 
 eval "$(zoxide init zsh --cmd cd)"
 
-
 if [[ $TERM == "xterm-kitty" ]]; then
   alias ssh="kitty +kitten ssh"
 fi
@@ -199,5 +207,3 @@ CYGWIN* | MINGW32* | MSYS* | MINGW*)
 	# echo 'Other OS'
 	;;
 esac
-
-# test
