@@ -3,7 +3,7 @@
   "window.menuBarVisibility": "toggle",
   "editor.fontFamily": "'FiraCode Nerd Font','Maple Mono', 'monospace', monospace",
   "editor.fontLigatures": true,
-  "editor.fontSize": 18,
+  "editor.fontSize": 16,
   "editor.scrollbar.vertical": "hidden",
   "editor.scrollbar.verticalScrollbarSize": 0,
   "security.workspace.trust.untrustedFiles": "newWindow",
@@ -568,8 +568,13 @@
       ]
     }
   ],
-  /* vim settings end */
   "vsicons.dontShowNewVersionMessage": true,
+  /* auto change input methed between normal and insert mode */
+  "vim.autoSwitchInputMethod.enable": true,
+  "vim.autoSwitchInputMethod.defaultIM": "1",
+  "vim.autoSwitchInputMethod.obtainIMCmd": "/usr/bin/fcitx5-remote",
+  "vim.autoSwitchInputMethod.switchIMCmd": "/usr/bin/fcitx5-remote -t {im}",
+  /* vim settings end */
   /* which key bindings */
   "whichkey.bindings": [
     {
@@ -679,10 +684,6 @@
   "RainbowBrackets.depreciation-notice": false,
   "workbench.iconTheme": "vscode-icons",
   "terminal.integrated.gpuAcceleration": "on",
-  "apc.imports": [
-    "file:///home/night/.vscode-oss/extensions/brandonkirbyson.vscode-animations-2.0.1-universal/dist/updateHandler.js"
-  ],
-  "animations.Enabled": true,
   "editor.cursorSmoothCaretAnimation": "on",
   "editor.cursorBlinking": "smooth",
   "files.associations": {

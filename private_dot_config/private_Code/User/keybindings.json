@@ -141,6 +141,16 @@
 		"command": "selectPrevSuggestion",
 		"when": "editorTextFocus && suggestWidgetMultipleSuggestions && suggestWidgetVisible"
 	},
+	{ // move down at auto completion prompt
+		"key": "ctrl+n",
+		"command": "selectNextSuggestion",
+		"when": "editorTextFocus && suggestWidgetMultipleSuggestions && suggestWidgetVisible"
+	},
+	{ // move up at auto completion prompt
+		"key": "ctrl+p",
+		"command": "selectPrevSuggestion",
+		"when": "editorTextFocus && suggestWidgetMultipleSuggestions && suggestWidgetVisible"
+	},
 	{ // move up at quick open
 		"key": "ctrl+k",
 		"command": "workbench.action.quickOpenNavigatePrevious",
@@ -337,10 +347,10 @@
 		"command": "-editor.action.startFindReplaceAction",
 		"when": "editorFocus || editorIsOpen"
 	},
-	{
-		"key": "ctrl+p",
-		"command": "-workbench.action.quickOpen"
-	},
+	// {
+	// 	"key": "ctrl+p",
+	// 	"command": "-workbench.action.quickOpen"
+	// },
 	{
 		"key": "ctrl+h",
 		"command": "-java.action.showTypeHierarchy",
@@ -553,11 +563,11 @@
 		"key": "alt+backspace",
 		"command": "git.stageChange"
 	},
-	{
-		"key": "ctrl+n",
-		"command": "editor.action.triggerParameterHints",
-		"when": "editorHasSignatureHelpProvider && editorTextFocus"
-	},
+	// {
+	// 	"key": "ctrl+n",
+	// 	"command": "editor.action.triggerParameterHints",
+	// 	"when": "editorHasSignatureHelpProvider && editorTextFocus"
+	// },
 	{
 		"key": "ctrl+m",
 		"command": "-editor.action.toggleTabFocusMode"
@@ -697,18 +707,18 @@
 		"key": "ctrl+=",
 		"command": "workbench.action.zoomIn"
 	},
-	{
-		"key": "ctrl+n",
-		"command": "editor.action.addSelectionToNextFindMatch",
-		"when": "editorFocus"
-	},
+	// {
+	// 	"key": "ctrl+n",
+	// 	"command": "editor.action.addSelectionToNextFindMatch",
+	// 	"when": "editorFocus"
+	// },
 	{
 		"key": "ctrl+u",
 		"command": "editor.action.moveSelectionToNextFindMatch",
 		"when": "editorFocus"
 	},
-	{
-		"key": "ctrl+p",
-		"command": "editor.action.moveSelectionToPreviousFindMatch"
-	}
+	// {
+	// 	"key": "ctrl+p",
+	// 	"command": "editor.action.moveSelectionToPreviousFindMatch"
+	// }
 ]
