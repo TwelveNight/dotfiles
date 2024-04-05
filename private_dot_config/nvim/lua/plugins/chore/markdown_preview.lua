@@ -7,8 +7,8 @@ return {
       vim.g.mkdp_auto_start = 1
     end,
     keys = {
-      { "<leader>wp", "<cmd>MarkdownPreview<cr>" },
-      { "<leader>wq", "<cmd>MarkdownPreviewStop<cr>" },
+      { "<leader>wp", "<cmd>MarkdownPreview<cr>", desc = "Start markdown preview" },
+      { "<leader>wq", "<cmd>MarkdownPreviewStop<cr>", desc = "Stop markdown preview" },
     },
   },
 }
