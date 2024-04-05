@@ -171,6 +171,9 @@ alias cmreadd='chezmoi re-add'
 alias cmdiff='chezmoi diff'
 alias cmmerge='chezmoi merge'
 
+# wget
+alias wget=wget --hsts-file="$XDG_DATA_HOME/wget-hsts"
+
 eval "$(zoxide init zsh --cmd cd)"
 
 
