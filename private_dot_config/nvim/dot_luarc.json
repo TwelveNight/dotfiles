@@ -2,5 +2,9 @@
     "diagnostics.disable": [
         "deprecated"
     ],
-    "completion.autoRequire": false
+    "completion.autoRequire": false,
+    "diagnostics.globals": [
+        "local",
+        "yazi"
+    ]
 }
