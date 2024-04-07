@@ -40,6 +40,7 @@ plug "wintermi/zsh-golang"
 # plug "chivalryq/git-alias"
 
 # source
+plug "$HOME/.config/zsh/utils/function.zsh"
 plug "$HOME/.config/zsh/utils/aliases.zsh"
 plug "$HOME/.config/zsh/utils/bindkey.zsh"
 
