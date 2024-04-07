@@ -8,7 +8,7 @@ sort_by        = "alphabetical"
 sort_sensitive = false
 sort_reverse   = false
 sort_dir_first = false
-linemode       = "none"
+linemode       = "size"
 show_hidden    = false
 show_symlink   = true
 scrolloff      = 5
@@ -88,10 +88,19 @@ image_bound      = [ 0, 0 ]
 suppress_preload = false
 
 [plugin]
+
 prepend_previewers = [
   { name = "*.md", run = "glow" },
   { mime = "audio/*", run = "exifaudio"},
+  { name = "*/", run = "folder", sync = true },
+  { name = "*.csv", run = "preview" },
+  { mime = "text/*", run = "code" },
+  { mime = "*/xml", run = "code" },
+  { mime = "*/javascript", run = "code" },
+  { mime = "*/x-wine-extension-ini", run = "code" },
+  # { name = "*", run = "preview" },
 ]
+
 append_previewers = [
   { name = "*", run = "hexyl" },
 ]
