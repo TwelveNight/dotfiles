@@ -29,6 +29,7 @@ edit = [
 	{ run = '${EDITOR:=vi} "$@"', desc = "$EDITOR", block = true, for = "unix" },
 	{ run = 'code "$@"',    orphan = true, desc = "code",         for = "unix" },
 	{ run = 'code -w "$@"', block = true,  desc = "code (block)", for = "unix" },
+	{ run = 'xmind "$@"',   desc = "code (block)",block = true, for = "unix" },
 	{ run = 'code "%*"',    orphan = true, desc = "code",         for = "windows" },
 	{ run = 'code -w "%*"', block = true,  desc = "code (block)", for = "windows" },
 ]
@@ -76,6 +77,7 @@ rules = [
 	{ mime = "application/x-rar",           use = [ "extract", "reveal" ] },
 	{ mime = "application/xz",              use = [ "extract", "reveal" ] },
 
+  { name = "*.xmind", use = [ "edit", "reveal" ] },
 	{ mime = "*", use = [ "open", "reveal" ] },
 ]
 
