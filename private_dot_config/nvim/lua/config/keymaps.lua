@@ -10,6 +10,7 @@ local opts = { noremap = true, silent = true }
 -- local noremap = true, silent = true = { noremap = true, silent = true }
 -- back
 keymap.set("i", "jk", "<Esc>")
+keymap.set("i", "kj", "<Esc>")
 
 -- Center C-d and C-u
 keymap.set("n", "<C-d>", "<C-d>zz", opts)
@@ -193,6 +194,11 @@ keymap.set(
   "<cmd>Lspsaga outgoing_calls<cr>",
   { noremap = true, silent = true, desc = "outgoing_calls" }
 )
+
+keymap.set("n", "<leader>Sx", require("substitute.exchange").operator, { noremap = true })
+keymap.set("n", "<leader>Sxx", require("substitute.exchange").line, { noremap = true })
+keymap.set("x", "X", require("substitute.exchange").visual, { noremap = true })
+keymap.set("n", "<leader>sxc", require("substitute.exchange").cancel, { noremap = true })
 
 -- Launch lazygit as full screen
 local Util = require("lazyvim.util")

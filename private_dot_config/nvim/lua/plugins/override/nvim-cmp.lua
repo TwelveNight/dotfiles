@@ -17,6 +17,7 @@ return {
       end
 
       -- vim.api.nvim_set_hl(0, "PopMenu", { bg = "#1F2335", blend = 0 })
+      vim.opt.pumblend = 0
       local win_opt = {
         border = "single",
         col_offset = 0,
