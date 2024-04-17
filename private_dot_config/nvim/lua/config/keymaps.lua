@@ -29,7 +29,7 @@ keymap.set("n", "Q", "<cmd>bdelete<cr>", { desc = "Kill Buffer" })
 
 -- move
 keymap.set("i", "<C-j>", "<Down>", { noremap = true, silent = true, desc = "down" })
-keymap.set("i", "<C-p>", "<Up>", { noremap = true, silent = true, desc = "up" })
+keymap.set("i", "<C-k>", "<Up>", { noremap = true, silent = true, desc = "up" })
 keymap.set("i", "<C-h>", "<Left>", { noremap = true, silent = true, desc = "left" })
 keymap.set("i", "<C-l>", "<Right>", { noremap = true, silent = true, desc = "right" })
 keymap.set("i", "<C-e>", "<End>", { noremap = true, silent = true, desc = "end" })
@@ -93,6 +93,18 @@ keymap.set(
 keymap.set(
   "n",
   "<leader>Gp",
+  ":lua require('copilot.suggestion').prev()<cr>",
+  { noremap = true, silent = true, desc = "Prev" }
+)
+keymap.set(
+  "i",
+  "<M-n>",
+  ":lua require('copilot.suggestion').next()<cr>",
+  { noremap = true, silent = true, desc = "Next" }
+)
+keymap.set(
+  "i",
+  "<M-p>",
   ":lua require('copilot.suggestion').prev()<cr>",
   { noremap = true, silent = true, desc = "Prev" }
 )
