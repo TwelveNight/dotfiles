@@ -3,7 +3,7 @@ return {
     "zbirenbaum/copilot.lua",
     cmd = "Copilot",
     build = ":Copilot auth",
-    event = "User AstroFile",
+    event = "InsertEnter",
     -- opts = { suggestion = { auto_trigger = true, debounce = 150 } },
 
     opts = {
@@ -21,13 +21,13 @@ return {
     opts = function(_, opts)
       local cmp, copilot = require("cmp"), require("copilot.suggestion")
 
-      cmp.event:on("menu_opened", function()
-        vim.b.copilot_suggestion_hidden = true
-      end)
-
-      cmp.event:on("menu_closed", function()
-        vim.b.copilot_suggestion_hidden = false
-      end)
+      -- cmp.event:on("menu_opened", function()
+      --   vim.b.copilot_suggestion_hidden = true
+      -- end)
+      --
+      -- cmp.event:on("menu_closed", function()
+      --   vim.b.copilot_suggestion_hidden = false
+      -- end)
 
       if not opts.mapping then
         opts.mapping = {}
@@ -40,13 +40,13 @@ return {
         end
       end, { "i", "s" })
 
-      opts.mapping["<C-x>"] = cmp.mapping(function()
+      opts.mapping["<M-n>"] = cmp.mapping(function()
         if copilot.is_visible() then
           copilot.next()
         end
       end)
 
-      opts.mapping["<C-z>"] = cmp.mapping(function()
+      opts.mapping["<M-p>"] = cmp.mapping(function()
         if copilot.is_visible() then
           copilot.prev()
         end

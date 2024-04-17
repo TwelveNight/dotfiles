@@ -1,10 +1,12 @@
 {
     "diagnostics.disable": [
-        "deprecated"
+        "deprecated",
+        "need-check-nil"
     ],
     "completion.autoRequire": false,
     "diagnostics.globals": [
         "local",
-        "yazi"
+        "yazi",
+        "on_highlights"
     ]
 }
