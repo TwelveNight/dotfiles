@@ -1,15 +1,39 @@
 return {
+  -- {
+  --   "DreamMaoMao/yazi.nvim",
+  --   dependencies = {
+  --     "nvim-telescope/telescope.nvim",
+  --     "nvim-lua/plenary.nvim",
+  --   },
+  --
+  --   keys = {
+  --     { "<leader>gy", "<cmd>Yazi<CR>", desc = "Toggle Yazi" },
+  --     { "<a-u>", "<cmd>Yazi<CR>", desc = "Toggle Yazi" },
+  --     { "<leader>a", "<cmd>Yazi<CR>", desc = "Toggle Yazi" },
+  --   },
+  -- },
+
+  --@type LazySpec
   {
-    "DreamMaoMao/yazi.nvim",
+    "mikavilpas/yazi.nvim",
     dependencies = {
-      "nvim-telescope/telescope.nvim",
       "nvim-lua/plenary.nvim",
     },
+    event = "VeryLazy",
 
     keys = {
-      { "<leader>gy", "<cmd>Yazi<CR>", desc = "Toggle Yazi" },
-      { "<a-u>", "<cmd>Yazi<CR>", desc = "Toggle Yazi" },
-      { "<leader>a", "<cmd>Yazi<CR>", desc = "Toggle Yazi" },
+      {
+        -- 👇 choose your own keymapping
+        "<a-u>",
+        function()
+          require("yazi").yazi()
+        end,
+        { desc = "Open the file manager" },
+      },
+    },
+    --@type YaziConfig
+    opts = {
+      open_for_directories = false,
     },
   },
 }
