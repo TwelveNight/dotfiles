@@ -45,7 +45,7 @@ border_symbol = "│"
 border_style  = { fg = "gray" }
 
 # Highlighting
-syntect_theme = ""
+syntect_theme = "$HOME/.config/bat/themes/Catppuccin Mocha.tmTheme"
 
 # : }}}
 
