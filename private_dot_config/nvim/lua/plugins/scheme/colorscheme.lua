@@ -1,4 +1,10 @@
 return {
+  {
+    "LazyVim/LazyVim",
+    opts = {
+      colorscheme = "kanagawa",
+    },
+  },
   -- {
   --   "folke/tokyonight.nvim",
   --   require("notify").setup({
@@ -12,12 +18,6 @@ return {
   --     },
   --   },
   -- },
-  {
-    "LazyVim/LazyVim",
-    opts = {
-      colorscheme = "kanagawa",
-    },
-  },
   {
     "folke/tokyonight.nvim",
     opts = {
@@ -99,13 +99,5 @@ return {
 
   {
     "xiyaowong/transparent.nvim",
-  },
-
-  {
-    "hrsh7th/nvim-cmp",
-    opts = function()
-      vim.opt.pumblend = 0
-      vim.opt.winblend = 0
-    end,
   },
 }
