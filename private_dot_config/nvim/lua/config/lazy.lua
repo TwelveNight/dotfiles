@@ -22,7 +22,6 @@ require("lazy").setup({
     -- import/override with your plugins
     { import = "plugins" },
     { import = "plugins/scheme" },
-    -- { import = "plugins/code" },
     { import = "plugins/code/completion" },
     { import = "plugins/code/lsp" },
     { import = "plugins/code/lang/go" },

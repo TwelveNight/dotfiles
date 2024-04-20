@@ -32,8 +32,13 @@ keymap.set("i", "<C-j>", "<Down>", { noremap = true, silent = true, desc = "down
 keymap.set("i", "<C-k>", "<Up>", { noremap = true, silent = true, desc = "up" })
 keymap.set("i", "<C-h>", "<Left>", { noremap = true, silent = true, desc = "left" })
 keymap.set("i", "<C-l>", "<Right>", { noremap = true, silent = true, desc = "right" })
-keymap.set("i", "<C-e>", "<End>", { noremap = true, silent = true, desc = "end" })
-keymap.set("i", "<C-a>", "<Home>", { noremap = true, silent = true, desc = "home" })
+keymap.set("i", "<C-e>", "<C-o>$", { noremap = true, silent = true, desc = "end" })
+keymap.set("i", "<C-b>", "<C-o>^", { noremap = true, silent = true, desc = "home" })
+keymap.set("i", "<C-]>", "<Del>", { noremap = true, silent = true, desc = "backspace" })
+keymap.set("i", "<C-_>", "<BS>", { noremap = true, silent = true, desc = "backspace" })
+-- vim.keymap.set("i", "<C-_>", function()
+--   require("Comment.api").toggle.linewise.current()
+-- end, { noremap = true, silent = true })
 
 -- move line left or right
 keymap.set("n", "H", "^", { desc = "end" })
@@ -207,10 +212,10 @@ keymap.set(
   { noremap = true, silent = true, desc = "outgoing_calls" }
 )
 
-keymap.set("n", "<leader>Sx", require("substitute.exchange").operator, { noremap = true })
-keymap.set("n", "<leader>Sxx", require("substitute.exchange").line, { noremap = true })
-keymap.set("x", "X", require("substitute.exchange").visual, { noremap = true })
-keymap.set("n", "<leader>sxc", require("substitute.exchange").cancel, { noremap = true })
+-- keymap.set("n", "<leader>Sx", require("substitute.exchange").operator, { noremap = true })
+-- keymap.set("n", "<leader>Sxx", require("substitute.exchange").line, { noremap = true })
+-- keymap.set("x", "X", require("substitute.exchange").visual, { noremap = true })
+-- keymap.set("n", "<leader>sxc", require("substitute.exchange").cancel, { noremap = true })
 
 -- Launch lazygit as full screen
 local Util = require("lazyvim.util")
