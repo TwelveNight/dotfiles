@@ -32,10 +32,11 @@ keymap.set("i", "<C-j>", "<Down>", { noremap = true, silent = true, desc = "down
 keymap.set("i", "<C-k>", "<Up>", { noremap = true, silent = true, desc = "up" })
 keymap.set("i", "<C-h>", "<Left>", { noremap = true, silent = true, desc = "left" })
 keymap.set("i", "<C-l>", "<Right>", { noremap = true, silent = true, desc = "right" })
-keymap.set("i", "<C-e>", "<C-o>$", { noremap = true, silent = true, desc = "end" })
+keymap.set("i", "<C-g>", "<C-o>$", { noremap = true, silent = true, desc = "home" })
 keymap.set("i", "<C-b>", "<C-o>^", { noremap = true, silent = true, desc = "home" })
 keymap.set("i", "<C-]>", "<Del>", { noremap = true, silent = true, desc = "backspace" })
 keymap.set("i", "<C-_>", "<BS>", { noremap = true, silent = true, desc = "backspace" })
+
 -- vim.keymap.set("i", "<C-_>", function()
 --   require("Comment.api").toggle.linewise.current()
 -- end, { noremap = true, silent = true })
@@ -202,13 +203,13 @@ keymap.set("n", "<leader>k", "<cmd>Lspsaga hover_doc<CR>", { noremap = true, sil
 keymap.set(
   "n",
   "<leader>ci",
-  "<cmd>:Lspsaga incoming_calls<cr>",
+  "<cmd>:lua vim.lsp.buf.incoming_calls()<cr>",
   { noremap = true, silent = true, desc = "incoming_calls" }
 )
 keymap.set(
   "n",
   "<leader>co",
-  "<cmd>Lspsaga outgoing_calls<cr>",
+  "<cmd>:lua vim.lsp.buf.outgoing_calls()<cr>",
   { noremap = true, silent = true, desc = "outgoing_calls" }
 )
 
