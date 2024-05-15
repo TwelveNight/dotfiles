@@ -49,6 +49,6 @@ command = "thorium-browser"
 
 [scratchpads.edge]
 lazy = true
-command = "microsoft-edge-stable"
+command = "microsoft-edge-stable --enable-wayland-ime -use-gl=egl"
 
 
