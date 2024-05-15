@@ -84,6 +84,8 @@ const userConfigOptions = {
       "": "image-missing",
       firefoxnightly: "firefox-nightly",
       "codium-url-handler": "vscodium",
+      "jetbrains-datagrip": "datagrip",
+      "org.kde.filelight": "filelight",
     },
   },
 
