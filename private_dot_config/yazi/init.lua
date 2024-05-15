@@ -172,11 +172,12 @@ function Status:render(area)
 	}
 end
 
--- ~/.config/yazi/init.lua
+-- Bookmarks
 require("bookmarks"):setup({
 	save_last_directory = true,
+	persist = "all",
 	notify = {
-		enable = true,
+		enable = false,
 		timeout = 1,
 		message = {
 			new = "New bookmark '<key>' -> '<folder>'",
@@ -184,4 +185,9 @@ require("bookmarks"):setup({
 			delete_all = "Deleted all bookmarks",
 		},
 	},
+})
+
+-- Multiple processes at the same time
+require("session"):setup({
+	sync_yanked = true,
 })

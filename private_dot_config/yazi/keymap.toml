@@ -17,7 +17,7 @@ prepend_keymap = [
   { on  = [ "I" ], run  = "plugin keyjump --args=global", desc = "Keyjump (global mode)"},
   # bookmarks
   { on  = [ "m" ], run = "plugin bookmarks --args=save", desc = "Save current position as a bookmark"},
-  { on  = [ "\"" ], run = "plugin bookmarks --args=jump", desc = "Jump to a bookmark"},
+  { on  = [ "'" ], run = "plugin bookmarks --args=jump", desc = "Jump to a bookmark"},
   { on  = [ "b", "d" ], run = "plugin bookmarks --args=delete", desc = "Delete a bookmark"},
   { on  = [ "b", "D" ], run = "plugin bookmarks --args=delete_all", desc = "Delete all bookmarks"},
   # Copy selected files to the system clipboard while yanking
@@ -27,6 +27,9 @@ prepend_keymap = [
   { on = ["f","g"], run = "plugin fg", desc = "find file by content"},
   { on = ["f","f"], run = "plugin fg --args='fzf'", desc = "find file by file name"},
 
+  # maximize preview pane
+  { on = ["T"], run = "plugin --sync max-preview", desc = "maximize preview pane"},
+  { on = ["T"], run = "plugin --sync hide-preview", desc = "maximize preview pane"},
 ]
 
 keymap = [
@@ -172,19 +175,19 @@ keymap = [
 	{ on = [ "w" ], run = "tasks_show", desc = "Show the tasks manager" },
 
 	# Goto
-	{ on = [ "'", "c" ],       run = "cd ~/.config",     desc = "config" },
-	{ on = [ "'", "y" ],       run = "cd ~/.config/yazi",     desc = "yazi" },
-	{ on = [ "'", "h" ],       run = "cd ~/.config/hypr",     desc = "hypr" },
-	{ on = [ "'", "t" ],       run = "cd ~/.config/tmux",     desc = "tmux" },
-	{ on = [ "'", "n" ],       run = "cd ~/.config/nvim",     desc = "nvim" },
-	{ on = [ "'", "l" ],       run = "cd ~/.config/lvim",     desc = "lvim" },
-	{ on = [ "'", "a" ],       run = "cd ~/.config/ags",     desc = "ags" },
-	{ on = [ "'", "w" ],       run = "cd ~/Pictures/wallpaper",     desc = "wallpaper" },
-	{ on = [ "'", "H" ],       run = "cd ~",             desc = "home" },
-	{ on = [ "'", "D" ],       run = "cd ~/Downloads",   desc = "downloads" },
-	{ on = [ "'", "P" ],       run = "cd ~/Pictures",   desc = "downloads" },
-	{ on = [ "'", "T" ],       run = "cd /tmp",          desc = "temporary" },
-	{ on = [ "'", "<Space>" ], run = "cd --interactive", desc = "Go to a directory interactively" },
+	{ on = [ "g", "c" ],       run = "cd ~/.config",     desc = "config" },
+	{ on = [ "g", "y" ],       run = "cd ~/.config/yazi",     desc = "yazi" },
+	{ on = [ "g", "h" ],       run = "cd ~/.config/hypr",     desc = "hypr" },
+	{ on = [ "g", "t" ],       run = "cd ~/.config/tmux",     desc = "tmux" },
+	{ on = [ "g", "n" ],       run = "cd ~/.config/nvim",     desc = "nvim" },
+	{ on = [ "g", "l" ],       run = "cd ~/.config/lvim",     desc = "lvim" },
+	{ on = [ "g", "a" ],       run = "cd ~/.config/ags",     desc = "ags" },
+	{ on = [ "g", "w" ],       run = "cd ~/Pictures/wallpaper",     desc = "wallpaper" },
+	{ on = [ "g", "H" ],       run = "cd ~",             desc = "home" },
+	{ on = [ "g", "D" ],       run = "cd ~/Downloads",   desc = "downloads" },
+	{ on = [ "g", "P" ],       run = "cd ~/Pictures",   desc = "downloads" },
+	{ on = [ "g", "T" ],       run = "cd /tmp",          desc = "temporary" },
+	{ on = [ "g", "<Space>" ], run = "cd --interactive", desc = "Go to a directory interactively" },
 
 	# Help
 	{ on = [ "~" ], run = "help", desc = "Open help" },

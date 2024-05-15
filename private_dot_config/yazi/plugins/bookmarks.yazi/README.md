@@ -7,6 +7,13 @@ A [Yazi](https://github.com/sxyazi/yazi) plugin that adds the basic functionalit
 
 https://github.com/dedukun/bookmarks.yazi/assets/25795432/9a9fe345-dd06-442e-99f1-8475ab22fad5
 
+## Features
+
+ - Create/delete bookmarks
+ - Custom Notifications
+ - `''` to go back to the previous folder
+ - Bookmarks persistence
+
 ## Installation
 
 ```sh
@@ -52,6 +59,7 @@ The following are the default configurations:
 -- ~/.config/yazi/init.lua
 require("bookmarks"):setup({
 	save_last_directory = false,
+	persist = "none",
 	notify = {
 		enable = false,
 		timeout = 1,
@@ -66,8 +74,21 @@ require("bookmarks"):setup({
 
 ### `save_last_directory`
 
-When enabled, a new bookmark is automatically created in `''` which allows the user to jump back to
+When enabled, a new bookmark is automatically created in `'` which allows the user to jump back to
 the last directory.
+
+### `persist`
+
+When enabled the bookmarks will persist, i.e. if you close and reopen Yazi they will still be
+present.
+
+There are three possible values for this option:
+
+| Value  | Description                                                                                                            |
+| ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `none` | The default value, i.e., no persistance                                                                                |
+| `all`  | All the bookmarks are saved in persistent memory                                                                       |
+| `vim`  | This mode emulates the vim global marks, i.e., only the bookmarks in upper case (A-Z) are saved to persistent memory |
 
 ### `notify`
 
