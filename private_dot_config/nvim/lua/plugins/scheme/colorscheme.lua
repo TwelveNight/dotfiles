@@ -2,9 +2,30 @@ return {
   {
     "LazyVim/LazyVim",
     opts = {
-      colorscheme = "kanagawa",
+      colorscheme = "cyberdream",
     },
   },
+
+  {
+    "scottmckendry/cyberdream.nvim",
+    lazy = false,
+    priority = 1000,
+    config = function()
+      require("cyberdream").setup({
+        -- Recommended - see "Configuring" below for more config options
+        transparent = true,
+        italic_comments = true,
+        hide_fillchars = true,
+        borderless_telescope = true,
+        terminal_colors = true,
+      })
+      vim.cmd("colorscheme cyberdream") -- set the colorscheme
+      vim.opt.pumblend = 0
+      vim.opt.winblend = 0
+      vim.api.nvim_set_hl(0, "PopMenu", { bg = "none", blend = 0 }) --Remove transparency and set background of completion popup
+    end,
+  },
+
   -- {
   --   "folke/tokyonight.nvim",
   --   require("notify").setup({
