@@ -5,27 +5,8 @@ const userConfigOptions = {
   //   options listed in this file will override the default ones in the above file
   // Here's an example
 
-  ai: {
-    defaultGPTProvider: "zukijourney",
-    defaultTemperature: 0.9,
-    enhancements: true,
-    useHistory: true,
-    writingCursor: " ...", // Warning: Using weird characters can mess up Markdown rendering
-  },
-
-  appearance: {
-    keyboardUseFlag: false, // Use flag emoji instead of abbreviation letters
-    layerSmoke: false,
-    layerSmokeStrength: 0.2,
-    fakeScreenRounding: true,
-  },
-
   apps: {
-    bluetooth: "blueberry",
     imageViewer: "loupe",
-    network: 'XDG_CURRENT_DESKTOP="gnome" gnome-control-center wifi',
-    settings: 'XDG_CURRENT_DESKTOP="gnome" gnome-control-center wifi',
-    taskManager: "gnome-usage",
     terminal: "kitty", // This is only for shell actions
   },
 
@@ -58,19 +39,16 @@ const userConfigOptions = {
     interval: 5000,
     dateFormatLong: "%A, %m/%d", // On bar
     dateInterval: 5000,
-    dateFormat: "%m/%d", // On notif time
+    dateFormat: "%d/%m", // On notif time
   },
 
-  weather: {
-    city: "shanghai",
-  },
-
+  // Longer stuff
   icons: {
     // Find the window's icon by its class with levenshteinDistance
     // The file names are processed at startup, so if there
     // are too many files in the search path it'll affect performance
     // Example: ['/usr/share/icons/Tela-nord/scalable/apps']
-    // searchPaths: ["/usr/share/icons/fluent11/symbolic/apps"],
+    searchPaths: [""],
 
     substitutions: {
       "code-url-handler": "visual-studio-code",
@@ -82,11 +60,13 @@ const userConfigOptions = {
       wps: "wps-office2019-kprometheus",
       wpsoffice: "wps-office2019-kprometheus",
       "": "image-missing",
-      firefoxnightly: "firefox-nightly",
-      "codium-url-handler": "vscodium",
-      "jetbrains-datagrip": "datagrip",
-      "org.kde.filelight": "filelight",
     },
+    regexSubstitutions: [
+      {
+        regex: /^steam_app_(\d+)$/,
+        replace: "steam_icon_$1",
+      },
+    ],
   },
 
   keybinds: {

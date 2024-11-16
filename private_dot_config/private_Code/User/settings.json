@@ -696,4 +696,8 @@
   },
   "minapp-vscode.disableAutoConfig": true,
   "cmake.showOptionsMovedNotification": false,
+  "workbench.editorAssociations": {
+    "*.docx": "default"
+  },
+  "github.copilot.editor.enableAutoCompletions": true,
 }

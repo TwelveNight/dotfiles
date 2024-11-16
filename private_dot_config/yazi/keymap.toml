@@ -21,15 +21,30 @@ prepend_keymap = [
   { on  = [ "b", "d" ], run = "plugin bookmarks --args=delete", desc = "Delete a bookmark"},
   { on  = [ "b", "D" ], run = "plugin bookmarks --args=delete_all", desc = "Delete all bookmarks"},
   # Copy selected files to the system clipboard while yanking
-  { on  = [ "y" ], run =  [ "yank", ''' shell --confirm 'for path in "$@"; do echo "file://$path"; done | wl-copy -t text/uri-list' ''']},
-  
+  { on  = [ "y" ], run = [ "yank", '''
+	shell --confirm 'for path in "$@"; do echo "file://$path"; done | wl-copy -t text/uri-list'
+''' ]},
   # rg search with fzf file preview
-  { on = ["f","g"], run = "plugin fg", desc = "find file by content"},
+  { on = ["f","g"], run = "plugin fg", desc = "find file by content (fuzzy match)"},
+  { on = ["f","G"], run = "plugin fg --args='rg'", desc = "find file by content (ripgrep match)"},
   { on = ["f","f"], run = "plugin fg --args='fzf'", desc = "find file by file name"},
 
   # maximize preview pane
   { on = ["T"], run = "plugin --sync max-preview", desc = "maximize preview pane"},
   { on = ["T"], run = "plugin --sync hide-preview", desc = "maximize preview pane"},
+  # toggle tree/list dir preview
+  { on = [ "E" ], run = "plugin eza-preview",  desc = "Toggle tree/list dir preview" },
+
+  # sudo cp/mv
+  { on = ["R", "p"], run = "plugin sudo --args='paste'", desc = "sudo paste"},
+  # sudo ln -s (absolute-path)
+  { on = ["R", "l"], run = "plugin sudo --args='link'", desc = "sudo link"  },
+  # sudo touch/mkdir
+  { on = ["R", "a"], run = "plugin sudo --args='create'", desc = "sudo create"  },
+  # sudo trash
+  { on = ["R", "d"], run = "plugin sudo --args='remove'", desc = "sudo trash"},
+  # sudo delete
+  { on = ["R", "D"], run = "plugin sudo --args='remove -P'", desc = "sudo delete"},
 ]
 
 keymap = [
@@ -106,8 +121,8 @@ keymap = [
 	{ on = [ "D" ],         run = "remove --permanently",       desc = "Permanently delete the files" },
 	{ on = [ "a" ],         run = "create",                     desc = "Create a file or directory (ends with / for directories)" },
 	{ on = [ "r" ],         run = "rename --cursor=before_ext", desc = "Rename a file or directory" },
-	{ on = [ ";" ],         run = "shell",                      desc = "Run a shell command" },
-	{ on = [ ":" ],         run = "shell --block",              desc = "Run a shell command (block the UI until the command finishes)" },
+	{ on = [ ";" ],         run = "shell --interactive",                      desc = "Run a shell command" },
+	{ on = [ ":" ],         run = "shell --block --interactive",              desc = "Run a shell command (block the UI until the command finishes)" },
 	{ on = [ "." ],         run = "hidden toggle",              desc = "Toggle the visibility of hidden files" },
 	{ on = [ "s" ],         run = "search fd",                  desc = "Search files by name using fd" },
 	{ on = [ "S" ],         run = "search rg",                  desc = "Search files by content using ripgrep" },

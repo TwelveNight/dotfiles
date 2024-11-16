@@ -8,8 +8,8 @@ return {
     vim.g.rnvimr_bw_enable = 1
   end,
   keys = {
-    { "<M-o>", ":RnvimrToggle<CR>", desc = "ranger toggle" },
-    { "<M-o>", "<C-\\><C-n><cmd>RnvimrToggle<CR>", mode = { "t" }, desc = "Rnvimr Toggle" },
+    { "<M-u>", ":RnvimrToggle<CR>", desc = "ranger toggle" },
+    { "<M-u>", "<C-\\><C-n><cmd>RnvimrToggle<CR>", mode = { "t" }, desc = "Rnvimr Toggle" },
     { "<M-t>", "<C-\\><C-n>:RnvimrResize<CR>" },
   },
 }

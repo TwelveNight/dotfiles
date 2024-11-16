@@ -30,10 +30,10 @@ return {
         desc = "Lists Diagnostics for all open buffers or a specific buffer",
       },
       { ";D", "<cmd>Telescope diagnostics<cr>", desc = "Workspace Diagnostics" },
-      { ";f", LazyVim.telescope("files"), desc = "Find Files (Root Dir)" },
-      { ";F", LazyVim.telescope("files", { cwd = false }), desc = "Find Files (cwd)" },
-      { ";g", LazyVim.telescope("live_grep"), desc = "Grep (Root Dir)" },
-      { ";G", LazyVim.telescope("live_grep", { cwd = false }), desc = "Grep (cwd)" },
+      -- { ";f", LazyVim.telescope("files"), desc = "Find Files (Root Dir)" },
+      -- { ";F", LazyVim.telescope("files", { cwd = false }), desc = "Find Files (cwd)" },
+      -- { ";g", LazyVim.telescope("live_grep"), desc = "Grep (Root Dir)" },
+      -- { ";G", LazyVim.telescope("live_grep", { cwd = false }), desc = "Grep (cwd)" },
       { ";h", "<cmd>Telescope help_tags<cr>", desc = "Help Pages" },
       { ";k", "<cmd>Telescope keymaps<cr>", desc = "Key Maps" },
       { ";M", "<cmd>Telescope man_pages<cr>", desc = "Man Pages" },
@@ -66,33 +66,33 @@ return {
         end,
         desc = "Goto Symbol (Workspace)",
       },
-      { ";u", LazyVim.telescope("colorscheme", { enable_preview = true }), desc = "Colorscheme with Preview" },
-      { ";w", LazyVim.telescope("grep_string", { word_match = "-w" }), desc = "Word (Root Dir)" },
-      { ";W", LazyVim.telescope("grep_string", { cwd = false, word_match = "-w" }), desc = "Word (cwd)" },
-      { ";w", LazyVim.telescope("grep_string"), mode = "v", desc = "Selection (Root Dir)" },
-      { ";W", LazyVim.telescope("grep_string", { cwd = false }), mode = "v", desc = "Selection (cwd)" },
-      {
-        ";o",
-        function()
-          local telescope = require("telescope")
-
-          local function telescope_buffer_dir()
-            return vim.fn.expand("%:p:h")
-          end
-
-          telescope.extensions.file_browser.file_browser({
-            path = "%:p:h",
-            cwd = telescope_buffer_dir(),
-            respect_gitignore = false,
-            hidden = true,
-            grouped = true,
-            previewer = false,
-            initial_mode = "normal",
-            layout_config = { height = 40 },
-          })
-        end,
-        desc = "Open File Browser with the path of the current buffer",
-      },
+      -- { ";u", LazyVim.telescope("colorscheme", { enable_preview = true }), desc = "Colorscheme with Preview" },
+      -- { ";w", LazyVim.telescope("grep_string", { word_match = "-w" }), desc = "Word (Root Dir)" },
+      -- { ";W", LazyVim.telescope("grep_string", { cwd = false, word_match = "-w" }), desc = "Word (cwd)" },
+      -- { ";w", LazyVim.telescope("grep_string"), mode = "v", desc = "Selection (Root Dir)" },
+      -- { ";W", LazyVim.telescope("grep_string", { cwd = false }), mode = "v", desc = "Selection (cwd)" },
+      -- {
+      --   ";o",
+      --   function()
+      --     local telescope = require("telescope")
+      --
+      --     local function telescope_buffer_dir()
+      --       return vim.fn.expand("%:p:h")
+      --     end
+      --
+      --     telescope.extensions.file_browser.file_browser({
+      --       path = "%:p:h",
+      --       cwd = telescope_buffer_dir(),
+      --       respect_gitignore = false,
+      --       hidden = true,
+      --       grouped = true,
+      --       previewer = false,
+      --       initial_mode = "normal",
+      --       layout_config = { height = 40 },
+      --     })
+      --   end,
+      --   desc = "Open File Browser with the path of the current buffer",
+      -- },
     },
     config = function(_, opts)
       local telescope = require("telescope")
