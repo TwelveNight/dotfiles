@@ -43,3 +43,25 @@ if vim.env.TERM == "xterm-kitty" then
   vim.cmd("noremap  <ESC>[49;5u  :!echo C<CR>")
   vim.cmd("noremap  <ESC>[1;5P   :!echo D<CR>")
 end
+
+-- Function to check if the environment is WSL
+local function is_wsl()
+  return vim.fn.has("wsl") == 1
+end
+
+-- Configure clipboard based on environment
+if is_wsl() then
+  -- WSL-specific clipboard integration
+  vim.g.clipboard = {
+    name = "WslClipboard",
+    copy = {
+      ["+"] = "clip.exe",
+      ["*"] = "clip.exe",
+    },
+    paste = {
+      ["+"] = "powershell.exe -c \"[Console]::Out.Write($(Get-Clipboard -Raw).tostring().replace('`r', ''))\"",
+      ["*"] = "powershell.exe -c \"[Console]::Out.Write($(Get-Clipboard -Raw).tostring().replace('`r', ''))\"",
+    },
+    cache_enabled = 0,
+  }
+end
