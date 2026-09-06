@@ -1,5 +1,32 @@
-[plugin]
-deps = [{ use = "yazi-rs/plugins:full-border", rev = "ad52adf" }, { use = "lpnh/fg", rev = "43fb735" }]
+[[plugin.deps]]
+use = "yazi-rs/plugins:full-border"
+rev = "57f1863"
+hash = "3996fc74044bc44144b323686f887e1"
+
+[[plugin.deps]]
+use = "yazi-rs/plugins:smart-enter"
+rev = "57f1863"
+hash = "56fdabc96fc1f4d53c96eb884b02a5be"
+
+[[plugin.deps]]
+use = "yazi-rs/plugins:smart-filter"
+rev = "57f1863"
+hash = "407d19bc4fb46eff5fa8ff8337644847"
+
+[[plugin.deps]]
+use = "dedukun/bookmarks"
+rev = "9ef1254"
+hash = "92fbb5483657fa7976cdf4e0104e18e0"
+
+[[plugin.deps]]
+use = "yazi-rs/plugins:toggle-pane"
+rev = "57f1863"
+hash = "8a7c58225816a163a6e8730c0adafbc8"
+
+[[plugin.deps]]
+use = "lpnh/fr"
+rev = "aa88cd4"
+hash = "8b0e87c3176e0d44f79a8656f79f0fa"
 
 [flavor]
 deps = []

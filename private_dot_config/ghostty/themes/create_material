@@ -1,0 +1,4 @@
+# Bootstrap only; the theme generator may replace this file.
+background = 202020
+foreground = eeeeee
+cursor-color = eeeeee

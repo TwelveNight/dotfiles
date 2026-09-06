@@ -48,7 +48,7 @@ alias .5='cd ../../../../..'
 alias cz='cd'
 
 #cat
-alias cat='bat'
+# alias cat='bat'
 alias ca='cat'
 
 # vim
@@ -65,7 +65,8 @@ alias ld='eza -lDh --group --icons'
 alias lf='eza -lFh --group --icons --color=always | grep -v /'
 alias l.='eza -dlh --group .* --icons --group-directories-first'
 alias ll='eza -alh --group --icons --group-directories-first'
-alias ls='eza -alF --group -h --icons --color=always --sort=size | grep -v /'
+# alias ls='eza -alF --group -h --icons --color=always --sort=size | grep -v /'
+alias ls='eza -lha'
 alias lt='eza -alh --group --icons --sort=modified'
 alias tree='eza --tree --icons'
 # alias ls='lsd --all' # short list
@@ -133,27 +134,14 @@ alias dklf='docker logs -f'
 # clear
 alias cl='clear'
 
-# ranger
-# alias ra='ranger'
-function ranger_wrapper {
-    /usr/bin/env ranger $*
-    local quit_cd_wd_file="$HOME/.cache/ranger/quit_cd_wd"
-    if [ -s "$quit_cd_wd_file" ]; then
-        cd "$(cat $quit_cd_wd_file)"
-        true > "$quit_cd_wd_file"
-    fi
-}
-
-alias ra='ranger_wrapper'
-
 # zsh
-alias zshrc='nvim ~/.zshrc'
-alias zsha='nvim ~/.config/zsh/aliases.zsh'
-alias zshe='nvim ~/.config/zsh/exports.zsh'
-alias zshb='nvim ~/.config/zsh/bindkey.zsh'
+alias zshrc='nvim $ZDOTDIR/.zshrc'
+alias zsha='nvim $ZDOTDIR/utils/aliases.zsh'
+alias zshe='nvim $ZDOTDIR/utils/exports.zsh'
+alias zshb='nvim $ZDOTDIR/utils/bindkey.zsh'
 
 # hyprland
-alias hypr='nvim ~/.config/hypr/userprefs.conf'
+alias hypr='nvim ~/.config/hypr/custom/general.lua'
 alias hyprbug='cat /tmp/hypr/$(ls -t /tmp/hypr/ | head -n 2 | tail -n 1)/hyprland.log'
 
 # lexido
@@ -181,9 +169,9 @@ alias cmdiff='chezmoi diff'
 alias cmmerge='chezmoi merge'
 
 # wget
-alias wget=wget --hsts-file="$XDG_DATA_HOME/wget-hsts"
+alias wget='wget --hsts-file="$XDG_DATA_HOME/wget-hsts"'
 
-eval "$(zoxide init zsh --cmd cd)"
+# zoxide is initialized once in exports.zsh.
 
 if [[ $TERM == "xterm-kitty" ]]; then
   alias ssh="kitty +kitten ssh"

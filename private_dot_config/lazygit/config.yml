@@ -24,13 +24,13 @@ gui:
   showIcons: true
 confirmOnQuit: true
 git:
-  paging:
-    colorArg: always
-    pager: delta --dark --paging=never
+  pagers:
+    - colorArg: always
+      pager: delta --dark --paging=never
   overrideGpg: true
 keybinding:
   universal:
-    return: "<Esc>"
+    return: "<esc>"
     # return: "<C-c>"
     # prevBlock-alt: "<c-j>"
     # nextBlock-alt: "<c-k>"

@@ -1,6 +1,6 @@
 # A TOML linter such as https://taplo.tamasfe.dev/ can use this schema to validate your config.
 # If you encounter any issues, please make an issue at https://github.com/yazi-rs/schemas.
-"$schema" = "https://yazi-rs.github.io/schemas/theme.json"
+# "$schema" = "https://yazi-rs.github.io/schemas/theme.json"
 
 # vim:fileencoding=utf-8:foldmethod=marker
 
@@ -33,7 +33,6 @@ marker_selected = { fg = "lightblue",   bg = "lightblue" }
 # Tab
 tab_active   = { reversed = true }
 tab_inactive = {}
-tab_width    = 1
 
 # Count
 count_copied   = { fg = "white", bg = "green" }
@@ -194,7 +193,7 @@ rules = [
 
 	# Fallback
 	# { name = "*", fg = "white" },
-	{ name = "*/", fg = "blue" }
+	{ mime = "inode/directory", fg = "blue" }
 ]
 
 [icon]

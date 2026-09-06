@@ -1,5 +1,5 @@
 {
-  "workbench.colorTheme": "Catppuccin Mocha",
+  "workbench.colorTheme": "GitHub Dark",
   "window.menuBarVisibility": "toggle",
   "editor.fontFamily": "'FiraCode Nerd Font','Maple Mono', 'monospace', monospace",
   "editor.fontLigatures": true,
@@ -9,8 +9,6 @@
   "security.workspace.trust.untrustedFiles": "newWindow",
   "security.workspace.trust.startupPrompt": "never",
   "security.workspace.trust.enabled": false,
-  //"editor.minimap.side": "left",
-  "extensions.autoUpdate": false,
   // "workbench.statusBar.visible": false,
   "terminal.external.linuxExec": "kitty",
   "terminal.explorerKind": "both",
@@ -95,7 +93,7 @@
   "vim.handleKeys": {
     "<C-a>": false,
     "<C-f>": false,
-    "<C-i>": true,
+    "<C-i>": false,
     "<C-o>": true,
     "<C-r>": true,
     "<C-s>": false,
@@ -104,7 +102,7 @@
     "<C-u>": false,
     "<C-d>": false,
     "<C-n>": false,
-    "<C-p>": true
+    "<C-p>": false,
   },
   "vim.hlsearch": true,
   "vim.incsearch": true,
@@ -682,10 +680,8 @@
   "C_Cpp.intelliSenseEngine": "disabled",
   "code-runner.runInTerminal": true,
   "RainbowBrackets.depreciation-notice": false,
-  "workbench.iconTheme": "vscode-icons",
+  "workbench.iconTheme": "material-icon-theme",
   "terminal.integrated.gpuAcceleration": "on",
-  "editor.cursorSmoothCaretAnimation": "on",
-  "editor.cursorBlinking": "smooth",
   "files.associations": {
     "*.cjson": "jsonc",
     "*.wxss": "css",
@@ -700,4 +696,45 @@
     "*.docx": "default"
   },
   "github.copilot.editor.enableAutoCompletions": true,
+  "[java]": {
+    "editor.defaultFormatter": "redhat.java"
+  },
+  "remote.defaultExtensionsIfInstalledLocally": [
+    "GitHub.copilot",
+    "GitHub.copilot-chat",
+    "GitHub.vscode-pull-request-github"
+  ],
+  "[vue]": {
+    "editor.defaultFormatter": "Vue.volar"
+  },
+  "diffEditor.ignoreTrimWhitespace": false,
+  "markdown-preview-enhanced.plantumlJarPath": "/home/night/Document/plantuml.jar",
+  "markdown.marp.exportType": "pptx",
+  "terminal.integrated.enableMultiLinePasteWarning": "never",
+  "explorer.confirmPasteNative": false,
+  "github.copilot.enable": {
+    "*": true,
+    "plaintext": false,
+    "markdown": true,
+    "scminput": false
+  },
+  "github.copilot.nextEditSuggestions.enabled": true,
+  "chat.mcp.autostart": "newAndOutdated",
+  "material-code.primaryColor": "#15182A",
+  "claudeCode.disableLoginPrompt": true,
+  // 禁用登录提示
+  "claudeCode.environmentVariables": [
+
+    {
+      "name": "ANTHROPIC_BASE_URL",
+      "value": "https://apiapipp.com/"
+    },
+    {
+      "name": "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+      "value": "1"
+      // 一键关闭 Claude Code 向 Anthropic 发送的所有非核心网络请求，更少的后台流量
+    }
+  ],
+  "claudeCode.preferredLocation": "panel",
+  "chat.viewSessions.orientation": "stacked",
 }

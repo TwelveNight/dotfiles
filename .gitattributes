@@ -1,0 +1,9 @@
+# These local snapshots and patches intentionally retain upstream whitespace.
+docs/patches/*.patch -whitespace
+private_dot_config/fastfetch/config.jsonc -whitespace
+private_dot_config/fcitx5/** -whitespace
+private_dot_config/fish/conf.d/alias.fish -whitespace
+private_dot_config/hypr/hyprland/scripts/ai/executable_show-loaded-ollama-models.sh -whitespace
+private_dot_config/matugen/templates/ags/sourceviewtheme.xml -whitespace
+private_dot_config/quickshell/** -whitespace
+private_dot_config/starship.toml -whitespace

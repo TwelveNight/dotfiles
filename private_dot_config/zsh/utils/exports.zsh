@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env zsh
 HISTSIZE=1000000
 SAVEHIST=1000000
 export TERMINAL="kitty"
@@ -7,7 +7,7 @@ export EDITOR=nvim
 # eval "`pip completion --zsh`"
 
 #zoxide
-eval "$(zoxide init zsh --cmd cd)"
+(( $+commands[zoxide] )) && eval "$(zoxide init zsh --cmd cd)"
 export HISTORY_SUBSTRING_SEARCH_HIGHLIGHT_FOUND=(bg=none,fg=magenta,bold)
 
 # add cargo to path
@@ -24,15 +24,24 @@ export PATH="$PATH:$HOME/.local/scripts"
 export WEBKIT_DISABLE_DMABUF_RENDERER=1
 
 # GEMINI_API_KEY
-export GEMINI_API_KEY=AIzaSyCKaWey9jBVqxTtnMl_tiPoke2F4w1luNU
 
 export CRYPTOGRAPHY_OPENSSL_NO_LEGACY='1'
 
 # eval pyenv virtualenv to path
-eval "$(pyenv init --path)"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+# eval "$(pyenv init --path)"
+# eval "$(pyenv init - zsh)"
+# eval "$(pyenv virtualenv-init -)"
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
 
 # eval starship to path
-eval "$(starship init zsh)"
+(( $+commands[starship] )) && eval "$(starship init zsh)"
 [ -f /opt/miniconda3/etc/profile.d/conda.sh ] && source /opt/miniconda3/etc/profile.d/conda.sh
+
+# # Set JAVA_HOME for JDK 17
+# export JAVA_HOME="/usr/lib/jvm/java-17-openjdk"
+# # Add JAVA_HOME/bin to your PATH
+# export PATH="$JAVA_HOME/bin:$PATH"
+
+# Store private environment variables here; never add this file to chezmoi.
+[[ -r "$ZDOTDIR/secrets.zsh" ]] && source "$ZDOTDIR/secrets.zsh"

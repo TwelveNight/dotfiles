@@ -1,1 +1,1 @@
-hyprctl dispatch -- exec 1password --toggle
+exec /usr/bin/1password --toggle

@@ -1,0 +1,3 @@
+# Bootstrap on a fresh machine without a system-wide /etc/zsh/zshenv override.
+export ZDOTDIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
+[[ -r "$ZDOTDIR/.zshenv" ]] && source "$ZDOTDIR/.zshenv"

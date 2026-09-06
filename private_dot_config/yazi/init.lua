@@ -1,9 +1,9 @@
 -- -- Bookmarks
 require("bookmarks"):setup({
-	save_last_directory = true,
+	last_directory = { enable = true, persist = true },
 	persist = "all",
 	notify = {
-		enable = false,
+		enable = true,
 		timeout = 1,
 		message = {
 			new = "New bookmark '<key>' -> '<folder>'",

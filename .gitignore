@@ -1,0 +1,26 @@
+# Source-state names; .chezmoiignore separately controls deployment.
+**/dot_git/
+**/__pycache__/
+*.pyc
+*.log
+*.bak
+*.bak.*
+*~
+.agents/
+.codex/
+backups/
+private_dot_config/zsh/private_secrets.zsh
+private_dot_config/zsh/secrets.zsh
+private_dot_config/private_fish/conf.d/private_secrets.fish
+private_dot_config/private_fish/conf.d/secrets.fish
+private_dot_config/lazygit/state.yml
+**/fish_variables
+**/fishd.tmp.*
+**/dot_zcompdump*
+**/dot_zsh_history
+
+# Handle directory permission attribute changes during chezmoi add.
+**/secrets.zsh
+**/private_secrets.zsh
+**/secrets.fish
+**/private_secrets.fish

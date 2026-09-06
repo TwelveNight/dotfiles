@@ -1,10 +1,44 @@
+# Repository-only files. Patterns use destination names, not source names.
 README.md
+docs
+docs/**
+scripts
+scripts/**
+tests
+tests/**
+.gitignore
+.agents
+.agents/**
+.codex
+.codex/**
+AGENTS.md
+nvim.log
 
-*.txt   # ignore *.txt in the target directory
-*/*.txt # ignore *.txt in subdirectories of the target directory
-        # but not in subdirectories of subdirectories;
-        # so a/b/c.txt would *not* be ignored
-
-backups/   # ignore the backups folder, but not its contents
-backups/** # ignore the contents of backups folder but not the folder itself
-
+# Runtime state and local secrets are never restored from dotfiles.
+**/.git
+**/.git/**
+**/__pycache__
+**/__pycache__/**
+**/*.pyc
+**/*.log
+**/*.bak
+**/*.bak.*
+**/*~
+.config/zsh/.zcompdump*
+.config/zsh/.zsh_history
+.config/zsh/history
+.config/zsh/secrets.zsh
+.config/zsh/utils/secrets.zsh
+.config/fish/fish_variables
+.config/fish/fishd.tmp.*
+.config/fish/fish_history
+.config/fish/conf.d/secrets.fish
+.config/tmux/plugins
+.config/tmux/plugins/**
+.config/fcitx5/crash.log
+.config/fcitx5/profile_*
+.config/fcitx5/conf/cached_layouts
+.config/illogical-impulse/installed_*
+.config/lazygit/state.yml
+backups
+backups/**

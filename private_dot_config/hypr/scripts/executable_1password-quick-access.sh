@@ -1,1 +1,1 @@
-hyprctl dispatch -- exec 1password --quick-access
+exec /usr/bin/1password --quick-access

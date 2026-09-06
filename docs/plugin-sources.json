@@ -1,0 +1,132 @@
+{
+  ".local/share/zap": {
+    "revision": "2904b87d1231b7bd75755fa03dc59e59be57240b",
+    "origin": "https://github.com/zap-zsh/zap.git",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/tmux-continuum": {
+    "revision": "0698e8f4b17d6454c71bf5212895ec055c578da0",
+    "origin": "https://git::@github.com/tmux-plugins/tmux-continuum",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/tmux-filter": {
+    "revision": "11acbea4adffaff575d772d16d7dcb3c3ad3c89d",
+    "origin": "https://git::@github.com/MaximilianGaedig/tmux-filter",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/tmux-fzf-url": {
+    "revision": "db053fa17ec51aae3be80a99ad24e8c30f620770",
+    "origin": "https://git::@github.com/wfxr/tmux-fzf-url",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/tmux-fzf": {
+    "revision": "8b975559cd8640e9dc63ed7a586e99ed0d82df3b",
+    "origin": "https://git::@github.com/sainnhe/tmux-fzf",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/tmux-resurrect": {
+    "revision": "cff343cf9e81983d3da0c8562b01616f12e8d548",
+    "origin": "https://git::@github.com/tmux-plugins/tmux-resurrect",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/tmux-sensible": {
+    "revision": "25cb91f42d020f675bb0a2ce3fbd3a5d96119efa",
+    "origin": "https://git::@github.com/tmux-plugins/tmux-sensible",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/tmux-sessionx": {
+    "revision": "e17400d57624a9e09d3bba9e026c94b4a35d1f7c",
+    "origin": "https://git::@github.com/omerxx/tmux-sessionx",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/tmux-tilit": {
+    "revision": "62eaceaee01be5d1e9f535b1b20265e6ec3a5ae9",
+    "origin": "https://git::@github.com/2kabhishek/tmux-tilit",
+    "locally_modified": true
+  },
+  ".config/tmux/plugins/tmux-yank": {
+    "revision": "acfd36e4fcba99f8310a7dfb432111c242fe7392",
+    "origin": "https://git::@github.com/tmux-plugins/tmux-yank",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/tokyo-night-tmux": {
+    "revision": "c2f6fa9884b923a351b9ca7216aefdf0f581b08c",
+    "origin": "https://git::@github.com/janoamaral/tokyo-night-tmux",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/tpm": {
+    "revision": "99469c4a9b1ccf77fade25842dc7bafbc8ce9946",
+    "origin": "https://github.com/tmux-plugins/tpm",
+    "locally_modified": false
+  },
+  ".config/tmux/plugins/vim-tmux-navigator": {
+    "revision": "38b1d0402c4600543281dc85b3f51884205674b6",
+    "origin": "https://git::@github.com/christoomey/vim-tmux-navigator",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/fzf-tab-source": {
+    "revision": "b1a236e34d68a3f76c20d9035679a3ec8bfa325d",
+    "origin": "https://github.com/Freed-Wu/fzf-tab-source.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/fzf-tab": {
+    "revision": "c2b4aa5ad2532cca91f23908ac7f00efb7ff09c9",
+    "origin": "https://github.com/Aloxaf/fzf-tab.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/fzf": {
+    "revision": "a226ca1e46a9e85174583293545f5ebf4a97d612",
+    "origin": "https://github.com/zap-zsh/fzf.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/sudo": {
+    "revision": "b3e86492d6d48c669902b9fb5699a75894cfcebc",
+    "origin": "https://github.com/zap-zsh/sudo.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/supercharge": {
+    "revision": "e76f4e82d443706c2d9c8ab8e9633facbcdec768",
+    "origin": "https://github.com/zap-zsh/supercharge.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/vim": {
+    "revision": "46284178bcad362db40509e1db058fe78844d113",
+    "origin": "https://github.com/zap-zsh/vim.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/zsh-autosuggestions": {
+    "revision": "c3d4e576c9c86eac62884bd47c01f6faed043fc5",
+    "origin": "https://github.com/zsh-users/zsh-autosuggestions.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/zsh-fzf-history-search": {
+    "revision": "d1aae98ccd6ce153c97a5401d79fd36418cd2958",
+    "origin": "https://github.com/joshskidmore/zsh-fzf-history-search.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/zsh-golang": {
+    "revision": "007fc1a02f96441b69179883b7a48c953d964fa4",
+    "origin": "https://github.com/wintermi/zsh-golang.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/zsh-history-substring-search": {
+    "revision": "8dd05bfcc12b0cd1ee9ea64be725b3d9f713cf64",
+    "origin": "https://github.com/zsh-users/zsh-history-substring-search.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/zsh-syntax-highlighting": {
+    "revision": "bb27265aeeb0a22fb77f1275118a5edba260ec47",
+    "origin": "https://github.com/zsh-users/zsh-syntax-highlighting.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/zsh-you-should-use": {
+    "revision": "1f9cb008076d4f2011d5f814dfbcfbece94a99e0",
+    "origin": "https://github.com/MichaelAquilina/zsh-you-should-use.git",
+    "locally_modified": false
+  },
+  ".local/share/zap/plugins/zsh-z": {
+    "revision": "afaf2965b41fdc6ca66066e09382726aa0b6aa04",
+    "origin": "https://github.com/agkozak/zsh-z.git",
+    "locally_modified": false
+  }
+}

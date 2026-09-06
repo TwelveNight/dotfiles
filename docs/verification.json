@@ -1,0 +1,71 @@
+{
+  "date": "2026-09-06",
+  "baseline_commit": "a61687ef3cbea35dc19e738c9e26d69f71f58339",
+  "managed_files_checked": 1180,
+  "syntax_checks": {
+    "json_jsonc": 24,
+    "toml": 9,
+    "zsh": 9,
+    "fish": 3,
+    "bash": 50,
+    "posix_sh": 32,
+    "lua": 42,
+    "python": 20
+  },
+  "matugen_template_inputs": 12,
+  "isolated_restore_passes": 2,
+  "generated_theme_preservation": true,
+  "regression_tests_passed": 6,
+  "git_diff_check_passed": true,
+  "runtime_smoke_tests": {
+    "zsh_bootstrap": true,
+    "zsh_without_optional_tools": true,
+    "tmux_config_load": true,
+    "tmux_plugin_patch": true,
+    "tmux_csi_u": true,
+    "tmux_prefix": true
+  },
+  "live_files_compared": 1179,
+  "live_files_changed_between_baseline_and_capture": [
+    ".config/fcitx5/conf/notifications.conf",
+    ".config/fcitx5/profile"
+  ],
+  "live_home_applied": false,
+  "committed": false,
+  "pushed": false,
+  "remaining_warnings": [
+    "hyprconfigurator.py:50 Python invalid escape deprecation",
+    "ranger/commands.py:72,77 Python invalid escape deprecation"
+  ],
+  "manual_acceptance": [
+    "desktop appearance and monitor layout",
+    "input methods and personal Rime data",
+    "lock/suspend",
+    "interactive keyboard shortcuts",
+    "online plugin installation and language servers"
+  ],
+  "pending_live_entries": [
+    "MM .config/Code/User/settings.json",
+    "MM .config/VSCodium/User/settings.json",
+    " M .config/fish/conf.d/alias.fish",
+    " M .config/fish/conf.d/env.fish",
+    "MM .config/fish/config.fish",
+    "MM .config/git/config",
+    "MM .config/hypr/custom/keybinds.conf",
+    " M .config/hypr/custom/monitors/monitors.conf",
+    " A .config/hypr/hyprland/scripts/fuzzel-emoji-data.txt",
+    " M .config/hypr/hyprland/scripts/fuzzel-emoji.sh",
+    " M .config/illogical-impulse/config.json",
+    "MM .config/kitty/kitty.conf",
+    "MM .config/tmux/tmux.conf",
+    "MM .config/yazi/init.lua",
+    "MM .config/yazi/keymap.toml",
+    "MM .config/zsh/.zshrc",
+    "MM .config/zsh/utils/aliases.zsh",
+    " M .config/zsh/utils/bindkey.zsh",
+    "MM .config/zsh/utils/exports.zsh",
+    "MM .config/zsh/utils/function.zsh",
+    " A .zshenv"
+  ],
+  "backup_directory": "/home/night/.local/state/chezmoi-maintenance/2026-09-06-bl4839hd"
+}

@@ -1,6 +1,5 @@
 {
   "workbench.colorTheme": "Catppuccin Mocha",
-  "window.menuBarVisibility": "toggle",
   "editor.fontFamily": "'FiraCode Nerd Font','Maple Mono', 'monospace', monospace",
   "editor.fontLigatures": true,
   "editor.fontSize": 18,
@@ -661,4 +660,13 @@
   "RainbowBrackets.depreciation-notice": false,
   "workbench.iconTheme": "vscode-icons",
   "terminal.integrated.gpuAcceleration": "on",
+  "terminal.integrated.inheritEnv": false,
+  "github.copilot.enable": {
+    "*": true,
+    "plaintext": true,
+    "markdown": false,
+    "scminput": false
+  },
+  "terminal.integrated.enableMultiLinePasteWarning": "never",
+  "material-code.primaryColor": "#15182A"
 }
