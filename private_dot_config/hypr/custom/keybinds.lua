@@ -36,12 +36,12 @@ hl.bind("SUPER + B", hl.dsp.global("quickshell:sidebarRightToggle"))
 hl.bind("SUPER + Space", hl.dsp.global("quickshell:searchToggleRelease"))
 hl.bind("SUPER + Space", hl.dsp.global("quickshell:searchToggleRelease"), {release = true})
 hl.bind("SUPER + Space", hl.dsp.exec_cmd("qs -c $qsConfig ipc call TEST_ALIVE || pkill fuzzel || fuzzel"))
--- Win key: keep workspaceNumber on press only; replace searchToggleRelease with searchToggle
--- so overview is triggered on press (not release) when pressing Win+Win
+-- Win key: use the upstream release action so a bare Super opens the active
+-- panel family's launcher (Waffle Start menu or the ii overview).
 hl.unbind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"))
 hl.unbind("SUPER + SUPER_R", hl.dsp.global("quickshell:searchToggleRelease"))
-hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggle"), {description = "Shell: Toggle search"})
-hl.bind("SUPER + SUPER_R", hl.dsp.global("quickshell:searchToggle"))
+hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"), {description = "Shell: Toggle launcher"})
+hl.bind("SUPER + SUPER_R", hl.dsp.global("quickshell:searchToggleRelease"))
 -- Free N for workspace navigation (unbind sidebarRightToggle)
 hl.unbind("SUPER + N", hl.dsp.global("quickshell:sidebarRightToggle"))
 -- Free P for workspace navigation (move pin to SUPER+ALT+P)

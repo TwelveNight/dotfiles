@@ -172,18 +172,14 @@ Scope {
     }
     GlobalShortcut {
         name: "searchToggleRelease"
-        description: "Toggles search on release"
+        description: "Keeps workspace-number display state in sync on Super release"
 
         onPressed: {
             GlobalStates.superReleaseMightTrigger = true;
         }
 
         onReleased: {
-            if (!GlobalStates.superReleaseMightTrigger) {
-                GlobalStates.superReleaseMightTrigger = true;
-                return;
-            }
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
+            GlobalStates.superReleaseMightTrigger = true;
         }
     }
     GlobalShortcut {
