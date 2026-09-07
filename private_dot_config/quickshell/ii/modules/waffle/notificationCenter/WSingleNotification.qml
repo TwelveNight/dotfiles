@@ -179,6 +179,7 @@ MouseArea {
                 verticalPadding: 16
                 horizontalPadding: 12
                 text: modelData.text
+                onClicked: Notifications.attemptInvokeAction(root.notification.notificationId, modelData.identifier)
                 implicitHeight: actionButtonText.implicitHeight + verticalPadding * 2
                 contentItem: WText {
                     id: actionButtonText
