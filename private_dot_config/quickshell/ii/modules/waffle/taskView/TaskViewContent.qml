@@ -60,10 +60,11 @@ Rectangle {
     property real maxWindowWidth: 738
     property real padding: 52
     property real spacing: 25
-    readonly property list<var> toplevels: ToplevelManager.toplevels.values.filter(t => {
-        const client = HyprlandData.clientForToplevel(t);
-        return client && client.workspace.id === HyprlandData.activeWorkspace?.id;
-    })
+    // Keep the task view as one global window list. Desktop cards below remain
+    // available for workspace switching and drag-and-drop.
+    readonly property list<var> toplevels: ToplevelManager.toplevels.values.filter(t =>
+        HyprlandData.clientForToplevel(t) !== null
+    )
     readonly property list<var> arrangedToplevels: {
         const maxRowWidth = width - padding * 2;
         const count = toplevels.length;
