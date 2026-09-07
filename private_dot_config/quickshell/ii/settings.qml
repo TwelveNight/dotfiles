@@ -40,6 +40,11 @@ ApplicationWindow {
             component: "modules/settings/BarConfig.qml"
         },
         {
+            name: Translation.tr("Windows Bar"),
+            icon: "bottom_app_bar",
+            component: "modules/settings/WindowsBarConfig.qml"
+        },
+        {
             name: Translation.tr("Background"),
             icon: "texture",
             component: "modules/settings/BackgroundConfig.qml"

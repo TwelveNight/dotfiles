@@ -32,7 +32,6 @@ MouseArea {
         implicitWidth: contentWidth
         clip: true
         interactive: false
-        // TODO: Include only apps (and windows) in current workspace only | wait, does that even make sense in a Hyprland workflow?
         model: ScriptModel {
             objectProp: "appId"
             values: TaskbarApps.apps.filter(app => app.appId !== "SEPARATOR")

@@ -518,7 +518,8 @@
     },
     "bar": {
       "bottom": true,
-      "leftAlignApps": false
+      "leftAlignApps": false,
+      "currentWorkspaceOnly": false
     },
     "calendar": {
       "force2CharDayOfWeek": true
