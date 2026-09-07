@@ -1,6 +1,10 @@
 -- put former exec-once commands inside the func and former exec commands outside
 hl.on("hyprland.start", function ()
 
+    -- Input method: initialize it before graphical clients inherit the session environment.
+    hl.exec_cmd("fcitx5 -d")
+    hl.exec_cmd("dbus-update-activation-environment --systemd XMODIFIERS WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP")
+
     -- Bar, wallpaper
     hl.exec_cmd("$HOME/.config/hypr/hyprland/scripts/start_geoclue_agent.sh")
     hl.exec_cmd("qs -c $qsConfig")

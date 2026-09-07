@@ -9,8 +9,8 @@ hl.env("XDG_DATA_DIRS", home_dir .. "/.local/share/flatpak/exports/share:/var/li
 
 -- Themes
 hl.env("QT_QPA_PLATFORM", "wayland;xcb")
+-- Let KDE applications follow the active KDE color scheme on non-Plasma desktops.
 hl.env("QT_QPA_PLATFORMTHEME", "kde")
-hl.env("XDG_MENU_PREFIX", "plasma-")
 
 -- Virtual environment
 hl.env("ILLOGICAL_IMPULSE_VIRTUAL_ENV", home_dir .. "/.local/state/quickshell/.venv")

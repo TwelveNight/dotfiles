@@ -134,6 +134,10 @@ hl.bind("CTRL + SUPER + F",          hl.dsp.exec_cmd("fcitx5 --replace -d"))
 -- Rofi
 hl.bind("SUPER + SHIFT + E", hl.dsp.exec_cmd("pkill rofi || rofi -show filebrowser"), {description = "File browser (rofi)"})
 
+-- XWayland file manager for dragging files to QQ/WeChat
+hl.bind("SUPER + ALT + E", hl.dsp.exec_cmd("env QT_QPA_PLATFORM=xcb pcmanfm-qt --profile xwayland --new-window"),
+    {description = "App: XWayland file manager"})
+
 -- Volume (Ctrl+Alt+J/K/arrows)
 hl.bind("CTRL + ALT + J",    hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"), {repeating = true})
 hl.bind("CTRL + ALT + K",    hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+"), {repeating = true})
