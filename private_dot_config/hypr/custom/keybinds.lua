@@ -51,6 +51,25 @@ hl.bind("SUPER + ALT + P", hl.dsp.window.pin(), {description = "Window: Pin"})
 hl.unbind("SUPER + ALT + F", hl.dsp.window.fullscreen_state({internal = 0, client = 3, action = "toggle"}))
 
 --##! User
+
+-- Media and settings keybinds
+-- Keep the original SUPER+I binding and add SUPER+ALT+I for GNOME Settings.
+hl.bind(
+	"SUPER + ALT + I",
+	hl.dsp.exec_cmd("env XDG_CURRENT_DESKTOP=GNOME XDG_SESSION_DESKTOP=gnome gnome-control-center"),
+	{description = "App: GNOME Settings"}
+)
+
+-- Restore media controls on the requested shortcuts.
+hl.bind("CTRL + ALT + P", hl.dsp.exec_cmd("playerctl play-pause"),
+    {locked = true, description = "Media: Play/pause media"})
+hl.bind("CTRL + ALT + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_SINK@ toggle"),
+    {locked = true, description = "Media: Toggle mute"})
+hl.bind("CTRL + ALT + L", hl.dsp.exec_cmd("playerctl next"),
+    {locked = true, description = "Media: Next track"})
+hl.bind("CTRL + ALT + H", hl.dsp.exec_cmd("playerctl previous"),
+    {locked = true, description = "Media: Previous track"})
+
 -- Screenshot
 hl.bind("CTRL + ALT + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh s"))
 hl.bind("CTRL + ALT + A", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh s"))
