@@ -178,7 +178,7 @@ ApplicationWindow {
                     id: kded6Group
                     Layout.alignment: Qt.AlignHCenter
                     Layout.fillHeight: false
-                    programs: ["kded6"]
+                    programs: ["plasmashell"]
                     description: Translation.tr("Conflicts with the shell's system tray implementation")
                     onAlwaysSelected: Config.options.conflictKiller.autoKillTrays = true
                 }

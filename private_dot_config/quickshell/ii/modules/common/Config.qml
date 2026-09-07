@@ -314,7 +314,7 @@ Singleton {
 
             property JsonObject conflictKiller: JsonObject {
                 property bool autoKillNotificationDaemons: false
-                property bool autoKillTrays: false
+                property bool autoKillTrays: true
             }
 
             property JsonObject crosshair: JsonObject {

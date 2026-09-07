@@ -53,6 +53,7 @@
   },
   "apps": {
     "bluetooth": "kcmshell6 kcm_bluetooth",
+    "changePassword": "kitty -1 --hold=yes fish -i -c 'passwd'",
     "manageUser": "kcmshell6 kcm_users",
     "network": "plasmawindowed org.kde.plasma.networkmanagement",
     "networkEthernet": "kcmshell6 kcm_networkmanagement",
@@ -502,9 +503,7 @@
     "filterPassive": true,
     "invertPinnedItems": true,
     "monochromeIcons": true,
-    "pinnedItems": [
-      "Fcitx"
-    ],
+    "pinnedItems": [],
     "showItemId": false
   },
   "updates": {

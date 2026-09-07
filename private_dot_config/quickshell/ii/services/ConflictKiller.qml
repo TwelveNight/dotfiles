@@ -24,7 +24,7 @@ Singleton {
 
     Process {
         id: checkConflictsProc
-        command: ["bash", "-c", `echo "$(pidof kded6);$(pidof mako dunst)"`]
+        command: ["bash", "-c", `echo "$(pidof plasmashell);$(pidof mako dunst)"`]
         stdout: StdioCollector {
             onStreamFinished: {
                 const output = this.text;
@@ -33,7 +33,7 @@ Singleton {
                 var openDialog = false;
                 if (conflictingTrays) {
                     if (!Config.options.conflictKiller.autoKillTrays) openDialog = true;
-                    else Quickshell.execDetached(["killall", "kded6"])
+                    else Quickshell.execDetached(["killall", "plasmashell"])
                 }
                 if (conflictingNotifications) {
                     if (!Config.options.conflictKiller.autoKillNotificationDaemons) openDialog = true;
