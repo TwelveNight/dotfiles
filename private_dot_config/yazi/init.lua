@@ -1,16 +1,9 @@
--- -- Bookmarks
-require("bookmarks"):setup({
-	last_directory = { enable = true, persist = true },
-	persist = "all",
-	notify = {
-		enable = true,
-		timeout = 1,
-		message = {
-			new = "New bookmark '<key>' -> '<folder>'",
-			delete = "Deleted bookmark in '<key>'",
-			delete_all = "Deleted all bookmarks",
-		},
-	},
+-- Persistent bookmarks
+require("whoosh"):setup({
+	jump_notify = true,
+	bookmarks_path = os.getenv("HOME") .. "/.config/yazi/plugins/whoosh.yazi/bookmarks",
+	home_alias_enabled = true,
+	history_size = 10,
 })
 
 -- Multiple processes at the same time

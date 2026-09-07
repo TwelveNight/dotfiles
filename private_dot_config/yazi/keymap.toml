@@ -181,29 +181,29 @@ on   = "F"
 run  = "plugin smart-filter"
 desc = "Smart filter"
 
-# bookmarks - save
+# whoosh bookmarks - open menu
 [[mgr.prepend_keymap]]
-on   = "m"
-run  = "plugin bookmarks save"
-desc = "Save current position as a bookmark"
+on = "'"
+run = "plugin whoosh jump_by_key"
+desc = "Jump to bookmark"
 
-# bookmarks - jump
+# whoosh bookmarks - fuzzy search
 [[mgr.prepend_keymap]]
-on   = "'"
-run  = "plugin bookmarks jump"
-desc = "Jump to a bookmark"
+on = "}"
+run = "plugin whoosh jump_by_fzf"
+desc = "Search bookmarks"
 
-# bookmarks - delete
+# whoosh bookmarks - save
 [[mgr.prepend_keymap]]
-on   = [ "b", "d" ]
-run  = "plugin bookmarks delete"
-desc = "Delete a bookmark"
+on = [ "]", "a" ]
+run = "plugin whoosh save"
+desc = "Save bookmark"
 
-# bookmarks - delete all
+# whoosh bookmarks - save current directory
 [[mgr.prepend_keymap]]
-on   = [ "b", "D" ]
-run  = "plugin bookmarks delete_all"
-desc = "Delete all bookmarks"
+on = [ "]", "A" ]
+run = "plugin whoosh save_cwd"
+desc = "Save current directory"
 
 # yank and copy to clipboard
 [[mgr.prepend_keymap]]
@@ -233,3 +233,9 @@ desc = "Show or hide the preview pane"
 on   = "<A-t>"
 run  = "plugin toggle-pane max-preview"
 desc = "Maximize or restore the preview pane"
+
+# restore the most recently trashed files or folders
+[[mgr.prepend_keymap]]
+on   = "u"
+run  = "plugin restore"
+desc = "Restore last deleted files/folders"
