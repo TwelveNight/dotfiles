@@ -39,6 +39,16 @@ nvim.log
 .config/fcitx5/profile_*
 .config/fcitx5/conf/cached_layouts
 .config/illogical-impulse/installed_*
+# Applications rewrite these files while running. Keep the repository copies
+# as reviewed references, but do not deploy or diff them automatically.
+.config/Code/User/settings.json
+.config/VSCodium/User/settings.json
+.config/fcitx5/conf/chttrans.conf
+.config/fcitx5/conf/notifications.conf
+.config/fcitx5/conf/pinyin.conf
+.config/fcitx5/conf/punctuation.conf
+.config/fcitx5/profile
+.config/illogical-impulse/config.json
 .config/lazygit/state.yml
 backups
 backups/**
