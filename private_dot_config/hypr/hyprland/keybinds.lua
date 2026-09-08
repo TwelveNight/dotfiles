@@ -94,7 +94,7 @@ hl.bind(
 hl.bind("CTRL + SUPER + T", hl.dsp.exec_cmd(qsIsAlive .. " || " .. qsScripts .. "/colors/switchwall.sh"))
 hl.bind(
 	"CTRL + SUPER + R",
-	hl.dsp.exec_cmd("killall ydotool qs quickshell; qs -c $qsConfig &"),
+	hl.dsp.exec_cmd("killall ydotool qs quickshell; env QT_IM_MODULE=fcitx GTK_IM_MODULE=fcitx XMODIFIERS=@im=fcitx qs -c $qsConfig &"),
 	{ description = "Shell: Restart widgets" }
 )
 hl.bind("CTRL + SUPER + P", hl.dsp.global("quickshell:panelFamilyCycle"), { description = "Shell: Cycle panel family" })

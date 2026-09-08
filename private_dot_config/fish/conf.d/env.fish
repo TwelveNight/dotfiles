@@ -55,10 +55,10 @@ if test -r "$fish_secrets"
 end
 
 # fctx5
-set -g -x GTK_IM_MODULE fcitx5
-set -g -x QT_IM_MODULE fcitx5
-set -g -x SDL_IM_MODULE fcitx5
-set -g -x XMODIFIERS @im=fcitx5
+set -g -x GTK_IM_MODULE fcitx
+set -g -x QT_IM_MODULE fcitx
+set -g -x SDL_IM_MODULE fcitx
+set -g -x XMODIFIERS @im=fcitx
 set -g -x GLFW_IM_MODULE ibus
 
 set -x _ZO_ECHO 1
