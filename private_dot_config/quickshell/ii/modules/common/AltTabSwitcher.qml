@@ -72,23 +72,29 @@ Scope {
             Rectangle {
                 id: switcherFrame
                 anchors.centerIn: parent
-                width: Math.min(parent.width - 72, Math.min(1000, switcherRow.implicitWidth + 40))
-                height: switcherRow.implicitHeight + 40
-                radius: Looks.radius.xLarge
-                color: Looks.colors.bg0Base
+                property int windowCount: root.toplevels.length
+                property int cardSpacing: 12
+                property int cardWidth: windowCount <= 1 ? 440
+                    : windowCount <= 2 ? 360
+                    : windowCount <= 3 ? 300
+                    : windowCount <= 5 ? 240
+                    : 200
+                property int cardHeight: windowCount <= 1 ? 280
+                    : windowCount <= 2 ? 240
+                    : windowCount <= 3 ? 210
+                    : windowCount <= 5 ? 190
+                    : 170
+                width: Math.min(parent.width - 64, switcherRow.implicitWidth + 32)
+                height: switcherRow.implicitHeight + 32
+                radius: Looks.radius.large
+                color: Looks.colors.bg1Base
                 border.width: 1
-                border.color: Looks.colors.bg1Border
-
-                WRectangularShadow {
-                    anchors.fill: parent
-                    target: switcherFrame
-                    radius: switcherFrame.radius
-                }
+                border.color: Looks.colors.bg2Border
 
                 RowLayout {
                     id: switcherRow
                     anchors.centerIn: parent
-                    spacing: 10
+                    spacing: switcherFrame.cardSpacing
 
                     Repeater {
                         model: ScriptModel { values: root.toplevels }
@@ -96,34 +102,24 @@ Scope {
                             required property int index
                             required property var modelData
                             readonly property bool selected: index === root.selectedIndex
-                            implicitWidth: 192
-                            implicitHeight: 142
-                            radius: Looks.radius.large
-                            color: selected ? Looks.colors.bg1Active : Looks.colors.bg1
+                            implicitWidth: switcherFrame.cardWidth
+                            implicitHeight: switcherFrame.cardHeight
+                            radius: Looks.radius.medium
+                            color: selected ? Looks.colors.bg2Active : Looks.colors.bg2
                             border.width: selected ? 2 : 1
-                            border.color: selected ? Looks.colors.accent : Looks.colors.bg1Border
-                            scale: selected ? 1 : 0.96
-
-                            Behavior on color { ColorAnimation { duration: 120 } }
-                            Behavior on border.color { ColorAnimation { duration: 120 } }
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 120
-                                    easing.type: Easing.OutCubic
-                                }
-                            }
+                            border.color: selected ? Looks.colors.accent : Looks.colors.bg2Border
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 7
-                                spacing: 6
+                                anchors.margins: 8
+                                spacing: 5
 
                                 RowLayout {
                                     Layout.fillWidth: true
                                     spacing: 6
                                     WAppIcon {
                                         iconName: AppSearch.guessIcon(modelData.appId)
-                                        implicitSize: 18
+                                        implicitSize: 16
                                     }
                                     WText {
                                         Layout.fillWidth: true
@@ -143,18 +139,7 @@ Scope {
                                         anchors.fill: parent
                                         captureSource: modelData
                                         live: true
-                                        constraintSize: Qt.size(178, 96)
-                                    }
-
-                                    Rectangle {
-                                        anchors {
-                                            bottom: parent.bottom
-                                            left: parent.left
-                                            right: parent.right
-                                        }
-                                        height: 3
-                                        color: Looks.colors.accent
-                                        visible: selected
+                                        constraintSize: Qt.size(Math.round(parent.width), Math.round(parent.height))
                                     }
                                 }
                             }
