@@ -75,6 +75,12 @@ hl.bind("CTRL + ALT + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh 
 hl.bind("CTRL + ALT + A", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh s"))
 hl.bind("CTRL + code:10", hl.dsp.global("quickshell:regionScreenshot"), {description = "Screen snip (Ctrl+1)"})
 hl.bind("CTRL + code:10", hl.dsp.exec_cmd("qs -c $qsConfig ipc call TEST_ALIVE || pidof slurp || hyprshot --freeze --clipboard-only --mode region --silent"))
+hl.bind("CTRL + ALT + mouse:272", hl.dsp.global("quickshell:regionScreenshot"),
+    {description = "Screen snip to clipboard"})
+hl.bind("CTRL + ALT + mouse:272",
+    hl.dsp.exec_cmd("qs -c $qsConfig ipc call TEST_ALIVE || pidof slurp || hyprshot --freeze --clipboard-only --mode region --silent"))
+hl.bind("CTRL + ALT + mouse:273", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh s"),
+    {description = "Screen snip and edit"})
 
 -- Window focus (vim-style)
 hl.bind("ALT + H", hl.dsp.focus({direction = "l"}))
