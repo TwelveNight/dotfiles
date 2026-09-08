@@ -102,6 +102,11 @@ ApplicationWindow {
             ]
         },
         {
+            name: Translation.tr("Sound"),
+            icon: "volume_up",
+            component: "modules/settings/system/SoundConfig.qml"
+        },
+        {
             name: "Monitor",
             icon: "monitor",
             component: "modules/settings/system/MonitorConfig.qml"
