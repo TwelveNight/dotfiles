@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import qs
 import qs.services
 import qs.modules.common
+import qs.modules.common.widgets
 import qs.modules.waffle.looks
 import qs.modules.common.functions
 import qs.modules.common.models
@@ -164,11 +165,23 @@ RowLayout {
                 id: mainInfoColumn
                 Layout.alignment: Qt.AlignHCenter
                 SearchEntryIcon {
+                    visible: !Cliphist.entryIsImage(resultPreview.entry?.rawValue ?? "")
                     Layout.alignment: Qt.AlignHCenter
                     Layout.topMargin: 10
                     Layout.bottomMargin: 12
                     entry: resultPreview.entry
                     iconSize: 64
+                }
+                Loader {
+                    active: Cliphist.entryIsImage(resultPreview.entry?.rawValue ?? "")
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: 342
+                    Layout.preferredHeight: 240
+                    sourceComponent: CliphistImage {
+                        entry: resultPreview.entry?.rawValue ?? ""
+                        maxWidth: 342
+                        maxHeight: 240
+                    }
                 }
                 WText {
                     Layout.fillWidth: true
