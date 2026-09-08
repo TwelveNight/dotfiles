@@ -1,28 +1,28 @@
-# Quickshell 个人维护说明
+# Quickshell maintenance notes
 
-根据 2026-09-06 的用户决定，Quickshell/illogical-impulse 以本机现用配置为起点独立维护。上游更新频率不再作为本地维护的前提；保留原始来源及已有许可证，后续需要的上游修复单独审查、手工合并。
+As of 2026-09-06, Quickshell/illogical-impulse is maintained as an active local snapshot. Upstream update frequency is not a prerequisite for this setup; upstream fixes are reviewed and merged manually when useful.
 
-## 已纳入的范围
+## Managed scope
 
-| 本机路径 | 内容 | 管理方式 |
+| Local path | Contents | Management |
 | --- | --- | --- |
-| `~/.config/quickshell/ii/` | QML、JavaScript、服务、脚本、界面模块、资源、翻译 | 完整现用配置直接存入源仓库，目前 930 个受管普通文件，另含链接和目录 |
-| `~/.config/illogical-impulse/config.json` | 个人界面和应用偏好 | 作为个人配置维护，凭据留在本机钥匙串 |
-| `~/.config/matugen/` | 主题生成配置及模板 | 维护生成输入，不同步运行时生成结果 |
-| `~/.config/hypr/` | 桌面与 shell 的集成 | 同仓库维护；生成配色及 shell overrides 使用仅缺失时创建的初始文件 |
+| `~/.config/quickshell/ii/` | QML, JavaScript, services, scripts, UI modules, assets and translations | The complete active snapshot is stored in the source repository |
+| `~/.config/illogical-impulse/config.json` | Personal UI and application preferences | Managed as personal configuration; credentials stay in the local keyring |
+| `~/.config/matugen/` | Theme-generation inputs and templates | Inputs are managed; generated runtime output is not |
+| `~/.config/hypr/` | Desktop and shell integration | Managed together with the shell; generated colors and overrides are create-only |
 
-`~/.local/state/quickshell/`、缓存、安装标记、私人壁纸和系统钥匙串不纳入普通配置管理。主题偏好修改通过设置或 Matugen 模板完成，避免把生成文件当作手工源文件修改。
+`~/.local/state/quickshell/`, caches, installation markers, private wallpapers and system keyrings are outside ordinary configuration management. Change theme preferences through Settings or Matugen inputs instead of treating generated files as hand-edited sources.
 
-## 后续修改流程
+## Change workflow
 
-1. 在源仓库修改相关文件。服务逻辑主要在 `services/`，界面代码在 `modules/`，共享组件和默认设置在 `modules/common/`；个人选项在 `illogical-impulse/config.json`。
-2. 使用 `python scripts/check.py --restore` 检查基础语法、引用和恢复行为。该检查不代替 QML 引擎加载与桌面实际交互验证。
-3. 列出本次准确的目标文件、行为变化和恢复方式，取得用户明确确认后才能写入本机。
-4. 备份本次涉及的文件，定向应用。QML 文件变化可能触发 Quickshell 自动重载，应在确认时说明；不要顺带重启整个桌面或应用其他待修补配置。
-5. 验证本次功能后再提出下一批修改；提交和推送也不自动执行。
+1. Edit the relevant source files. Service logic lives mainly in `services/`, UI code in `modules/`, shared components and defaults in `modules/common/`, and personal options in `illogical-impulse/config.json`.
+2. Run `python scripts/check.py --restore` for syntax, reference and restore checks. This does not replace QML-engine loading or desktop interaction testing.
+3. List the exact target files, behavior changes and rollback location before applying a change.
+4. Back up the affected files and deploy them selectively. QML changes may trigger a Quickshell reload; do not restart the whole desktop or apply unrelated pending changes.
+5. Verify the feature before starting another batch. Commits and pushes are separate operations.
 
-本仓库没有针对 Quickshell 的 chezmoi external 下载定义，也不设置自动拉取上游的任务。独立维护不改变应用前逐次确认的约定。
+There are no chezmoi externals or automatic upstream-pull jobs for Quickshell. Local maintenance remains intentionally explicit.
 
-## 本次核对结果
+## Current audit
 
-Quickshell 代码和 Matugen 模板与本机一致，无需重复部署。个人 JSON 设置仍有一项未应用差异：仓库省略了与框架默认命令相同的 `apps.changePassword` 字段；本机保留该字段，本次未修改它。其余个人选项在结构化比对中一致。
+The Quickshell code and Matugen templates match the active local setup. The personal JSON omits `apps.changePassword` because it equals the framework default; the local file may retain that explicit default. Other personal options are structurally aligned.
