@@ -230,7 +230,7 @@ desc = "Show or hide the preview pane"
 
 # toggle preview pane (max); T remains bound to min-preview.
 [[mgr.prepend_keymap]]
-on   = "<A-t>"
+on   = "M"
 run  = "plugin toggle-pane max-preview"
 desc = "Maximize or restore the preview pane"
 
