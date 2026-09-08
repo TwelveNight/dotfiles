@@ -112,14 +112,14 @@ Rectangle {
             left: parent.left
             right: parent.right
             top: parent.top
-            topMargin: (root.height - (wsBorder.height + 16) - height) / 2
+            topMargin: (root.height - height) / 2
         }
         spacing: root.spacing
         topMargin: root.padding
         bottomMargin: root.padding
         leftMargin: root.padding
         rightMargin: root.padding
-        height: Math.min(contentHeight + topMargin + bottomMargin, root.height - (wsBorder.height + 16))
+        height: Math.min(contentHeight + topMargin + bottomMargin, root.height)
 
         interactive: (height < contentHeight) && !root.draggingWindow
         clip: root.openProgress > 0.99 && !root.draggingWindow
@@ -209,6 +209,7 @@ Rectangle {
     // Workspaces
     Rectangle {
         id: wsBorder
+        visible: false
         z: root.openProgress == 1 ? 1 : 2
         property real sourceEdgeMargin: -(height + 8) + root.openProgress * (height + 16)
         anchors {

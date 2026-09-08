@@ -21,6 +21,7 @@ ShellRoot {
 
     // Stuff for every panel family
     ReloadPopup {}
+    AltTabSwitcher {}
 
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()
@@ -74,4 +75,3 @@ ShellRoot {
         onPressed: root.cyclePanelFamily()
     }
 }
-
