@@ -77,7 +77,6 @@ hl.bind("CTRL + code:10", hl.dsp.global("quickshell:regionScreenshot"), {descrip
 hl.bind("CTRL + code:10", hl.dsp.exec_cmd("qs -c $qsConfig ipc call TEST_ALIVE || pidof slurp || hyprshot --freeze --clipboard-only --mode region --silent"))
 
 -- Window focus (vim-style)
-hl.bind("ALT + Tab", hl.dsp.global("quickshell:waffleAltTab"), {description = "Shell: Windows task switcher"})
 hl.bind("ALT + H", hl.dsp.focus({direction = "l"}))
 hl.bind("ALT + L", hl.dsp.focus({direction = "r"}))
 hl.bind("ALT + K", hl.dsp.focus({direction = "u"}))
@@ -98,28 +97,30 @@ hl.bind("SUPER + code:21",   hl.dsp.window.resize({x = 30,   y = 0,   relative =
 hl.bind("SUPER + code:20",   hl.dsp.window.resize({x = -30,  y = 0,   relative = true}), {repeating = true})
 
 -- Workspace navigation
-hl.unbind("ALT + Tab", hl.dsp.global("quickshell:waffleAltTab"))
 hl.unbind("ALT + Tab", hl.dsp.window.cycle_next())
 hl.unbind("ALT + Tab", hl.dsp.window.bring_to_top())
--- Match ii's upstream Alt-Tab pattern: transparent root bindings use the
--- physical Tab key and talk to the switcher over IPC. This keeps Alt's first
--- release visible to Hyprland, instead of relying on a submap entered after
--- Alt was already held.
-hl.bind("ALT + code:23", hl.dsp.exec_cmd("qs -c ii ipc call altTab next"), {
+hl.unbind("SUPER + Tab", hl.dsp.global("quickshell:overviewWorkspacesToggle"))
+-- Use the physical Tab key for a Windows-style Super+Tab switcher. The
+-- interrupt keeps a Super+Tab chord from also opening the panel family's
+-- launcher when Super is released.
+hl.bind("SUPER + code:23", hl.dsp.global("quickshell:searchToggleReleaseInterrupt"), {
+    transparent = true,
+})
+hl.bind("SUPER + code:23", hl.dsp.exec_cmd("qs -c ii ipc call altTab next"), {
     transparent = true,
     repeating = true,
     description = "Window: Next with preview",
 })
-hl.bind("ALT + SHIFT + code:23", hl.dsp.exec_cmd("qs -c ii ipc call altTab previous"), {
+hl.bind("SUPER + SHIFT + code:23", hl.dsp.exec_cmd("qs -c ii ipc call altTab previous"), {
     transparent = true,
     repeating = true,
     description = "Window: Previous with preview",
 })
-hl.bind("ALT + Escape", hl.dsp.exec_cmd("qs -c ii ipc call altTab cancel"), {
+hl.bind("SUPER + Escape", hl.dsp.exec_cmd("qs -c ii ipc call altTab cancel"), {
     transparent = true,
     description = "Window: Cancel preview",
 })
-for _, key in ipairs({ "ALT_L", "ALT_R" }) do
+for _, key in ipairs({ "SUPER_L", "SUPER_R" }) do
     hl.bind(key, hl.dsp.exec_cmd("qs -c ii ipc call altTab accept"), {
         ignore_mods = true,
         transparent = true,
