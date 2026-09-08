@@ -15,6 +15,7 @@ Scope {
     property bool open: false
     property int selectedIndex: -1
     property list<var> toplevels: []
+    property var previousToplevel: null
 
     function refreshToplevels() {
         root.toplevels = ToplevelManager.toplevels.values.filter(t => HyprlandData.clientForToplevel(t) !== null);
@@ -26,7 +27,10 @@ Scope {
 
         if (!root.open) {
             const activeIndex = root.toplevels.findIndex(t => t.activated);
-            root.selectedIndex = (activeIndex + direction + root.toplevels.length) % root.toplevels.length;
+            const previousIndex = root.toplevels.indexOf(root.previousToplevel);
+            root.selectedIndex = previousIndex >= 0
+                ? previousIndex
+                : (activeIndex + direction + root.toplevels.length) % root.toplevels.length;
             root.open = true;
             return;
         }
@@ -37,6 +41,9 @@ Scope {
     function accept() {
         const toplevel = root.toplevels[root.selectedIndex];
         const client = HyprlandData.clientForToplevel(toplevel);
+        const activeToplevel = ToplevelManager.activeToplevel;
+        if (activeToplevel && activeToplevel !== toplevel)
+            root.previousToplevel = activeToplevel;
         // Use ii's Hyprland Lua dispatcher wrapper, as the existing task view
         // does. It focuses the actual Hyprland client, including one on a
         // different workspace.
@@ -44,9 +51,44 @@ Scope {
         root.cancel();
     }
 
+    function acceptToplevel(toplevel) {
+        root.refreshToplevels();
+        const index = root.toplevels.indexOf(toplevel);
+        if (index < 0) return;
+        root.selectedIndex = index;
+        root.accept();
+    }
+
+    function closeToplevel(toplevel) {
+        const client = HyprlandData.clientForToplevel(toplevel);
+        if (!client?.address) return;
+
+        // Remove the card immediately. Hyprland updates its toplevel model
+        // asynchronously, so waiting for refreshToplevels() would leave a
+        // black screenshot card behind for a short time.
+        root.toplevels = root.toplevels.filter(t => t !== toplevel);
+        if (root.toplevels.length === 0) {
+            root.cancel();
+        } else if (root.selectedIndex >= root.toplevels.length) {
+            root.selectedIndex = root.toplevels.length - 1;
+        }
+        Hyprland.dispatch(`hl.dsp.window.close({window = "address:${client.address}"})`);
+        refreshTimer.restart();
+    }
+
     function cancel() {
         root.open = false;
         root.selectedIndex = -1;
+    }
+
+    Timer {
+        id: refreshTimer
+        interval: 250
+        repeat: false
+        onTriggered: {
+            if (root.open)
+                root.refreshToplevels();
+        }
     }
 
     Variants {
@@ -102,12 +144,61 @@ Scope {
                             required property int index
                             required property var modelData
                             readonly property bool selected: index === root.selectedIndex
+                            property bool closing: false
+                            readonly property bool hovered: hoverHandler.hovered
                             implicitWidth: switcherFrame.cardWidth
                             implicitHeight: switcherFrame.cardHeight
                             radius: Looks.radius.medium
-                            color: selected ? Looks.colors.bg2Active : Looks.colors.bg2
-                            border.width: selected ? 2 : 1
-                            border.color: selected ? Looks.colors.accent : Looks.colors.bg2Border
+                            color: selected || hovered ? Looks.colors.bg2Active : Looks.colors.bg2
+                            border.width: selected || hovered ? 2 : 1
+                            border.color: selected || hovered ? Looks.colors.accent : Looks.colors.bg2Border
+                            scale: hovered ? 1.035 : 1
+
+                            Behavior on color { ColorAnimation { duration: 140 } }
+                            Behavior on border.color { ColorAnimation { duration: 140 } }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 140
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+
+                            MouseArea {
+                                id: clickArea
+                                anchors.fill: parent
+                                z: 100
+                                acceptedButtons: Qt.LeftButton
+                                hoverEnabled: true
+                                onClicked: root.acceptToplevel(modelData)
+                            }
+
+                            HoverHandler {
+                                id: hoverHandler
+                            }
+
+                            CloseButton {
+                                id: closeButton
+                                implicitWidth: 30
+                                implicitHeight: 30
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.topMargin: 5
+                                anchors.rightMargin: 5
+                                z: 200
+                                visible: true
+                                radius: Looks.radius.large - 5
+                                scale: hovered ? 1.12 : 1
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 120
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
+                                onClicked: {
+                                    closing = true;
+                                    root.closeToplevel(modelData);
+                                }
+                            }
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -137,7 +228,7 @@ Scope {
 
                                     ScreencopyView {
                                         anchors.fill: parent
-                                        captureSource: modelData
+                                        captureSource: closing || root.toplevels.indexOf(modelData) < 0 ? null : modelData
                                         live: true
                                         constraintSize: Qt.size(Math.round(parent.width), Math.round(parent.height))
                                     }
