@@ -81,6 +81,14 @@ ShellRoot {
         }
     }
 
+    IpcHandler {
+        target: "shell"
+
+        function reload(): void {
+            Quickshell.reload(false)
+        }
+    }
+
     GlobalShortcut {
         name: "panelFamilyCycle"
         description: "Cycles panel family"

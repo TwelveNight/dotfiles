@@ -37,7 +37,9 @@ Scope {
 
 			exclusiveZone: 0
 			anchors.top: true
-			margins.top: 0
+			anchors.right: true
+			margins.top: 12
+			margins.right: 12
 
 			implicitWidth: rect.width + shadow.radius * 2
 			implicitHeight: rect.height + shadow.radius * 2
@@ -83,7 +85,7 @@ Scope {
 						renderType: Text.NativeRendering
 						font.family: "Google Sans Flex"
 						font.pointSize: 14
-						text: root.failed ? "Quickshell: Reload failed" : "Quickshell reloaded"
+						text: root.failed ? "Quickshell: Reload failed" : "Quickshell: Reload succeeded"
 						color: failed ? "#ff93000A" : "#ff0C1F13"
 					}
 

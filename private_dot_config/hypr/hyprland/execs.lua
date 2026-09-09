@@ -9,7 +9,7 @@ hl.on("hyprland.start", function ()
     hl.exec_cmd("$HOME/.config/hypr/hyprland/scripts/start_geoclue_agent.sh")
     -- Quickshell's Qt TextInput needs the Fcitx5 Qt input method module.
     -- Keep this scoped to Quickshell; native Wayland clients use text-input-v3.
-    hl.exec_cmd("env QT_IM_MODULE=fcitx GTK_IM_MODULE=fcitx XMODIFIERS=@im=fcitx qs -c $qsConfig")
+    hl.exec_cmd("env QS_NO_RELOAD_POPUP=1 QT_IM_MODULE=fcitx GTK_IM_MODULE=fcitx XMODIFIERS=@im=fcitx qs -c $qsConfig")
     hl.exec_cmd("$HOME/.config/hypr/custom/scripts/__restore_video_wallpaper.sh")
 
     -- Core components (authentication, lock screen, notification daemon)
