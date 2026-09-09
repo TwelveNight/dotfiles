@@ -76,8 +76,10 @@ Scope {
         }
     }
 
+    // Keep task-view IPC separate from the start menu. Both used "search",
+    // so registration order could send launcher requests to this panel.
     IpcHandler {
-        target: "search"
+        target: "taskView"
 
         function toggle() {
             GlobalStates.overviewOpen = !GlobalStates.overviewOpen;

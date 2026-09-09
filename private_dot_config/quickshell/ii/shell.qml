@@ -42,7 +42,10 @@ ShellRoot {
         Config.options.panelFamily = families[nextIndex]
     }
 
-    component PanelFamilyLoader: LazyLoader {
+    // Panel families expose overlapping shortcuts and IPC targets. Unlike
+    // LazyLoader, Loader destroys the inactive family instead of keeping it
+    // alive after a family switch.
+    component PanelFamilyLoader: Loader {
         required property string identifier
         property bool extraCondition: true
         active: Config.ready && Config.options.panelFamily === identifier && extraCondition
@@ -50,12 +53,22 @@ ShellRoot {
     
     PanelFamilyLoader {
         identifier: "ii"
-        component: IllogicalImpulseFamily {}
+        sourceComponent: iiFamily
     }
 
     PanelFamilyLoader {
         identifier: "waffle"
-        component: WaffleFamily {}
+        sourceComponent: waffleFamily
+    }
+
+    Component {
+        id: iiFamily
+        IllogicalImpulseFamily {}
+    }
+
+    Component {
+        id: waffleFamily
+        WaffleFamily {}
     }
 
 

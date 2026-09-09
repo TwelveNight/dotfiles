@@ -29,7 +29,10 @@ Scope {
             id: panelWindow
             exclusiveZone: 0
             WlrLayershell.namespace: "quickshell:wStartMenu"
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+            // The launcher owns typing while it is open. OnDemand can leave
+            // focus with the previously active window, which makes Fcitx
+            // preedit and switching intermittent.
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
             color: "transparent"
 
             anchors {
