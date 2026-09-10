@@ -139,6 +139,15 @@ ContentPage {
                 }
             }
         }
+
+        ConfigSwitch {
+            buttonIcon: "visibility_off"
+            text: Translation.tr("Transparent background")
+            checked: !Config.options.bar.showBackground
+            onCheckedChanged: {
+                Config.options.bar.showBackground = !checked;
+            }
+        }
     }
 
     ContentSection {
