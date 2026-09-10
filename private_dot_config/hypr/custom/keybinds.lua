@@ -44,9 +44,8 @@ hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"), {des
 hl.bind("SUPER + SUPER_R", hl.dsp.global("quickshell:searchToggleRelease"))
 -- Free N for workspace navigation (unbind sidebarRightToggle)
 hl.unbind("SUPER + N", hl.dsp.global("quickshell:sidebarRightToggle"))
--- Free P for workspace navigation (move pin to SUPER+ALT+P)
+-- Free P for workspace navigation
 hl.unbind("SUPER + P", hl.dsp.window.pin())
-hl.bind("SUPER + ALT + P", hl.dsp.window.pin(), {description = "Window: Pin"})
 -- Free SUPER+ALT+F for fcitx5 (unbind fullscreen spoof)
 hl.unbind("SUPER + ALT + F", hl.dsp.window.fullscreen_state({internal = 0, client = 3, action = "toggle"}))
 
@@ -134,7 +133,8 @@ for _, key in ipairs({ "ALT_L", "ALT_R" }) do
 end
 hl.bind("SUPER + N",                hl.dsp.focus({workspace = "e+1"}))
 hl.bind("SUPER + P",                hl.dsp.focus({workspace = "e-1"}))
-hl.bind("SUPER + CTRL + SHIFT + N", hl.dsp.window.move({workspace = "empty", follow = false}))
+hl.bind("SUPER + CTRL + SHIFT + N", hl.dsp.window.move({workspace = "empty", follow = true}),
+    {description = "Window: Move to a new empty workspace and follow"})
 hl.bind("SUPER + CTRL + SHIFT + O", hl.dsp.focus({workspace = "empty"}))
 hl.bind("SUPER + CTRL + SHIFT + H", hl.dsp.window.move({workspace = "-1", follow = false}))
 hl.bind("SUPER + CTRL + SHIFT + L", hl.dsp.window.move({workspace = "+1", follow = false}))
@@ -142,6 +142,8 @@ hl.bind("SUPER + ALT + Z",          hl.dsp.focus({workspace = "r-10"}))
 hl.bind("SUPER + ALT + X",          hl.dsp.focus({workspace = "r+10"}))
 
 -- Move to adjacent workspaces and follow, matching SUPER+ALT+scroll
+hl.bind("SUPER + ALT + N",     hl.dsp.window.move({workspace = "+1"}), {description = "Window: Move to next workspace"})
+hl.bind("SUPER + ALT + P",     hl.dsp.window.move({workspace = "-1"}), {description = "Window: Move to previous workspace"})
 hl.bind("SUPER + ALT + H",     hl.dsp.window.move({workspace = "-1"}), {description = "Window: Move to previous workspace"})
 hl.bind("SUPER + ALT + L",     hl.dsp.window.move({workspace = "+1"}), {description = "Window: Move to next workspace"})
 hl.bind("SUPER + ALT + Left",  hl.dsp.window.move({workspace = "-1"}), {description = "Window: Move to previous workspace"})
