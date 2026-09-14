@@ -24,9 +24,9 @@ gui:
   showIcons: true
 confirmOnQuit: true
 git:
-  pagers:
+  diffRenderers:
     - colorArg: always
-      pager: delta --dark --paging=never
+      command: delta --dark --paging=never
   overrideGpg: true
 keybinding:
   universal:
