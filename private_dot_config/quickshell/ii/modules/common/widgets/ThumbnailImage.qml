@@ -38,13 +38,20 @@ StyledImage {
         thumbnailGeneration.running = false;
         thumbnailGeneration.running = true;
     }
+    readonly property bool isVideoSource: /\.(mp4|webm|mkv|avi|mov)$/i.test(root.sourcePath)
     Process {
         id: thumbnailGeneration
         command: {
             const maxSize = Images.thumbnailSizes[root.thumbnailSizeName];
-            return ["bash", "-c", 
-                `[ -f '${FileUtils.trimFileProtocol(root.thumbnailPath)}' ] && exit 0 || { magick '${root.sourcePath}' -resize ${maxSize}x${maxSize} '${FileUtils.trimFileProtocol(root.thumbnailPath)}' && exit 1; }`
-            ]
+            const thumbnailPath = FileUtils.trimFileProtocol(root.thumbnailPath);
+            if (root.isVideoSource) {
+                return ["bash", "-c",
+                    `[ -f '${thumbnailPath}' ] && exit 0 || { ffmpeg -y -i '${root.sourcePath}' -vframes 1 -vf "scale=${maxSize}:${maxSize}:force_original_aspect_ratio=decrease" '${thumbnailPath}' 2>/dev/null && exit 1; }`
+                ];
+            }
+            return ["bash", "-c",
+                `[ -f '${thumbnailPath}' ] && exit 0 || { magick '${root.sourcePath}' -resize ${maxSize}x${maxSize} '${thumbnailPath}' && exit 1; }`
+            ];
         }
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 1) { // Force reload if thumbnail had to be generated
