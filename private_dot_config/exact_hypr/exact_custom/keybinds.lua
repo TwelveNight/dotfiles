@@ -6,6 +6,11 @@ hl.bind("CTRL + SUPER + ALT + Slash", hl.dsp.exec_cmd("xdg-open ~/.config/hypr/c
     {description = "Edit user keybinds"})
 
 -- System keybind overrides
+-- Move Notes off the workspace-navigation chord used in this custom layer.
+hl.unbind("SUPER + ALT + N", hl.dsp.global("quickshell:notesToggle"))
+hl.bind("SUPER + ALT + SHIFT + N", hl.dsp.global("quickshell:notesToggle"), {
+    description = "Shell: Toggle notes",
+})
 -- Free J/K for window movement (move bar/osk to SUPER+SHIFT+ALT)
 hl.unbind("SUPER + J", hl.dsp.global("quickshell:barToggle"))
 hl.bind("SUPER + SHIFT + ALT + J", hl.dsp.global("quickshell:barToggle"), {description = "Shell: Toggle bar"})
@@ -40,12 +45,12 @@ hl.unbind("SUPER + Space", hl.dsp.exec_cmd("hyprctl switchxkblayout all next"))
 hl.bind("SUPER + Space", hl.dsp.global("quickshell:searchToggleRelease"))
 hl.bind("SUPER + Space", hl.dsp.global("quickshell:searchToggleRelease"), {release = true})
 hl.bind("SUPER + Space", hl.dsp.exec_cmd("qs -c $qsConfig ipc call TEST_ALIVE ping || pkill fuzzel || fuzzel"))
--- Win key: use the upstream release action so a bare Super opens the active
--- panel family's launcher (Waffle Start menu or the ii overview).
+-- Keep bare Super inert. The upstream layer binds it to the launcher, so
+-- remove both its panel-family action and its fallback launcher command.
 hl.unbind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"))
 hl.unbind("SUPER + SUPER_R", hl.dsp.global("quickshell:searchToggleRelease"))
-hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"), {description = "Shell: Toggle launcher"})
-hl.bind("SUPER + SUPER_R", hl.dsp.global("quickshell:searchToggleRelease"))
+hl.unbind("SUPER + SUPER_L", hl.dsp.exec_cmd("qs -c $qsConfig ipc call TEST_ALIVE ping || pkill fuzzel || fuzzel"))
+hl.unbind("SUPER + SUPER_R", hl.dsp.exec_cmd("qs -c $qsConfig ipc call TEST_ALIVE ping || pkill fuzzel || fuzzel"))
 -- Free N for workspace navigation (unbind sidebarRightToggle)
 hl.unbind("SUPER + N", hl.dsp.global("quickshell:sidebarRightToggle"))
 -- Free P for workspace navigation
