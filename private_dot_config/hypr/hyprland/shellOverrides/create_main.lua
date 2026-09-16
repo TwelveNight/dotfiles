@@ -1,1 +1,0 @@
--- Bootstrap only. Quickshell manages this module after its first startup.

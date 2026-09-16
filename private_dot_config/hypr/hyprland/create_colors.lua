@@ -1,2 +1,0 @@
--- Bootstrap only. Matugen replaces this with the generated palette.
--- Use Hyprland's default colors until a wallpaper/theme is selected.
