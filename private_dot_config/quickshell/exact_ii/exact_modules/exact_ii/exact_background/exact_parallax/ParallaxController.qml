@@ -1,0 +1,77 @@
+import QtQuick
+import qs
+import qs.services
+import qs.modules.common
+
+Item {
+    id: parallaxController
+    visible: false
+
+    // Inputs
+    required property real movableXSpace
+    required property real movableYSpace
+    required property int firstWorkspaceId
+    required property int lastWorkspaceId
+    required property int chunkSize
+    required property bool verticalParallax
+    required property bool parallaxFrozen
+    required property var activeWorkspaceId
+    property bool wallpaperCentered: false
+    property bool wallpaperIsVideo: false
+
+    // Intermediate calculations
+    readonly property int lower: Math.floor(firstWorkspaceId / chunkSize) * chunkSize
+    readonly property int upper: Math.ceil(lastWorkspaceId / chunkSize) * chunkSize
+    readonly property int range: Math.max(1, upper - lower)
+
+    readonly property real sidebarReserve: (!PanelFamily.nativeAppWindows && !wallpaperIsVideo && Config.options.background.parallax.enableSidebar) ? 0.15 : 0.0
+
+    readonly property real valueX: {
+        let result = 0.5;
+        if (!wallpaperIsVideo && Config.options.background.parallax.enableWorkspace && !verticalParallax) {
+            let activeId = activeWorkspaceId ?? 1;
+            let ratio = Math.max(0, Math.min(1, (activeId - lower) / range));
+            let rawRatio = Config.options.background.parallax.invertHorizontal ? (1.0 - ratio) : ratio;
+            result = sidebarReserve + rawRatio * (1.0 - 2 * sidebarReserve);
+        }
+        return result;
+    }
+
+    readonly property real sidebarOffsetX: {
+        if (PanelFamily.nativeAppWindows || wallpaperIsVideo || !Config.options.background.parallax.enableSidebar)
+            return 0;
+        // Already animated on the sidebar parallax clock; the wallpaper must not smooth it again.
+        return (0.15 * GlobalStates.effectiveRightParallaxProgress - 0.15 * GlobalStates.effectiveLeftParallaxProgress);
+    }
+
+    readonly property real valueY: {
+        let result = 0.5;
+        if (!wallpaperIsVideo && Config.options.background.parallax.enableWorkspace && verticalParallax) {
+            let activeId = activeWorkspaceId ?? 1;
+            let ratio = Math.max(0, Math.min(1, (activeId - lower) / range));
+            result = Config.options.background.parallax.invertVertical ? (1.0 - ratio) : ratio;
+        }
+        return result;
+    }
+
+    readonly property real effectiveValueX: wallpaperIsVideo || parallaxFrozen ? 0.5 : Math.max(0.0, Math.min(1.0, valueX + sidebarOffsetX))
+    readonly property real effectiveValueY: wallpaperIsVideo || parallaxFrozen ? 0.5 : Math.max(0.0, Math.min(1.0, valueY))
+
+    // Outputs
+    readonly property real parallaxX: {
+        if ((GlobalStates.screenLocked && wallpaperCentered) || parallaxFrozen)
+            return -movableXSpace;
+        let calculated = -movableXSpace - (effectiveValueX - 0.5) * 2 * movableXSpace;
+        return Math.min(0, Math.max(-2 * movableXSpace, calculated));
+    }
+
+    readonly property real parallaxY: {
+        if ((GlobalStates.screenLocked && wallpaperCentered) || parallaxFrozen)
+            return -movableYSpace;
+        let calculated = -movableYSpace - (effectiveValueY - 0.5) * 2 * movableYSpace;
+        return Math.min(0, Math.max(-2 * movableYSpace, calculated));
+    }
+
+    readonly property real centeredX: -movableXSpace
+    readonly property real centeredY: -movableYSpace
+}
