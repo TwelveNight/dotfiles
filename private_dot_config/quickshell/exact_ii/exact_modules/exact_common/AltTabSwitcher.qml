@@ -161,7 +161,10 @@ Scope {
                                     color: Looks.colors.bg2
                                     ScreencopyView {
                                         anchors.fill: parent
-                                        captureSource: modelData
+                                        // ScriptModel may expose modelData as a QVariant wrapper,
+                                        // which ScreencopyView cannot capture. Keep the original
+                                        // Toplevel QObject from the source list.
+                                        captureSource: root.toplevels[index]
                                         live: true
                                         constraintSize: Qt.size(Math.round(parent.width), Math.round(parent.height))
                                     }
