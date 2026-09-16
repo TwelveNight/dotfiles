@@ -82,10 +82,10 @@ hl.bind("CTRL + ALT + mouse:273", hl.dsp.exec_cmd("~/.config/hypr/scripts/screen
     {description = "Screen snip and edit"})
 
 -- Window focus (vim-style)
-hl.bind("ALT + H", hl.dsp.focus({direction = "l"}))
-hl.bind("ALT + L", hl.dsp.focus({direction = "r"}))
-hl.bind("ALT + K", hl.dsp.focus({direction = "u"}))
-hl.bind("ALT + J", hl.dsp.focus({direction = "d"}))
+hl.bind("ALT + H", hl.dsp.exec_cmd(HOME .. "/.config/hypr/scripts/focus-window-direction.sh l"))
+hl.bind("ALT + L", hl.dsp.exec_cmd(HOME .. "/.config/hypr/scripts/focus-window-direction.sh r"))
+hl.bind("ALT + K", hl.dsp.exec_cmd(HOME .. "/.config/hypr/scripts/focus-window-direction.sh u"))
+hl.bind("ALT + J", hl.dsp.exec_cmd(HOME .. "/.config/hypr/scripts/focus-window-direction.sh d"))
 
 -- Move windows (vim-style)
 hl.bind("SUPER + H", hl.dsp.window.move({direction = "l"}))
