@@ -1,12 +1,9 @@
 -- put former exec-once commands inside the func and former exec commands outside
 hl.on("hyprland.start", function()
 
-    -- Bar, wallpaper
+    -- Bar
     hl.exec_cmd("$HOME/.config/hypr/hyprland/scripts/start_geoclue_agent.sh")
     hl.exec_cmd("qs -c $qsConfig")
-    hl.exec_cmd(
-        "until qs -c $qsConfig ipc call TEST_ALIVE ping >/dev/null 2>&1; do sleep 0.2; done; " ..
-        "bash $HOME/.config/hypr/custom/scripts/restore_personal_video_wallpaper.sh")
 
     -- Core components (authentication, lock screen, notification daemon)
     hl.exec_cmd("gnome-keyring-daemon --start --components=secrets")
