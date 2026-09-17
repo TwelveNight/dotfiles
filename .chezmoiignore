@@ -50,5 +50,6 @@ nvim.log
 .config/fcitx5/profile
 .config/illogical-impulse/config.json
 .config/lazygit/state.yml
+.config/quickshell/ii/modules/common/Config.qml
 backups
 backups/**
