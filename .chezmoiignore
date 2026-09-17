@@ -51,5 +51,6 @@ nvim.log
 .config/illogical-impulse/config.json
 .config/lazygit/state.yml
 .config/quickshell/ii/modules/common/Config.qml
+.config/hypr/custom/variables.lua
 backups
 backups/**
