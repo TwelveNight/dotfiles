@@ -14,12 +14,31 @@ MATUGEN_DIR="$XDG_CONFIG_HOME/matugen"
 terminalscheme="$SCRIPT_DIR/terminal/scheme-base.json"
 SHELL_MATUGEN_CONFIG="$SCRIPT_DIR/matugen-shell.toml"
 
-# Quickshell prepends ~/.cargo/bin to PATH. An older user-installed Matugen
-# can shadow the current system package and reject this script's arguments.
-if [[ -x /usr/bin/matugen ]]; then
-    MATUGEN_BIN=/usr/bin/matugen
-else
-    MATUGEN_BIN="$(command -v matugen)"
+# Quickshell may prepend ~/.cargo/bin to PATH, which can select an older
+# user-installed Matugen than the system package.  Prefer a candidate that
+# advertises the modern `--prefer` option, but keep working with older builds.
+MATUGEN_BIN=""
+MATUGEN_FALLBACK=""
+declare -a MATUGEN_CANDIDATES=()
+while IFS= read -r candidate; do
+    [[ -n "$candidate" ]] && MATUGEN_CANDIDATES+=("$candidate")
+done < <(type -ap matugen 2>/dev/null || true)
+for candidate in /usr/bin/matugen /usr/local/bin/matugen "$HOME/.local/bin/matugen" "$HOME/.cargo/bin/matugen"; do
+    [[ -x "$candidate" ]] && MATUGEN_CANDIDATES+=("$candidate")
+done
+for candidate in "${MATUGEN_CANDIDATES[@]}"; do
+    [[ -x "$candidate" ]] || continue
+    [[ -n "$MATUGEN_FALLBACK" ]] || MATUGEN_FALLBACK="$candidate"
+    if "$candidate" image --help 2>&1 | grep -q -- "--prefer"; then
+        MATUGEN_BIN="$candidate"
+        break
+    fi
+done
+MATUGEN_BIN="${MATUGEN_BIN:-$MATUGEN_FALLBACK}"
+[[ -n "$MATUGEN_BIN" ]] || MATUGEN_BIN="matugen"
+MATUGEN_PREFER_ARGS=()
+if "$MATUGEN_BIN" image --help 2>&1 | grep -q -- "--prefer"; then
+    MATUGEN_PREFER_ARGS=(--prefer saturation)
 fi
 
 # Matugen aborts the whole run - colors.json included - as soon as any template
@@ -378,10 +397,7 @@ switch() {
         cursorposy_inverted=$((screensizey - cursorposy))
     fi
 
-    # Matugen 4.2+ refuses non-interactive image extraction when several
-    # candidate source colors are found unless a preference is explicit.
-    # Wallpaper changes run without a terminal, so make the choice stable.
-    matugen_args=(--prefer saturation)
+    matugen_args=("${MATUGEN_PREFER_ARGS[@]}")
 
     if [[ "$color_flag" == "1" ]]; then
         matugen_args+=(color hex "$color")

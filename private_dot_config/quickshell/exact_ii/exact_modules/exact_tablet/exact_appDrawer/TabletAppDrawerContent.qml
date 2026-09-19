@@ -487,6 +487,7 @@ Item {
         const q = root.query.trim().toLocaleLowerCase();
         if (q.length < 2 || !(root.drawerConfig?.showQuickToggleResults ?? true))
             return [];
+        QuickToggleRegistry.ensureLoaded();
         void QuickToggleRegistry.revision;
         return QuickToggleRegistry.entries.filter(entry =>
             String(entry.model.name ?? "").toLocaleLowerCase().includes(q)
@@ -1200,6 +1201,10 @@ Item {
                         }
                     }
                 }
+
+                TouchpadScrollHandler {
+                    flickable: appGrid
+                }
             }
 
 
@@ -1563,6 +1568,10 @@ Item {
                             }
                         }
                     }
+                }
+
+                TouchpadScrollHandler {
+                    flickable: sideColumn
                 }
             }
 

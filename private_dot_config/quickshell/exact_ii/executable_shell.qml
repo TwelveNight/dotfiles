@@ -32,13 +32,6 @@ ShellRoot {
     AltTabSwitcher {}
     IdleDim {} // hypridle's 120 s dim, see hypr/hypridle.conf
 
-    // Kept as a no-op health probe for Hyprland keybind fallbacks.  Current
-    // Quickshell IPC requires an explicit function name, hence `ping`.
-    IpcHandler {
-        target: "TEST_ALIVE"
-        function ping() {}
-    }
-
     // Boot split: only what the FIRST PAINT needs runs during engine load.
     // Everything else starts from a 3 s timer — panel incubation is main-thread
     // work, and ~40 singleton initializations (each spawning one-shot probes,
@@ -200,70 +193,93 @@ ShellRoot {
         familyUrl: Qt.resolvedUrl("panelFamilies/WaffleFamily.qml")
     }
 
-    // Settings app loaded in-process once requested, then kept alive briefly
-    // for fast re-opens. After the delay we drop the component to recover
-    // its QML memory. Positive configured delays are capped at five seconds;
-    // 0 still means keep it warm explicitly.
-    readonly property int settingsUnloadCapSeconds: 5
-
-    function settingsUnloadDelaySeconds() {
-        const settingsApp = Config.options && Config.options.settingsApp;
-        let configured = settingsApp && settingsApp.unloadAfterSeconds !== undefined
-            ? settingsApp.unloadAfterSeconds
-            : settingsUnloadCapSeconds;
-
-        if (configured <= 0)
-            return 0;
-        return Math.min(configured, settingsUnloadCapSeconds);
-    }
+    // Closing destroys the window and its page tree, at once or after
+    // `appearance.settingsUnloadDelay` seconds, or never when that is negative;
+    // a reopen before then only shows the hidden window again. Screenshot
+    // capture only hides it temporarily; its Process belongs to the current
+    // page and must survive until capture finishes.
 
     Loader {
         id: settingsLoader
-        property bool loadedOnce: false
-        active: loadedOnce || GlobalStates.settingsOpen
-        asynchronous: true
-        source: "SettingsWindow.qml"
+        // Seconds; 0 frees Settings as soon as it closes, a negative value never does.
+        readonly property int unloadDelay: Config.options?.appearance?.settingsUnloadDelay ?? 0
+        readonly property bool keepAliveWanted: unloadDelay !== 0
+        // Raised when Settings opens, not when it closes: the close would
+        // otherwise race `active` below and tear the window down first.
+        property bool keptAlive: false
 
-        // When settings closes, schedule an unload pass. If the user
-        // reopens before the timer fires, the timer is reset and we
-        // keep the warm component.
-        Timer {
-            id: settingsUnloadTimer
-            interval: root.settingsUnloadDelaySeconds() * 1000
-            repeat: false
-            onTriggered: {
-                if (GlobalStates.settingsOpen)
-                    return
-                // The visual Loader only owns the Settings object tree. These
-                // singletons outlive it, so release their page-specific data
-                // before dropping the component as well.
-                SearchRegistry.clearIndex()
-                ThemePreviewCache.release()
-                settingsLoader.loadedOnce = false
+        active: GlobalStates.settingsOpen || GlobalStates.settingsSuspendedForScreenshot || keptAlive
+        // Synchronous: the window itself builds in a few tens of ms once
+        // compiled (see settingsWarmup), while an asynchronous build held the
+        // window back for most of a second. Pages still load asynchronously.
+        asynchronous: false
+        source: "SettingsWindow.qml"
+        onActiveChanged: {
+            if (!active && settingsGarbageCollect)
+                settingsGarbageCollect.restart();
+        }
+        onUnloadDelayChanged: {
+            settingsUnloadTimer.stop();
+            if (!keepAliveWanted) {
+                keptAlive = false;
+            } else if (GlobalStates.settingsOpen) {
+                keptAlive = true;
+            } else if (keptAlive && unloadDelay > 0) {
+                settingsUnloadTimer.restart();
             }
         }
 
-        Connections {
-            target: GlobalStates
-            function onSettingsOpenChanged() {
-                if (GlobalStates.settingsOpen) {
-                    settingsUnloadTimer.stop()
-                    if (!settingsLoader.loadedOnce)
-                        settingsLoader.loadedOnce = true
-                } else {
-                    const s = root.settingsUnloadDelaySeconds()
-                    if (s > 0) {
-                        settingsUnloadTimer.interval = s * 1000
-                        settingsUnloadTimer.restart()
-                    }
-                }
+    }
+
+    Timer {
+        id: settingsUnloadTimer
+        interval: Math.max(1, settingsLoader.unloadDelay) * 1000
+        onTriggered: {
+            if (!GlobalStates.settingsOpen)
+                settingsLoader.keptAlive = false;
+        }
+    }
+
+    Connections {
+        target: GlobalStates
+        function onSettingsOpenChanged() {
+            if (GlobalStates.settingsOpen) {
+                settingsUnloadTimer.stop();
+                settingsLoader.keptAlive = settingsLoader.keepAliveWanted;
+            } else if (settingsLoader.keptAlive && settingsLoader.unloadDelay > 0) {
+                settingsUnloadTimer.restart();
             }
+        }
+    }
+
+    // Compiles Settings and every page ahead of the first open. Compiling is
+    // what made the first open of a session (and each first page visit) slow;
+    // an asynchronous component compiles off the GUI thread, and the engine
+    // keeps compiled code after a first visit anyway. No objects are created.
+    Timer {
+        id: settingsWarmup
+        property var components: []
+        interval: 15000
+        running: Config.ready && components.length === 0
+        onTriggered: {
+            const urls = ["SettingsWindow.qml"].concat(SettingsPageRegistry.pages.map(page => page.component));
+            settingsWarmup.components = urls.map(url => Qt.createComponent(url, Component.Asynchronous));
+        }
+    }
+
+    // Loader deletion is deferred. Collect only after its tree and the
+    // window-owned search data have been released, never inside destruction.
+    Timer {
+        id: settingsGarbageCollect
+        interval: 0
+        onTriggered: {
+            if (!settingsLoader.active)
+                gc();
         }
     }
 
     // Welcome runs in-process so it shares Config, GlobalStates and the same
-    // Quickshell lifecycle as Settings. Unlike Settings, the onboarding is
-    // destroyed as soon as it closes so costly page trees do not stay warm.
+    // Quickshell lifecycle as Settings and is also destroyed on close.
     Loader {
         id: welcomeLoader
         active: Config.ready && GlobalStates.welcomeOpen

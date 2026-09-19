@@ -1,10 +1,10 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Services.UPower
 import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import Quickshell.Services.UPower
 
 Item {
     id: root

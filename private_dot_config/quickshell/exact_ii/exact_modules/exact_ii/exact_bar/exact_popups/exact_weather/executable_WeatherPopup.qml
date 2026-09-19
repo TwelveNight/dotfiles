@@ -7,10 +7,7 @@ import "../../shared/cards"
 import QtQuick
 import QtQuick.Layouts
 import Quickshell.Io
-// Keep the legacy bar module namespaced: importing it unqualified shadows
-// bar.shared's StyledPopup with the compatibility type, which lacks
-// stickyHover and prevents the entire bar from loading.
-import qs.modules.ii.bar as IiBar
+import qs.modules.ii.bar
 
 StyledPopup {
     id: root

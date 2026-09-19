@@ -483,7 +483,7 @@ AbstractWidget {
         "scallop_number_clock": true, "search_pill": true,
         "triple_ring_clock": true, "wearos_arc_clock": true
     })
-    readonly property bool _usesWidgetSizeKey: _scaleSection !== null && _scaleSection.widgetSize !== undefined && _widgetSizeConsumers[configEntryName] === true
+    readonly property bool _usesWidgetSizeKey: Boolean(_scaleSection && _scaleSection.widgetSize !== undefined && _widgetSizeConsumers[configEntryName] === true)
     // >0 only while a resize gesture runs on the Item.scale path. It is what
     // makes the widget itself follow the grip instead of only an outline —
     // and it deliberately never touches the config, so the pointer never
@@ -992,16 +992,20 @@ AbstractWidget {
             }
         }
 
-        // Monitor-centre constraint: aligns the widget's visual centre with the vertical centre line.
+        // A multi-selection centres its visual bounding box, not the leader.
         const screenCenterX = root.scaledScreenWidth / 2;
-        const tCenter = screenCenterX - root.width / 2;
+        const group = ownerCanvas ? ownerCanvas.groupDrag : null;
+        const centerOffset = group && group.leader === root && group.followers.length > 0
+            ? group.centerOffsetX : root.width / 2;
+        const tCenter = screenCenterX - centerOffset;
         candidates.push({
             "target": tCenter,
             "guide": screenCenterX,
             "distance": Math.abs(rawX - tCenter)
         });
 
-        return WidgetDragMath.nearestValidCandidate(candidates, dragMinimumX(), dragMaximumX(), _snapEnter);
+        return WidgetDragMath.nearestValidCandidate(candidates,
+            Math.max(dragMinimumX(), groupDragMinX), Math.min(dragMaximumX(), groupDragMaxX), _snapEnter);
     }
 
     function snapCandidateY(rawY, rawX) {
@@ -1097,16 +1101,20 @@ AbstractWidget {
             }
         }
 
-        // Monitor-centre constraint: aligns the widget's visual centre with the horizontal centre line.
+        // Use the same frozen group bounds as the vertical centre guide.
         const screenCenterY = root.scaledScreenHeight / 2;
-        const tCenter = screenCenterY - root.height / 2;
+        const group = ownerCanvas ? ownerCanvas.groupDrag : null;
+        const centerOffset = group && group.leader === root && group.followers.length > 0
+            ? group.centerOffsetY : root.height / 2;
+        const tCenter = screenCenterY - centerOffset;
         candidates.push({
             "target": tCenter,
             "guide": screenCenterY,
             "distance": Math.abs(rawY - tCenter)
         });
 
-        return WidgetDragMath.nearestValidCandidate(candidates, dragMinimumY(), dragMaximumY(), _snapEnter);
+        return WidgetDragMath.nearestValidCandidate(candidates,
+            Math.max(dragMinimumY(), groupDragMinY), Math.min(dragMaximumY(), groupDragMaxY), _snapEnter);
     }
 
     function applyGridAndSnapX(rawX, rawY) {

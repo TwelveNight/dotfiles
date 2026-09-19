@@ -1,11 +1,14 @@
 pragma ComponentBehavior: Bound
 
 import qs
+import Qt5Compat.GraphicalEffects
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 import QtQuick
+import QtQuick.Effects
+import Qt5Compat.GraphicalEffects
 import QtQuick.Layouts
 import Quickshell
 
@@ -249,7 +252,7 @@ Item {
     }
 
     onFocusChanged: focus => {
-        if (focus) filterField.forceActiveFocus();
+        if (focus) extraOptions.forceActiveFocus();
     }
 
     // Injected by Cheatsheet.qml so the search field can hand focus to
@@ -409,7 +412,6 @@ Item {
         repeat: false
         onTriggered: root.dragReorderCooldown = false
     }
-
     // Scrollbar indicator
     Rectangle {
         id: scrollIndicator
@@ -422,13 +424,15 @@ Item {
             right: parent.right
             rightMargin: 3
         }
-        y: flickable.height > 0 && flickable.contentHeight > flickable.height
-           ? flickable.contentY / flickable.contentHeight * flickable.height
+        // The bottom margin under the filter bar is part of the scroll range
+        readonly property real extent: flickable.contentHeight + flickable.bottomMargin
+        y: flickable.height > 0 && extent > flickable.height
+           ? flickable.contentY / extent * flickable.height
            : 0
-        height: flickable.height > 0 && flickable.contentHeight > flickable.height
-                ? Math.max(32, flickable.height * flickable.height / flickable.contentHeight)
+        height: flickable.height > 0 && extent > flickable.height
+                ? Math.max(32, flickable.height * flickable.height / extent)
                 : 0
-        visible: flickable.contentHeight > flickable.height
+        visible: extent > flickable.height
 
         Behavior on opacity {
             NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
@@ -445,6 +449,37 @@ Item {
             function onContentYChanged() { scrollIndicatorTimer.restart() }
         }
     }
+    Item {
+        id: listViewport
+        anchors.fill: parent
+
+    // Like TaskList in TodoWidget, only the list and blur are masked;
+    // the floating controls remain outside this layer.
+    layer.enabled: visible && (Appearance.rounding.normal > 0 || edgeFade.overflowing)
+    layer.effect: OpacityMask {
+        maskSource: Rectangle {
+            id: keybindsViewportMask
+            width: listViewport.width
+            height: listViewport.height
+            radius: Appearance.rounding.normal
+            readonly property real fadeFraction: Math.min(0.5, edgeFade.fadeSize / Math.max(1, height))
+            property real topAlpha: edgeFade.overflowing && edgeFade.startGap > edgeFade.edgeTolerance ? 0 : 1
+            property real bottomAlpha: edgeFade.overflowing && edgeFade.endGap > edgeFade.edgeTolerance ? 0 : 1
+            Behavior on topAlpha {
+                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+            }
+            Behavior on bottomAlpha {
+                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+            }
+            gradient: Gradient {
+                GradientStop { position: 0; color: Qt.rgba(1, 1, 1, keybindsViewportMask.topAlpha) }
+                GradientStop { position: keybindsViewportMask.fadeFraction; color: "white" }
+                GradientStop { position: 1 - keybindsViewportMask.fadeFraction; color: "white" }
+                GradientStop { position: 1; color: Qt.rgba(1, 1, 1, keybindsViewportMask.bottomAlpha) }
+            }
+        }
+    }
+
 
     Flickable {
         id: flickable
@@ -458,6 +493,8 @@ Item {
         flickableDirection: Flickable.VerticalFlick
         // contentHeight computed from tallest column (see contentArea.totalContentHeight)
         contentHeight: contentArea.totalContentHeight + root.cardSpacing
+        // Room to scroll the last cards clear of the floating filter bar
+        bottomMargin: extraOptions.barHeight + extraOptions.inset
         contentWidth: width
         boundsBehavior: Flickable.StopAtBounds
         // Allow mouse wheel scroll when not dragging a card
@@ -774,81 +811,43 @@ Item {
             onTriggered: contentArea.layoutRevision = contentArea.layoutRevision + 1
         }
     }  // end contentArea
-    }  // end Flickable
 
-    Toolbar {
+        TouchpadScrollHandler {
+            flickable: flickable
+        }
+    }  // end Flickable
+    ScrollEdgeFade {
+        id: edgeFade
+        z: 1
+        target: flickable
+        blurEdges: true
+        fadeSize: Math.round(Appearance.font.pixelSize.huge * 1.8)
+        color: "transparent"
+    }
+    } // end listViewport
+
+
+    FloatingSearchBar {
         id: extraOptions
         z: 2
-        enableShadow: false
-        colBackground: Appearance.colors.colSecondaryContainer
-        anchors {
-            bottom: parent.bottom
-            horizontalCenter: parent.horizontalCenter
-            bottomMargin: 8
+        tabActive: root.isTabActive
+        blurSourceItem: flickable
+        keyNavTarget: root.keyNavTarget
+        placeholderText: Translation.tr("Filter shortcuts")
+        fabTooltip: Translation.tr("Edit shortcuts")
+        fabText: Translation.tr("Edit shortcuts")
+        placeholderTooltip: Translation.tr("Filter shortcuts")
+        fabVisible: true
+        onFabClicked: {
+            GlobalStates.closeCheatsheet();
+            HyprlandGui.openTab("shortcuts");
         }
-
-        transform: Translate {
-            id: searchBarTrans
-            y: root.isTabActive ? 0 : 35
-        }
-        opacity: root.isTabActive ? 1.0 : 0.0
-
-        Behavior on opacity {
-            NumberAnimation {
-                duration: 250
-                easing.type: Easing.OutCubic
-            }
-        }
-        Behavior on transform {
-            NumberAnimation {
-                duration: 350
-                easing.type: Easing.OutBack
-                easing.overshoot: 1.3
-            }
-        }
-
-        // This list is where you find out a shortcut is wrong. The page that changes it is
-        // several clicks away otherwise, and the cheatsheet has to be dismissed to get there.
-        IconToolbarButton {
-            implicitWidth: height
-            text: "edit"
-            onClicked: {
-                GlobalStates.closeCheatsheet();
-                HyprlandGui.openTab("shortcuts");
-            }
-            StyledToolTip {
-                text: Translation.tr("Edit shortcuts")
-            }
-        }
-
-        IconToolbarButton {
-            implicitWidth: height
-            text: Config.options.cheatsheet.filterUnbinds ? "filter_alt" : "filter_alt_off"
-            onClicked: Config.options.cheatsheet.filterUnbinds = !Config.options.cheatsheet.filterUnbinds
-            StyledToolTip {
-                text: Translation.tr("Toggle filter on system shortcuts unbind by the user")
-            }
-        }
-
-        ToolbarTextField {
-            id: filterField
-            placeholderText: focus ? Translation.tr("Filter shortcuts") : Translation.tr("Hit \"/\" to filter")
-            clip: true
-            font.pixelSize: Appearance.font.pixelSize.small
-            onTextChanged: root.filter = text;
-            keyNavTarget: root.keyNavTarget
-        }
-
-        IconToolbarButton {
-            implicitWidth: height
-            onClicked: root.filter = filterField.text = '';
-            text: "close"
-            StyledToolTip {
-                text: Translation.tr("Clear filter")
-            }
+        onTextChanged: root.filter = text
+        onAccepted: {
+            flickable.contentY = flickable.originY;
+            forceActiveFocus();
         }
     }
-
     PagePlaceholder {
         shown: !root.hasMatches && root.filter !== ''
         icon: "search_off"

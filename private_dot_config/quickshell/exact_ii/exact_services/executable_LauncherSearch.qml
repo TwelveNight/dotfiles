@@ -61,7 +61,7 @@ Singleton {
     // thing lost here is the ready signal, and it is armed the moment a query
     // exists (the only state in which settings rows can appear).
     property bool watchSettingsIndex: false
-    readonly property bool settingsIndexReady: root.watchSettingsIndex && Ai.settingsIntegration.ready
+    readonly property bool settingsIndexReady: root.watchSettingsIndex && AiSettingsIntegration.ready
 
     onSettingsIndexReadyChanged: root._scheduleResultsUpdate()
     onQuickToggleRevisionChanged: root._scheduleResultsUpdate()
@@ -91,8 +91,53 @@ Singleton {
                 root.rememberQuery(root.query);
                 root.query = "";
                 root.selectedResult = null;
+                root.clearResults();
             }
         }
+    }
+
+    function clearResults() {
+        // Invalidate callbacks before stopping processes: termination can emit
+        // their final output. Nothing from the old query may repopulate caches.
+        root._fileSearchGeneration++;
+        root._contentSearchGeneration++;
+        nonAppResultsTimer.stop();
+        fileSearchDebounce.stop();
+        contentSearchDebounce.stop();
+        contentPublishTimer.stop();
+        mathProc.pendingExpression = "";
+        mathProc.running = false;
+        fileProc.running = false;
+        contentProc.running = false;
+        fileProc.pending = [];
+        contentProc.pending = [];
+        root.results = [];
+        root._publishedByKey = ({});
+        root.appResultCache = ({});
+        root.fileResults = [];
+        root.allFileResults = [];
+        root.contentResults = [];
+        root._fileQuery = "";
+        root._contentQuery = "";
+        root._fileQueryPrefixed = false;
+        root.mathResult = "";
+        root.mathExpression = "";
+        root.selectedResult = null;
+        root.processConfirmKey = "";
+        root.confirmKey = "";
+        root.watchSettingsIndex = false;
+        root.watchQuickToggleRevision = false;
+        AiSettingsIntegration.unload();
+        QuickToggleRegistry.purge();
+        Fuzzy.cleanup();
+        // Other close handlers still hold the ListModel and rowRefs during
+        // this signal. Collect only after those handlers and deferred deletes.
+        Qt.callLater(root.collectReleasedResults);
+    }
+
+    function collectReleasedResults(): void {
+        if (!root.hasResultConsumer && typeof gc === "function")
+            gc();
     }
 
     Component.onCompleted: Qt.callLater(() => {
@@ -1198,7 +1243,7 @@ Singleton {
             return [];
         const actions = Array.from(Config.options.search.fallbacks.actions ?? []);
         const output = [];
-        if (actions.includes("ai") && Ai.enabled)
+        if (actions.includes("ai") && SearchPanelRegistry.aiPolicyEnabled)
             output.push(root.createResult({ key: "fallback:ai", name: Translation.tr("Ask AI"), type: Translation.tr("Fallback"), verb: Translation.tr("Open"), iconName: "auto_awesome", iconType: LauncherSearchResult.IconType.Material, keepOverviewOpen: true, execute: () => root.query = Config.options.search.prefix.ai + root.query }));
         if (actions.includes("web") && Config.options.search.modules.webSearch)
             output.push(root.createResult({ key: "fallback:web", name: Translation.tr("Search the web"), type: Translation.tr("Fallback"), verb: Translation.tr("Search"), iconName: "travel_explore", iconType: LauncherSearchResult.IconType.Material, execute: () => Qt.openUrlExternally(Config.options.search.engineBaseUrl + encodeURIComponent(root.query)) }));
@@ -1521,10 +1566,15 @@ Singleton {
         root.selectedResult = null;
         root.processConfirmKey = "";
         root._fileSearchGeneration++;
+        nonAppResultsTimer.stop();
+        contentPublishTimer.stop();
+        mathProc.pendingExpression = "";
+        fileProc.pending = [];
+        contentProc.pending = [];
         // Settings rows can only appear while a query exists, so this is the
         // moment the index-ready watch becomes meaningful (and the Ai graph
         // becomes worth constructing).
-        if (root.query.length > 0 && !root.watchSettingsIndex)
+        if (root.query.length > 0 && !root.watchSettingsIndex && (Config.options?.search?.modules?.settingsToggles?.enable ?? false) && root.isSettingsSearchQuery(root.query))
             root.watchSettingsIndex = true;
         fileProc.running = false;
         mathProc.running = false; // Stop active math calculation instantly to resolve race conditions and QML coalescing
@@ -1620,6 +1670,9 @@ Singleton {
         stdout: StdioCollector {
             id: mathCollector
             onStreamFinished: {
+                if (!root.hasResultConsumer || mathProc.pendingExpression.length === 0
+                        || mathProc.pendingExpression !== root.normalizeMathExpression(root.query))
+                    return;
                 const r = mathCollector.text.trim();
                 // qalc echoes back text it could not evaluate; that is no answer.
                 if (r.length === 0 || r === mathProc.pendingExpression)
@@ -1882,6 +1935,7 @@ Singleton {
     Process {
         id: fileProc
         property int activeSearchGeneration: 0
+        property var pending: []
 
         /**
          * Whitespace-separated tokens become an ordered "contains" pattern, so
@@ -1931,29 +1985,33 @@ Singleton {
             command.push(pattern, directory);
 
             fileProc.running = false;
+            fileProc.pending = [];
             fileProc.activeSearchGeneration = generation;
             fileProc.command = command;
             fileProc.running = true;
         }
 
-        stdout: StdioCollector {
-            id: fileCollector
-            onStreamFinished: {
-                if (fileProc.activeSearchGeneration !== root._fileSearchGeneration)
-                    return;
-                const lines = fileCollector.text.split("\n").filter(line => line.length > 0);
-                const settings = Config.options.search.fileSearch;
-                root.allFileResults = root.rankFilePaths(lines, root._fileQuery, 0);
-                const limit = root._fileQueryPrefixed
-                    ? root.allFileResults.length
-                    : Math.max(1, settings?.maxResults ?? 8);
-                const next = root.allFileResults.slice(0, limit);
-                // A walk that returned the same paths as the last one is not a
-                // reason to rebuild every result row.
-                if (next.length !== root.fileResults.length
-                        || next.some((path, index) => path !== root.fileResults[index]))
-                    root.fileResults = next;
+        stdout: SplitParser {
+            onRead: line => {
+                if (fileProc.activeSearchGeneration === root._fileSearchGeneration && line.length > 0)
+                    fileProc.pending.push(line);
             }
+        }
+
+        onExited: {
+            if (fileProc.activeSearchGeneration !== root._fileSearchGeneration)
+                return;
+            const lines = fileProc.pending;
+            fileProc.pending = [];
+            const settings = Config.options.search.fileSearch;
+            root.allFileResults = root.rankFilePaths(lines, root._fileQuery, 0);
+            const limit = root._fileQueryPrefixed
+                ? root.allFileResults.length
+                : Math.max(1, settings?.maxResults ?? 8);
+            const next = root.allFileResults.slice(0, limit);
+            if (next.length !== root.fileResults.length
+                    || next.some((path, index) => path !== root.fileResults[index]))
+                root.fileResults = next;
         }
     }
 
@@ -2272,7 +2330,7 @@ Singleton {
     // "ask ai <message>" seeds the message. Skipped once the AI prefix
     // already owns the query.
     function aiPanelMatches(queryText: string): var {
-        if (!Ai.enabled)
+        if (!SearchPanelRegistry.aiPolicyEnabled)
             return [];
         const trimmed = String(queryText ?? "").trim();
         const query = trimmed.toLocaleLowerCase();
@@ -2491,7 +2549,6 @@ Singleton {
      */
     readonly property bool hasResultConsumer: GlobalStates.overviewOpen
         || root.query.length > 0
-        || root.alwaysListAppsEnabled
 
     function _scheduleResultsUpdate() {
         if (root._resultsUpdateQueued)
@@ -2501,10 +2558,12 @@ Singleton {
         Qt.callLater(function () {
             root._resultsUpdateQueued = false;
             if (root.hasResultConsumer) {
+                if (Config.options?.search?.modules?.quickToggles?.enable ?? false)
+                    QuickToggleRegistry.ensureLoaded();
                 // Arm the quick-toggle watch before computing: idle suggestions
                 // include toggle rows, so the first compute is the moment the
                 // registry (and its models) must exist.
-                if (!root.watchQuickToggleRevision)
+                if (!root.watchQuickToggleRevision && (Config.options?.search?.modules?.quickToggles?.enable ?? false))
                     root.watchQuickToggleRevision = true;
                 root.results = root._reuseUnchangedResults(root._computeResults());
             }
@@ -2688,7 +2747,7 @@ Singleton {
                 result.push(root.createQuicklinkResult({ link, remainder: "" }));
         }
 
-        if (Config.options.search.ai?.trigger === "suggest" && Ai.enabled) {
+        if (Config.options.search.ai?.trigger === "suggest" && SearchPanelRegistry.aiPolicyEnabled) {
             result.push(resultComp.createObject(null, {
                 key: "tool:ai-ask",
                 name: Translation.tr("Ask AI"),
@@ -2697,7 +2756,7 @@ Singleton {
                 iconName: "auto_awesome",
                 iconType: LauncherSearchResult.IconType.Material,
                 keepOverviewOpen: true,
-                execute: () => Ai.surfaceRouter.open({ surface: "search", focusIntent: "composer" })
+                execute: () => { root.query = Config.options.search.prefix.ai; }
             }));
         }
 
@@ -3031,10 +3090,10 @@ Singleton {
         const settingsSearchActive = settingsQueryEligible
             && Config.options.search.modules.settingsToggles.enable;
         const settingsMatches = settingsSearchActive && root.settingsIndexReady
-            ? Ai.settingsIntegration.search(root.query, 100)
+            ? AiSettingsIntegration.search(root.query, 100)
             : [];
         if (settingsSearchActive && !root.settingsIndexReady)
-            Ai.settingsIntegration.ensureIndex();
+            AiSettingsIntegration.ensureIndex();
         const maxInlineSettings = Math.max(0, Config.options.search.modules.settingsToggles.maxInlineResults);
         const settingsResultObjects = settingsSearchActive && maxInlineSettings > 0
             ? settingsMatches.slice(0, maxInlineSettings).map(setting => root.createSettingsResultObject(setting))
@@ -3434,7 +3493,7 @@ Singleton {
             // The AI panel terms already answer with a properly seeded
             // message; the raw continuation would repeat it with the term
             // itself inside the message.
-            if (Ai.enabled && root.aiPanelMatches(root.query).length === 0)
+            if (SearchPanelRegistry.aiPolicyEnabled && root.aiPanelMatches(root.query).length === 0)
                 result.push(root.createAiAskResultObject());
             if (Config.options.search.modules.webSearch && !startsWithWebSearchPrefix)
                 result.push(root.createWebSearchResultObject());
@@ -3556,7 +3615,7 @@ Singleton {
 
     function settingsIntegrationSearch(query: string): var {
         const maxInline = Math.max(0, Config.options.search.modules.settingsToggles.maxInlineResults);
-        return maxInline > 0 ? Ai.settingsIntegration.search(query, maxInline) : [];
+        return maxInline > 0 ? AiSettingsIntegration.search(query, maxInline) : [];
     }
 
     readonly property var resultComp: {

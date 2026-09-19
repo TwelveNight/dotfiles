@@ -2,13 +2,10 @@
 set -euo pipefail
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-# Prefer a persistent cache so boot does not recompile the helper. Fall back to
-# runtime scratch storage if Quickshell cannot write to the normal user cache.
-cache_root=${XDG_CACHE_HOME:-${HOME}/.cache}/quickshell
-if ! mkdir -p -- "${cache_root}" 2>/dev/null; then
-    cache_root=${TMPDIR:-/tmp}/quickshell-${USER}
-    mkdir -p -- "${cache_root}"
-fi
+# Quickshell may run inside a read-only user namespace. Keep the generated
+# helper in the per-user runtime scratch area, which is writable in both the
+# normal session and that sandbox.
+cache_root=${TMPDIR:-/tmp}/quickshell-${USER}
 build_dir=${cache_root}/ii-gamma-control
 binary=${build_dir}/ii-gamma-control
 xml_file=${script_dir}/hyprland-ctm-control-v1.xml

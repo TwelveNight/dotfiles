@@ -129,8 +129,18 @@ Item {
             return Appearance.animation.dockMagnificationScale.balanced;
         }
     }
+    // One lens, not one spring per icon: every icon reads the same smoothed
+    // pointer and the same enter/exit strength, so neighbours never drift out
+    // of phase. The pointer is measured against the unmagnified layout.
+    property real magnificationPointerTarget: 0
     property real magnificationPointerMain: 0
+    property real magnificationStrength: 0
     property bool magnificationHovered: false
+    // How far the pointer is into the band between the window edge and the
+    // icons, 0..1. The lens follows it both ways, so entering or leaving
+    // through that edge grows and shrinks it with the cursor, and resting
+    // inside the band holds an in-between magnification.
+    property real magnificationCrossReach: 0
     readonly property bool magnificationInteractionActive: enableMagnification
         && magnificationHovered
         && !dragging
@@ -140,16 +150,120 @@ Item {
         && !externalDragOver
     readonly property real magnificationPointerContentMain: magnificationPointerMain
         + (isVertical ? scrollArea.contentY : scrollArea.contentX)
-    readonly property string magnificationHoveredIslandId: {
-        if (!islandsStyle || !hoveredSlot)
-            return "";
-        let item = hoveredSlot;
-        for (let depth = 0; item && depth < 8; depth++) {
-            if (typeof item._islandId !== "undefined")
-                return String(item._islandId);
-            item = item.parent;
+    readonly property bool magnificationOverflowing: isVertical
+        ? scrollArea.contentHeight > scrollArea.height + 1
+        : scrollArea.contentWidth > scrollArea.width + 1
+    // Islands magnify one at a time. Each island fades by how far the pointer
+    // is outside it, so crossing a gap hands the lens over instead of
+    // switching islands in one frame.
+    readonly property var _magnificationIslandSpans: {
+        const spans = {};
+        if (!islandsStyle)
+            return spans;
+        for (const m of baseMetrics.items) {
+            const id = String(m.islandId ?? "");
+            const end = m.bodyStart + m.bodyExtent;
+            const span = spans[id];
+            if (!span)
+                spans[id] = { start: m.bodyStart, end: end };
+            else
+                spans[id] = { start: Math.min(span.start, m.bodyStart), end: Math.max(span.end, end) };
         }
-        return "";
+        return spans;
+    }
+    readonly property var _magnificationIslandGates: {
+        const gates = {};
+        if (!islandsStyle)
+            return gates;
+        const p = magnificationPointerContentMain;
+        const fade = Math.max(1, buttonSlotSize / 2 + islandSpacing / 2);
+        const spans = _magnificationIslandSpans;
+        for (const id in spans) {
+            const outside = Math.max(0, spans[id].start - p, p - spans[id].end);
+            gates[id] = Math.max(0, 1 - outside / fade);
+        }
+        return gates;
+    }
+
+    // macOS keeps the point under the cursor fixed: the dock grows by the
+    // magnified extra left of the pointer on the left and the rest on the
+    // right. The dock centre moves by half the difference.
+    readonly property real magnificationCenterShift: {
+        if (!enableMagnification || !magnificationDynamicSpacing || magnificationStrength <= 0
+                || magnificationOverflowing)
+            return 0;
+        const items = baseMetrics.items;
+        const p = magnificationPointerContentMain;
+        let before = 0;
+        let after = 0;
+        for (let i = 0; i < items.length; i++) {
+            const extra = _magnificationExtraForIndex(i);
+            if (extra <= 0)
+                continue;
+            const m = items[i];
+            const f = Math.max(0, Math.min(1, (p - m.bodyStart) / Math.max(1, m.bodyExtent)));
+            before += extra * f;
+            after += extra * (1 - f);
+        }
+        return (after - before) / 2;
+    }
+
+    readonly property real _lensStrengthTarget: magnificationInteractionActive ? magnificationCrossReach : 0
+    property bool _lensSettled: true
+    // Exit run: strength it started from and progress 0..1; -1 when idle.
+    property real _lensExitFrom: 0
+    property real _lensExitProgress: -1
+    // Drag targets use baseMetrics, so the visual lens can finish its exit.
+    on_LensStrengthTargetChanged: _lensSettled = false
+    onMagnificationPointerTargetChanged: _lensSettled = false
+
+    FrameAnimation {
+        running: root.enableMagnification && !root._lensSettled
+        onTriggered: root._stepMagnification(frameTime)
+    }
+
+    function _stepMagnification(dt) {
+        const profile = root.magnificationMotionProfile;
+        const step = Math.min(Math.max(dt, 0), 0.05);
+        const target = root.magnificationPointerTarget;
+        const strengthTarget = root._lensStrengthTarget;
+
+        // Entering: start the lens where the pointer is, not where it left.
+        let pointer = root.magnificationStrength <= 0.001 ? target : root.magnificationPointerMain;
+        const lag = Appearance.reducedMotion ? 0 : profile.pointerLag / 1000;
+        pointer = lag > 0 ? pointer + (target - pointer) * (1 - Math.exp(-step / lag)) : target;
+        if (Math.abs(target - pointer) < 0.05)
+            pointer = target;
+
+        let strength = root.magnificationStrength;
+        if (strengthTarget <= 0 && strength > 0 && !Appearance.reducedMotion && profile.exitDuration > 0) {
+            // Past the window edge there are no pointer samples. Usually the
+            // band has already brought this near zero; a flick that skipped it
+            // settles on an ease-in-out rather than a decay that reads as a snap.
+            if (root._lensExitProgress < 0) {
+                root._lensExitFrom = strength;
+                root._lensExitProgress = 0;
+            }
+            const progress = Math.min(1, root._lensExitProgress + step / (profile.exitDuration / 1000));
+            root._lensExitProgress = progress;
+            strength = root._lensExitFrom * 0.5 * (1 + Math.cos(Math.PI * progress));
+            if (progress >= 1)
+                strength = 0;
+        } else {
+            root._lensExitProgress = -1;
+            // Exponential approach reads as ease-out; ~98% at the full duration.
+            const tau = Appearance.reducedMotion ? 0 : profile.strengthDuration / 4000;
+            strength = tau > 0 ? strength + (strengthTarget - strength) * (1 - Math.exp(-step / tau)) : strengthTarget;
+            if (Math.abs(strengthTarget - strength) < 0.002)
+                strength = strengthTarget;
+        }
+
+        root.magnificationPointerMain = pointer;
+        root.magnificationStrength = strength;
+        if (pointer === target && strength === strengthTarget) {
+            root._lensExitProgress = -1;
+            root._lensSettled = true;
+        }
     }
 
     // Stable metrics are based only on the unscaled layout. Animated wrapper
@@ -204,6 +318,7 @@ Item {
         return Math.ceil(maximum + Appearance.sizes.elevationMargin);
     }
 
+    readonly property real magnificationRenderScale: enableMagnification ? Math.max(1, magnificationScale) : 1
     readonly property real maximumMagnificationCrossExtra: enableMagnification
         ? Math.ceil(Appearance.sizes.dockButtonSize * Math.max(0, magnificationScale - 1.0))
         : 0
@@ -633,14 +748,20 @@ Item {
         return Appearance.sizes.dockButtonSize * Math.max(0, magnificationScale - 1.0) * factor;
     }
 
-    function _targetMagScaleForIndex(index) {
+    // 0..1 lens weight of one item: distance falloff times enter/exit strength.
+    function _magnificationWeightForIndex(index) {
         const metric = baseMetrics.items[index];
-        if (!metric || !metric.magnifiable || !magnificationInteractionActive)
-            return 1.0;
-        if (root.islandsStyle && (!root.magnificationHoveredIslandId || metric.islandId !== root.magnificationHoveredIslandId))
-            return 1.0;
-        const factor = magnificationFactorForDistance(Math.abs(magnificationPointerContentMain - metric.baseCenter));
-        return 1.0 + (magnificationScale - 1.0) * factor;
+        if (!enableMagnification || !metric || !metric.magnifiable || magnificationStrength <= 0)
+            return 0;
+        const gate = root.islandsStyle ? (root._magnificationIslandGates[String(metric.islandId ?? "")] ?? 0) : 1;
+        if (gate <= 0)
+            return 0;
+        const distance = Math.abs(magnificationPointerContentMain - metric.baseCenter);
+        return magnificationFactorForDistance(distance) * magnificationStrength * gate;
+    }
+
+    function _magnificationExtraForIndex(index) {
+        return magnificationLayoutExtraForFactor(_magnificationWeightForIndex(index));
     }
 
     // Compatibility helper for tooltip/preview code. Main button scale is
@@ -684,7 +805,10 @@ Item {
     Timer {
         id: magnificationExitTimer
         interval: Appearance.animation.dockMagnificationScale.hoverExitGrace
-        onTriggered: root.magnificationHovered = false
+        onTriggered: {
+            root.magnificationHovered = false;
+            root.magnificationCrossReach = 0;
+        }
     }
 
     function setMagnificationHovered(value) {
@@ -699,13 +823,49 @@ Item {
     function updateMagnificationPointerFrom(item, x, y) {
         if (!item)
             return;
-        const targetContainer = root.isVertical ? unifiedColumn : unifiedRow;
-        const mapped = item.mapToItem(targetContainer, x, y);
-        const visualExtra = root.isVertical
-            ? Math.max(0, root.visualHeight - root.baseVisualHeight)
-            : Math.max(0, root.visualWidth - root.baseVisualWidth);
-        const pointerMain = root.isVertical ? mapped.y : mapped.x;
-        root.magnificationPointerMain = pointerMain - visualExtra / 2;
+        root._updateMagnificationCrossReach(item, x, y);
+        if (root.magnificationOverflowing) {
+            const targetContainer = root.isVertical ? unifiedColumn : unifiedRow;
+            const mapped = item.mapToItem(targetContainer, x, y);
+            const visualExtra = root.isVertical
+                ? Math.max(0, root.visualHeight - root.baseVisualHeight)
+                : Math.max(0, root.visualWidth - root.baseVisualWidth);
+            const pointerMain = root.isVertical ? mapped.y : mapped.x;
+            root.magnificationPointerTarget = pointerMain - visualExtra / 2;
+            return;
+        }
+        // `item` never moves and the unmagnified dock is centred in it, so
+        // this stays independent of the lens it drives.
+        root.magnificationPointerTarget = root.isVertical
+            ? y - item.height / 2 + root.baseVisualHeight / 2
+            : x - item.width / 2 + root.baseVisualWidth / 2;
+    }
+
+    function _updateMagnificationCrossReach(item, x, y) {
+        const local = item.mapToItem(root, x, y);
+        const origin = root.mapToItem(item, 0, 0);
+        let distance = 0;
+        let band = 0;
+        switch (root.dockPos) {
+        case "top":
+            distance = local.y - root.height;
+            band = item.height - (origin.y + root.height);
+            break;
+        case "left":
+            distance = local.x - root.width;
+            band = item.width - (origin.x + root.width);
+            break;
+        case "right":
+            distance = -local.x;
+            band = origin.x;
+            break;
+        default:
+            distance = -local.y;
+            band = origin.y;
+            break;
+        }
+        const t = band > 1 ? Math.max(0, Math.min(1, 1 - distance / band)) : 1;
+        root.magnificationCrossReach = t * t * (3 - 2 * t);
     }
 
     readonly property var activePlayer: MprisController.activePlayer
@@ -853,10 +1013,9 @@ Item {
     // begins.
     //
     // The geometry comes from `baseMetrics` — the model's own layout — and not
-    // from live delegates. Delegates are still carrying the magnified sizes on
-    // the frame the drag starts (magnification only switches off with the next
-    // layout pass) and they pick up preview translations right afterwards, so
-    // reading them back would snapshot a layout that never existed.
+    // from live delegates. Delegates retain magnification during its animated
+    // exit and pick up preview translations, so reading them back would
+    // snapshot a transient layout rather than the resting drop targets.
     function _buildDragSlots() {
         const metrics = root.baseMetrics.items;
         const container = root.isVertical ? unifiedColumn : unifiedRow;
@@ -2480,11 +2639,9 @@ Item {
             readonly property real leadingIslandGap: animatedLeadingIslandGap
             readonly property real baseBodyMainExtent: root._baseItemMainExtentForIndex(delegateIndex)
             readonly property real baseMainExtent: root.baseMetrics.items[delegateIndex]?.baseExtent ?? (root.isVertical ? root.buttonSlotSize : itemWidth)
-            readonly property real targetMagScale: root._targetMagScaleForIndex(delegateIndex)
-            property real animatedMagScale: targetMagScale
-            readonly property real layoutExtra: magnifiable && root.magnificationDynamicSpacing
-                ? root.magnificationLayoutExtraForFactor((animatedMagScale - 1.0) / Math.max(0.001, root.magnificationScale - 1.0))
-                : 0
+            readonly property real magWeight: root._magnificationWeightForIndex(delegateIndex)
+            readonly property real animatedMagScale: 1.0 + (root.magnificationScale - 1.0) * magWeight
+            readonly property real layoutExtra: root.magnificationLayoutExtraForFactor(magWeight)
 
             // ── Presence transition ─────────────────────────────────────────
             // An item joining or leaving the dock grows and collapses its own
@@ -2538,16 +2695,6 @@ Item {
                 animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
             }
 
-            Behavior on animatedMagScale {
-                enabled: !root.dragging
-                SpringAnimation {
-                    spring: root.magnificationMotionProfile.spring
-                    damping: root.magnificationMotionProfile.damping
-                    mass: root.magnificationMotionProfile.mass
-                    epsilon: root.magnificationMotionProfile.epsilon
-                }
-            }
-
             // Drag translation. Displaced items move by the dragged item's real
             // footprint read from the drag snapshot, so a 4-slot widget pushes
             // its neighbours exactly as far as it will actually occupy.
@@ -2593,7 +2740,10 @@ Item {
             // a single target preserves the intermediate frame of every neighbour.
             DockItemPosition {
                 id: itemPosition
-                layoutPosition: root.isVertical ? delegateWrapper.y : delegateWrapper.x
+                // The drag offset already includes the initial magnified displacement.
+                layoutPosition: delegateWrapper.isDragged
+                    ? (root._dragSlots[delegateWrapper.delegateIndex]?.start ?? delegateWrapper.bodyMainStart) - delegateWrapper.leadingIslandGap
+                    : (root.isVertical ? delegateWrapper.y : delegateWrapper.x)
                 offset: delegateWrapper.dragTranslate
                 animate: root.reorderMotionActive
                 tracking: delegateWrapper.isDragged
@@ -2818,7 +2968,8 @@ Item {
                     }
                 }
                 toggledSymbolName: actionItemRoot._itemData.actionId === "pin" ? "bookmark" : ""
-                toggled: actionItemRoot._itemData.actionId === "pin" && root.isPinned
+                toggled: actionItemRoot._itemData.actionId === "pin" ? root.isPinned
+                    : actionItemRoot._itemData.actionId === "overview" && GlobalStates.overviewSurfaceOpen
                 normalShape: actionItemRoot._itemData.actionId === "overview" ? MaterialShape.Shape.SoftBurst : MaterialShape.Shape.Pill
                 activeShape: actionItemRoot._itemData.actionId === "overview" ? MaterialShape.Shape.SoftBurst : MaterialShape.Shape.Cookie9Sided
                 symbolSize: Math.round(Appearance.sizes.dockButtonSize * 0.5)

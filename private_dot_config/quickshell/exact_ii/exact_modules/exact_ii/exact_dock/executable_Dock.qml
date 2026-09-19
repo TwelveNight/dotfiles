@@ -74,6 +74,8 @@ Scope {
             dockThickness: opts.isVertical ? fullDockW : fullDockH,
             unmagnifiedThickness: opts.isVertical ? baseContentW + crossPad : baseContentH + crossPad,
             surfaceMargin: floatingPad,
+            // Main-axis room the tray keeps from the window edge for its shadow.
+            mainEdgePad: isDynamic ? 0 : mainPad / 2,
             backgroundWidth: bgW,
             backgroundHeight: bgH
         }
@@ -100,7 +102,11 @@ Scope {
             readonly property real magnificationScale: Config.options?.dock?.magnificationScale ?? 1.5
             // Safe interaction/render reserve; the visual background follows
             // dockContent.visualWidth/visualHeight independently.
-            readonly property real magExtra: enableMagnification ? dockContent.maximumMagnificationExtra : 0
+            // The pointer-anchored lens can grow the whole extra on one side,
+            // so reserve it on both.
+            readonly property real magExtra: enableMagnification
+                ? dockContent.maximumMagnificationExtra * (dockContent.magnificationDynamicSpacing ? 2 : 1)
+                : 0
             readonly property real magCrossExtra: enableMagnification ? dockContent.maximumMagnificationCrossExtra : 0
 
             readonly property bool isVertical: dock.isVertical
@@ -302,6 +308,26 @@ Scope {
                     anchors.fill: parent
                     clip: false
 
+                    // A layer shadow re-allocates its texture on every frame
+                    // the lens resizes the tray; this one is drawn directly.
+                    StyledRectangularShadow {
+                        target: dockVisualBackground
+                        cached: false
+                        blur: Appearance.sizes.elevationMargin
+                        spread: 0
+                        color: Qt.rgba(0, 0, 0, 0.35)
+                        offset: {
+                            if (dock.dockEffectivePosition === "left") return Qt.vector2d(2, 0);
+                            if (dock.dockEffectivePosition === "right") return Qt.vector2d(-2, 0);
+                            if (dock.dockEffectivePosition === "top") return Qt.vector2d(0, 2);
+                            return Qt.vector2d(0, -2);
+                        }
+                        visible: !dockContent.islandsStyle && !dockRoot.isDynamicIsland && !dockRoot.isTransparent
+                            && opacity > 0.01
+                            && !Config.options.appearance.transparency.popups
+                            && !Config.options.appearance.transparency.enable
+                    }
+
                     Rectangle {
                         id: dockVisualBackground
                         clip: false
@@ -324,37 +350,49 @@ Scope {
 
                         opacity: (dockContent.islandsStyle || dockRoot.isTransparent) ? 0.0 : 1.0
 
-                        layer.enabled: !dockContent.islandsStyle && !dockRoot.isDynamicIsland && !dockRoot.isTransparent && opacity > 0.01 && !Config.options.appearance.transparency.popups && !Config.options.appearance.transparency.enable
-                        layer.smooth: true
-                        layer.effect: MultiEffect {
-                            shadowEnabled: true
-                            shadowColor: Qt.rgba(0, 0, 0, 0.35)
-                            shadowHorizontalOffset: {
-                                if (dock.dockEffectivePosition === "left") return 2;
-                                if (dock.dockEffectivePosition === "right") return -2;
+                        // Keeps the point under the cursor fixed while the lens
+                        // grows; clamped to the room the window reserves.
+                        readonly property real lensShift: {
+                            if (dockRoot.isDynamicIsland)
                                 return 0;
-                            }
-                            shadowVerticalOffset: {
-                                if (dock.dockEffectivePosition === "bottom") return -2;
-                                if (dock.dockEffectivePosition === "top") return 2;
-                                return 0;
-                            }
-                            shadowBlur: 1.0
+                            const room = dock.isVertical
+                                ? (dockRoot.sizing.dockHeight - height) / 2
+                                : (dockRoot.sizing.dockWidth - width) / 2;
+                            const limit = Math.max(0, room - dockRoot.sizing.mainEdgePad);
+                            return Math.max(-limit, Math.min(limit, dockContent.magnificationCenterShift));
                         }
+                        anchors.horizontalCenterOffset: dock.isVertical ? 0 : lensShift
+                        anchors.verticalCenterOffset: dock.isVertical ? lensShift : 0
 
-                        anchors.horizontalCenter: (!dock.isVertical) ? parent.horizontalCenter : undefined
-                        anchors.verticalCenter: dock.isVertical ? parent.verticalCenter : undefined
+                        // Clear old anchors before installing the new edge. Conditional
+                        // anchors can overlap during a preset change, stretch the tray
+                        // and permanently remove its width/height bindings.
+                        state: dock.dockEffectivePosition
+                        states: [
+                            State {
+                                name: "top"
+                                AnchorChanges { target: dockVisualBackground; anchors.top: parent.top; anchors.horizontalCenter: parent.horizontalCenter }
+                            },
+                            State {
+                                name: "bottom"
+                                AnchorChanges { target: dockVisualBackground; anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter }
+                            },
+                            State {
+                                name: "left"
+                                AnchorChanges { target: dockVisualBackground; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
+                            },
+                            State {
+                                name: "right"
+                                AnchorChanges { target: dockVisualBackground; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter }
+                            }
+                        ]
 
-                        anchors.bottom: dock.dockEffectivePosition === "bottom" ? parent.bottom : undefined
                         anchors.bottomMargin: dock.dockEffectivePosition === "bottom" ? (dockRoot.reveal ? dockRoot.surfaceMargin : -(dockMouseArea.hoverRegion + 4)) : 0
 
-                        anchors.top: dock.dockEffectivePosition === "top" ? parent.top : undefined
                         anchors.topMargin: dock.dockEffectivePosition === "top" ? (dockRoot.reveal ? dockRoot.surfaceMargin : -(dockMouseArea.hoverRegion + 4)) : 0
 
-                        anchors.left: dock.dockEffectivePosition === "left" ? parent.left : undefined
                         anchors.leftMargin: dock.dockEffectivePosition === "left" ? (dockRoot.reveal ? dockRoot.surfaceMargin : -(dockMouseArea.hoverRegion + 4)) : 0
 
-                        anchors.right: dock.dockEffectivePosition === "right" ? parent.right : undefined
                         anchors.rightMargin: dock.dockEffectivePosition === "right" ? (dockRoot.reveal ? dockRoot.surfaceMargin : -(dockMouseArea.hoverRegion + 4)) : 0
 
                         Behavior on opacity {

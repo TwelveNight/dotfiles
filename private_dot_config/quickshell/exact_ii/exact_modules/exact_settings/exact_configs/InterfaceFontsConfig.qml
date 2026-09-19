@@ -113,16 +113,38 @@ Item {
                 }
             }
 
-            ConfigSwitch {
-                buttonIcon: "memory"
-                text: Translation.tr("Free Settings memory after closing")
-                checked: Config.options.settingsApp.unloadAfterSeconds > 0
-                onCheckedChanged: {
-                    Config.options.settingsApp.unloadAfterSeconds = checked ? 5 : 0;
-                }
+            ContentSubsection {
+                title: Translation.tr("Free Settings memory after closing")
+                icon: "timer"
+                tooltip: Translation.tr("Until its memory is freed, Settings reopens instantly on the page you left. Freeing it sooner uses less RAM.")
 
-                StyledToolTip {
-                    text: Translation.tr("Removes the Settings window from memory 5 seconds after it is closed. The next opening has a short cold-start delay.")
+                ConfigSelectionArray {
+                    currentValue: Config.options.appearance.settingsUnloadDelay
+                    onSelected: newValue => {
+                        Config.options.appearance.settingsUnloadDelay = newValue;
+                    }
+                    options: [
+                        {
+                            "displayName": Translation.tr("Instantly"),
+                            "value": 0
+                        },
+                        {
+                            "displayName": Translation.tr("After 1 min"),
+                            "value": 60
+                        },
+                        {
+                            "displayName": Translation.tr("After 5 min"),
+                            "value": 300
+                        },
+                        {
+                            "displayName": Translation.tr("After 15 min"),
+                            "value": 900
+                        },
+                        {
+                            "displayName": Translation.tr("Never"),
+                            "value": -1
+                        }
+                    ]
                 }
             }
 

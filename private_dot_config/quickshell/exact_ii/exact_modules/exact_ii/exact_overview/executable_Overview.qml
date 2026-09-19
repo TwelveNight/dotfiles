@@ -52,7 +52,6 @@ Scope {
                     // The Scope and IPC shortcuts remain loaded, but this
                     // expensive per-monitor PanelWindow is destroyed otherwise.
                     property bool visualActive: false
-                    property bool loadedOnce: false
 
                     // The loaded window flips these from inside its own creation and destruction,
                     // which run inside the write of `active` itself; a synchronous write there is
@@ -71,20 +70,17 @@ Scope {
                     onMonitorIsFocusedChanged: {
                         if (!monitorIsFocused) {
                             visualActive = false;
-                            loadedOnce = false;
                         }
                     }
 
-                    Connections {
-                        target: GlobalStates
-                        function onOverviewOpenChanged() {
-                            if (GlobalStates.overviewOpen && realOverviewLoader.monitorIsFocused) {
-                                realOverviewLoader.loadedOnce = true;
-                            }
-                        }
-                    }
+                    active: monitorIsFocused && (contentKeepAlive || GlobalStates.overviewOpen || visualActive)
 
-                    active: monitorIsFocused && (contentKeepAlive || GlobalStates.overviewOpen || visualActive || loadedOnce || (TypeToSearch.armed && (Config.options?.launcher?.typeToSearch?.enable ?? false)))
+                    onItemChanged: {
+                        // Close-time cleanup runs before the exit animation ends.
+                        // Collect wrappers only after the window tree is released.
+                        if (!item)
+                            Qt.callLater(LauncherSearch.collectReleasedResults);
+                    }
 
                     component: PanelWindow {
                         id: root
@@ -766,6 +762,7 @@ Scope {
             // The default overview is lazy-loaded. Keep the prefix until its
             // PanelWindow exists so the first shortcut press is not lost.
             GlobalStates.activeSearchQuery = prefix;
+            GlobalStates.panelOpenedDirectly = true;
             GlobalStates.overviewOpen = true;
         }
     }
@@ -795,7 +792,7 @@ Scope {
     }
 
     function toggleAi() {
-        if (!Ai.enabled)
+        if (!SearchPanelRegistry.aiPolicyEnabled)
             return;
         togglePrefixedSearch(Config.options.search.prefix.ai);
     }

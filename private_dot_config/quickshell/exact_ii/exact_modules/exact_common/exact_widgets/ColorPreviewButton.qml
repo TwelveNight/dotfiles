@@ -50,6 +50,29 @@ RippleButton {
 
     property bool loaded: usePreviewColors
     property bool shouldLoad: false
+    // The name stands in only when the colours do not come: shown while they
+    // load, it flashes a grid of labels before the swatches replace them.
+    property bool showNameFallback: false
+    onLoadedChanged: {
+        if (root.loaded)
+            root.showNameFallback = false;
+    }
+
+    Timer {
+        interval: 1500
+        running: root.shouldLoad && !root.loaded
+        onTriggered: root.showNameFallback = true
+    }
+    property bool _cacheHeld: false
+
+    function releasePreviewCache() {
+        if (!root._cacheHeld)
+            return;
+        root._cacheHeld = false;
+        ThemePreviewCache.relinquish();
+    }
+
+    Component.onDestruction: root.releasePreviewCache()
 
     property bool isWidgetScheme: false
     property bool widgetSchemeToggled: false
@@ -156,6 +179,10 @@ RippleButton {
     function startColorFetch() {
         if (usePreviewColors || !shouldLoad || effectiveCommand === "")
             return;
+        if (!root._cacheHeld) {
+            root._cacheHeld = true;
+            ThemePreviewCache.acquire();
+        }
         if (root.loadFromCache())
             return;
         // One generation for the whole grid rather than one process per swatch.
@@ -177,7 +204,22 @@ RippleButton {
         Qt.callLater(root.startColorFetch);
     }
 
-    onShouldLoadChanged: Qt.callLater(root.startColorFetch)
+    onShouldLoadChanged: {
+        if (!root.shouldLoad) {
+            colorFetchProcess.running = false;
+            root.releasePreviewCache();
+        } else {
+            Qt.callLater(root.startColorFetch);
+        }
+    }
+    onUsePreviewColorsChanged: {
+        if (root.usePreviewColors) {
+            colorFetchProcess.running = false;
+            root.releasePreviewCache();
+        } else {
+            Qt.callLater(root.startColorFetch);
+        }
+    }
 
     // Wallpaper Engine can swap the video behind the same screenshot path, so
     // the id matters even though the path does not change with it.
@@ -193,8 +235,7 @@ RippleButton {
     }
 
     Connections {
-        target: ThemePreviewCache
-        enabled: root.shouldLoad && !root.usePreviewColors
+        target: root._cacheHeld ? ThemePreviewCache : null
 
         function onCacheChanged(path) {
             if (path === root.presetPath)
@@ -254,7 +295,7 @@ RippleButton {
 
         StyledText {
             anchors.fill: parent
-            visible: !root.loaded
+            visible: !root.loaded && root.showNameFallback
             elide: Text.ElideRight
             text: root.colorSchemeDisplayName
             horizontalAlignment: Text.AlignHCenter

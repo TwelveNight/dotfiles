@@ -4,6 +4,9 @@
 unset LD_LIBRARY_PATH
 unset LD_PRELOAD
 
+# Resolved up front: the recording branches cd into the save directory later.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 CONFIG_FILE="$HOME/.config/illogical-impulse/config.json"
 JSON_PATH=".screenRecord.savePath"
 SERVICE_PATH=".screenRecord.service"
@@ -45,6 +48,11 @@ fi
 REC_FRAME_SYNC=$(jq -r ".screenRecord.frameSync" "$CONFIG_FILE" 2>/dev/null)
 if [[ -z "$REC_FRAME_SYNC" || "$REC_FRAME_SYNC" == "null" ]]; then
     REC_FRAME_SYNC="cfr"
+fi
+
+REC_RECORD_AUDIO=$(jq -r ".screenRecord.recordAudio" "$CONFIG_FILE" 2>/dev/null)
+if [[ -z "$REC_RECORD_AUDIO" || "$REC_RECORD_AUDIO" == "null" ]]; then
+    REC_RECORD_AUDIO="false"
 fi
 
 REC_SHOW_NOTIFICATIONS=$(jq -r ".screenRecord.showNotifications" "$CONFIG_FILE" 2>/dev/null)
@@ -310,7 +318,7 @@ toggle_pause() {
     # Act on the recorder FIRST, and only mirror the new state if it worked. A failed
     # pause that still flips the state file leaves the UI lying about the recording.
     if [[ "$REC_SERVICE" == "obs" ]] && { pgrep -x "obs" > /dev/null || pgrep -f "com.obsproject.Studio" > /dev/null; }; then
-        python3 "$(dirname "$0")/obs_pause.py" 2>/dev/null || return
+        python3 "$SCRIPT_DIR/obs_pause.py" 2>/dev/null || return
     elif pgrep -x wf-recorder > /dev/null; then
         # wf-recorder has no pause feature and installs no SIGUSR1 handler, so the
         # default action applies: SIGUSR1 terminates it. That is why pausing used to
@@ -345,7 +353,12 @@ if [[ "${ARGS[0]}" == "--pause" ]]; then
 fi
 
 MANUAL_REGION=""
+# The setting turns sound on for every entry point (bar, keybinds, IPC);
+# --sound still forces it for a single recording when the setting is off.
 SOUND_FLAG=0
+if [[ "$REC_RECORD_AUDIO" == "true" ]]; then
+    SOUND_FLAG=1
+fi
 FULLSCREEN_FLAG=0
 REGION_FLAG=0
 OBS_FLAG=0
@@ -376,12 +389,17 @@ if [[ $SOUND_FLAG -eq 1 ]]; then
         # expose a monitor name (for example during an audio-server restart).
         AUDIO_ARGS=("--audio")
     fi
+    # ffmpeg's AAC default of 128 kb/s audibly dulls music. wf-recorder 0.6.0
+    # drops -P options (avcodec_open2 gets NULL instead of the dictionary), so
+    # this only takes effect once a release carries the upstream fix; until
+    # then it is ignored harmlessly and audio stays at 128 kb/s.
+    AUDIO_ARGS+=("-C" "aac" "-P" "b=320k")
 fi
 
 IS_OBS_RECORDING=0
 if [[ "$REC_SERVICE" == "obs" ]]; then
     if pgrep -x "obs" > /dev/null || pgrep -f "com.obsproject.Studio" > /dev/null; then
-        STATUS=$(python3 "/home/pedro/.config/quickshell/ii/scripts/videos/obs_control.py" status 2>/dev/null)
+        STATUS=$(python3 "$SCRIPT_DIR/obs_control.py" status 2>/dev/null)
         if [[ "$STATUS" == "active" ]]; then
             IS_OBS_RECORDING=1
         fi
@@ -400,7 +418,7 @@ fi
 
 if [[ $IS_OBS_RECORDING -eq 1 ]]; then
     notify-send "Stopping OBS Recording..." "Saving file..." -a 'Recorder' &
-    python3 "/home/pedro/.config/quickshell/ii/scripts/videos/obs_control.py" stop
+    python3 "$SCRIPT_DIR/obs_control.py" stop
     sleep 1.5
     pkill -x "obs" || pkill -f "com.obsproject.Studio"
     exit 0
@@ -456,7 +474,7 @@ if [[ -n "$OBS_CMD" ]]; then
     # can keep waiting instead of mistaking the failure for an idle recording state.
     WEBSOCKET_READY=0
     for i in {1..30}; do
-        STATUS=$(python3 "/home/pedro/.config/quickshell/ii/scripts/videos/obs_control.py" status 2>/dev/null)
+        STATUS=$(python3 "$SCRIPT_DIR/obs_control.py" status 2>/dev/null)
         if [[ "$STATUS" == "inactive" || "$STATUS" == "active" ]]; then
             WEBSOCKET_READY=1
             break
@@ -472,7 +490,7 @@ if [[ -n "$OBS_CMD" ]]; then
     fi
 
     notify-send "Starting OBS Recording..." "Triggering via WebSocket" -a 'Recorder' &
-    python3 "/home/pedro/.config/quickshell/ii/scripts/videos/obs_control.py" start
+    python3 "$SCRIPT_DIR/obs_control.py" start
 
     # Wait for the recording to actually become active before entering the watchdog
     # loop. This is critical: a Wayland pipewire-screen-cast source may pop up the
@@ -484,7 +502,7 @@ if [[ -n "$OBS_CMD" ]]; then
         if ! pgrep -x "obs" > /dev/null && ! pgrep -f "com.obsproject.Studio" > /dev/null; then
             break
         fi
-        STATUS=$(python3 "/home/pedro/.config/quickshell/ii/scripts/videos/obs_control.py" status 2>/dev/null)
+        STATUS=$(python3 "$SCRIPT_DIR/obs_control.py" status 2>/dev/null)
         if [[ "$STATUS" == "active" ]]; then
             RECORDING_ACTIVE=1
             break
@@ -512,7 +530,7 @@ if [[ -n "$OBS_CMD" ]]; then
         if ! pgrep -x "obs" > /dev/null && ! pgrep -f "com.obsproject.Studio" > /dev/null; then
             break
         fi
-        STATUS=$(python3 "/home/pedro/.config/quickshell/ii/scripts/videos/obs_control.py" status 2>/dev/null)
+        STATUS=$(python3 "$SCRIPT_DIR/obs_control.py" status 2>/dev/null)
         if [[ "$STATUS" != "active" ]]; then
             # Recording stopped. Give OBS a moment to flush the file, then close it.
             sleep 1
@@ -572,6 +590,19 @@ else
     else
         CODEC_OPTS+=("--pixel-format" "yuv420p")
     fi
+
+    # wf-recorder converts the screen to limited-range video but flags the file
+    # as full range (yuvj), so players skip the range expansion and the picture looks
+    # washed out; re-encoding sites like Discord ignore the flag, which is why it
+    # looks right there. Label what is actually written: the VAAPI scaler uses
+    # BT.709, swscale (every other path) its BT.601 default.
+    if [[ "$CODEC" == *_vaapi ]]; then
+        COLOR_MATRIX="bt709"
+    else
+        COLOR_MATRIX="smpte170m"
+    fi
+    CODEC_OPTS+=("-p" "color_range=tv" "-p" "colorspace=$COLOR_MATRIX"
+        "-p" "color_primaries=bt709" "-p" "color_trc=bt709")
 
     if [[ $FULLSCREEN_FLAG -eq 1 ]]; then
         MONITOR="$(getactivemonitor)"

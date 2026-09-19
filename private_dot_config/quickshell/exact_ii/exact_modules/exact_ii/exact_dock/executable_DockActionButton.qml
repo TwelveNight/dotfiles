@@ -49,58 +49,17 @@ DockButton {
         return Item.Bottom;
     }
 
-    // ── Launch Bounce Customization Tokens ──
-    readonly property bool enableLaunchBounce: Config.options?.dock?.enableLaunchBounce ?? true
-    readonly property real bounceHeight: Config.options?.dock?.bounceHeight ?? 18
-    readonly property int bounceDuration: 280
-    readonly property int maxBounceCycles: 3
+    readonly property string launchAnimation: Config.options?.dock?.launchAnimation ?? "bounce"
 
-    property real launchBounceY: 0
-    readonly property string dockPos: dockContent?.dockPos ?? "bottom"
+    transform: [attention.shift, attention.grow, attention.turn]
 
-    readonly property real effectiveBounceOffset: {
-        if (root.dockPos === "top") return -root.launchBounceY;
-        if (root.dockPos === "left") return -root.launchBounceY;
-        return root.launchBounceY;
+    DockAttentionAnimation {
+        id: attention
+        host: root
+        dockPos: root.dockContent?.dockPos ?? "bottom"
     }
 
-    transform: Translate {
-        x: root.dockContent?.isVertical ? root.effectiveBounceOffset : 0
-        y: !root.dockContent?.isVertical ? root.effectiveBounceOffset : 0
-    }
-
-    SequentialAnimation {
-        id: launchBounceAnim
-        loops: root.maxBounceCycles
-
-        NumberAnimation {
-            target: root
-            property: "launchBounceY"
-            from: 0
-            to: -root.bounceHeight
-            duration: Math.round(root.bounceDuration * 0.45)
-            easing.type: Easing.OutQuad
-        }
-        NumberAnimation {
-            target: root
-            property: "launchBounceY"
-            from: -root.bounceHeight
-            to: 0
-            duration: Math.round(root.bounceDuration * 0.55)
-            easing.type: Easing.InQuad
-        }
-    }
-
-    function triggerLaunchBounce() {
-        if (!enableLaunchBounce) return;
-        launchBounceAnim.stop();
-        launchBounceY = 0;
-        launchBounceAnim.start();
-    }
-
-    onClicked: {
-        triggerLaunchBounce();
-    }
+    onClicked: attention.playLaunch(root.launchAnimation)
 
     scale: (_pressed ? 0.88 : 1.0) * magScale
     z: Math.round(magScale * 10)
@@ -188,27 +147,41 @@ DockButton {
         anchors.fill: parent
         clip: false // Allow larger icons to overflow slightly if needed
 
-        MaterialShapeWrappedMaterialSymbol {
+        Item {
             id: shapeSymbol
             anchors.centerIn: parent
             visible: root.customImageSource === ""
-            // ... (rest of the properties)
-            shape: root.isDragging ? root.activeShape : root.normalShape
-            implicitSize: root.dragOver ? root.buttonSize * 1.1 : root.buttonSize * 0.9
-            rotation: root.dragOver ? 90 : (root.isDragging ? 45 : 0)
-            color: {
-                if (root.isDragging) {
-                    return root._pressed ? Appearance.colors.colSecondaryContainerActive : root.hovered ? Appearance.colors.colSecondaryContainerHover : Appearance.colors.colSecondaryContainer;
+            implicitWidth: root.dragOver ? root.buttonSize * 1.1 : root.buttonSize * 0.9
+            implicitHeight: implicitWidth
+
+            MaterialShape {
+                anchors.fill: parent
+                shape: root.isDragging ? root.activeShape : root.normalShape
+                rotation: root.dragOver ? 90 : (root.isDragging ? 45 : 0)
+                color: root.isDragging ? Appearance.colors.colSecondaryContainer
+                    : root._pressed ? Appearance.colors.colPrimaryActive
+                    : root.hovered ? Appearance.colors.colPrimaryHover : Appearance.colors.colPrimary
+                opacity: root.toggled ? 1 : 0
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: Appearance.animation.elementMoveFast.duration
+                        easing.type: Appearance.animation.elementMoveFast.type
+                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                    }
                 }
-                if (root.toggled) {
-                    return root._pressed ? Appearance.colors.colPrimaryActive : root.hovered ? Appearance.colors.colPrimaryHover : Appearance.colors.colPrimary;
+                Behavior on rotation {
+                    SmoothedAnimation { velocity: 720 }
                 }
-                return root._pressed ? Appearance.colors.colLayer1Active : root.hovered ? Appearance.colors.colLayer1Hover : "transparent";
             }
-            text: root.fileDropActive ? root.fileDropIcon : root.dragActive ? root.dragSymbol : root.symbolName
-            fill: root.symbolFill
-            iconSize: root.isDragging ? Math.round(root.buttonSize * 0.4) : root.symbolSize
-            colSymbol: root.isDragging ? Appearance.colors.colOnSecondaryContainer : (root.toggled ? root.activeColor : root.inactiveColor)
+
+            MaterialSymbol {
+                anchors.centerIn: parent
+                text: root.fileDropActive ? root.fileDropIcon : root.dragActive ? root.dragSymbol : root.symbolName
+                fill: root.symbolFill
+                iconSize: root.isDragging ? Math.round(root.buttonSize * 0.4) : root.symbolSize
+                color: root.isDragging ? Appearance.colors.colOnSecondaryContainer : (root.toggled ? root.activeColor : root.inactiveColor)
+            }
         }
 
         // Custom image (for trash icon, etc.)

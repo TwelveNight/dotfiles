@@ -46,9 +46,8 @@ Scope {
         const remembered = opts?.rememberLastView ?? true;
         root.pendingGranularity = (remembered ? opts?.lastGranularity : opts?.defaultGranularity) ?? "day";
         root.pendingMetric = (remembered ? opts?.lastMetric : opts?.defaultMetric) ?? "fg";
-        // The first tab is always App usage. Keep period and metric preferences,
-        // but do not reopen on Battery after the user inspected that tab.
-        root.pendingView = "apps";
+        root.pendingView = remembered && opts?.lastView === "battery" && Battery.available
+            ? "battery" : "apps";
         root.granularity = root.pendingGranularity;
         root.metricKey = root.pendingMetric;
         root.view = root.pendingView;
@@ -76,17 +75,8 @@ Scope {
         }
     }
 
-    // Outlives the close animation, so the surface is not destroyed mid-fade.
-    Timer {
-        id: closeTimer
-        interval: 400
-        onTriggered: {
-            root.activeState = false;
-        }
-    }
 
     function requestOpen() {
-        closeTimer.stop();
         // The singleton probes once at startup. Retry only while the sampler is
         // absent, so opening the panel does not launch a process on every toggle.
         if (!AppStats.probed || !AppStats.binaryPresent)
@@ -98,7 +88,7 @@ Scope {
 
     function requestClose() {
         GlobalStates.usageOpen = false;
-        closeTimer.start();
+        if (!usageLoader.item) root.activeState = false;
     }
 
     function requestToggle() {
@@ -174,13 +164,11 @@ Scope {
                 if (visible) {
                     initialFocusTimer.restart();
                     registerGrabTimer.restart();
-                    animDelayTimer.restart();
                     AppStats.refresh();
                     return;
                 }
                 registerGrabTimer.stop();
                 GlobalFocusGrab.removeDismissable(usageRoot);
-                usageBackground.animateIn = false;
             }
 
             Timer {
@@ -196,27 +184,15 @@ Scope {
                 height: usageBackground.height
             }
 
-            Item {
+
+            WindowAnimationSurface {
                 id: dialogWrap
                 anchors.fill: parent
-                transformOrigin: Item.Center
-                scale: usageBackground.animateIn && GlobalStates.usageOpen ? 1.0 : 0.94
-                opacity: usageBackground.animateIn && GlobalStates.usageOpen ? 1.0 : 0.0
-
-                Behavior on scale {
-                    NumberAnimation {
-                        duration: 250
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Appearance.animationCurves.emphasized
-                    }
-                }
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: 220
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Appearance.animationCurves.emphasized
-                    }
-                }
+                open: GlobalStates.usageOpen
+                mapped: usageRoot.visible
+                panelWidth: usageBackground.width
+                panelHeight: usageBackground.height
+                onClosed: if (!GlobalStates.usageOpen) root.activeState = false
 
                 StyledRectangularShadow {
                     target: usageBackground
@@ -226,7 +202,6 @@ Scope {
                     id: usageBackground
 
                     property real padding: 20
-                    property bool animateIn: false
                     readonly property real maxBgWidth: usageRoot.screen ? usageRoot.screen.width * 0.95 : 1900
                     readonly property real maxBgHeight: usageRoot.screen ? usageRoot.screen.height * 0.80 : 1000
 
@@ -236,13 +211,6 @@ Scope {
                     implicitWidth: Math.min(maxBgWidth, usageColumnLayout.implicitWidth + padding * 2)
                     implicitHeight: Math.min(maxBgHeight, usageColumnLayout.implicitHeight + padding * 2)
 
-                    // Held back one frame so the panel is laid out before it moves.
-                    Timer {
-                        id: animDelayTimer
-                        interval: 0
-                        running: false
-                        onTriggered: usageBackground.animateIn = true
-                    }
 
                     // Escape belongs to the window; everything else is the content's
                     // to claim, so range, metric and the app list stay reachable
@@ -263,7 +231,6 @@ Scope {
                         implicitWidth: 40
                         implicitHeight: 40
                         buttonRadius: Appearance.rounding.full
-                        scale: usageBackground.animateIn ? 1.0 : 0.0
                         onClicked: usageRoot.hide()
 
                         anchors {
@@ -273,13 +240,6 @@ Scope {
                             rightMargin: 20
                         }
 
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 300
-                                easing.type: Easing.OutBack
-                                easing.overshoot: 1.5
-                            }
-                        }
 
                         contentItem: MaterialSymbol {
                             anchors.centerIn: parent
@@ -318,17 +278,17 @@ Scope {
                             SecondaryTabBar {
                                 id: viewTabs
 
+                                requestOnly: true
                                 visible: Battery.available && AppStats.binaryPresent
                                 width: 360
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                currentIndex: root.view === "battery" ? 1 : 0
+                                selectedIndex: root.view === "battery" ? 1 : 0
 
-                                onCurrentIndexChanged: {
-                                    const nextView = viewTabs.currentIndex === 1 ? "battery" : "apps";
-                                    if (root.view !== nextView) {
-                                        root.view = nextView;
-                                        root.rememberView();
-                                    }
+                                onIndexSelected: index => {
+                                    const nextView = index === 1 ? "battery" : "apps";
+                                    root.view = nextView;
+                                    if (Config.options.appStats?.rememberLastView ?? true)
+                                        Config.options.appStats.lastView = nextView;
                                 }
 
                                 Repeater {
@@ -336,6 +296,12 @@ Scope {
 
                                     delegate: SecondaryTabButton {
                                         required property string modelData
+                                        required property int index
+                                        current: index === viewTabs.selectedIndex
+                                        checkable: false
+                                        autoExclusive: false
+                                        Keys.forwardTo: [viewTabs]
+                                        onClicked: viewTabs.selectIndex(index)
 
                                         buttonText: modelData
                                     }

@@ -408,6 +408,9 @@ Singleton {
         script += "hl.layer_rule({ name = 'ii:appearance:overview-transition', match = { namespace = 'quickshell:overviewWindowTransition' }, blur = false }) ";
         script += "hl.layer_rule({ name = 'ii:appearance:workspace-overlay', match = { namespace = 'quickshell:workspaceBlurOverlay' }, blur = true, ignore_alpha = 0.0, order = -1, animation = 'fade' }) ";
         script += "hl.layer_rule({ name = 'ii:appearance:notification-animation', match = { namespace = 'quickshell:notificationPopup' }, no_anim = true }) ";
+        // These layer surfaces animate their content with the Windows preset. Never also
+        // animate the fullscreen transparent layer (or alter animations for other overlays).
+        script += "hl.layer_rule({ name = 'ii:appearance:window-animation-overlays', match = { namespace = '^quickshell:(usage|modes|cheatsheet)$' }, no_anim = true }) ";
         // ignore_alpha is a layer effect, not a supported window-rule field.
         script += "hl.window_rule({ name = 'ii:appearance:settings', match = { title = '^(illogical-impulse Settings)$' }, no_blur = false }) ";
         return script;
@@ -835,26 +838,26 @@ Singleton {
             }
         }
 
-        // Continuous magnification follows a moving pointer target, so it
-        // uses a spring instead of restarting a one-shot easing curve.
+        // One lens shared by every dock icon. pointerLag smooths the pointer the
+        // lens follows (critically damped, never overshoots); strengthDuration
+        // is how long the lens takes to grow in on enter. Past the window edge
+        // there are no pointer samples, so the exit is timed: exitDuration, on
+        // a curve that starts and ends gently.
         property QtObject dockMagnificationScale: QtObject {
             property QtObject fast: QtObject {
-                property real spring: 5.2
-                property real damping: 0.36
-                property real mass: 0.82
-                property real epsilon: 0.002
+                property real pointerLag: 0
+                property int strengthDuration: Math.round(90 * root.animMultiplier)
+                property int exitDuration: Math.round(220 * root.animMultiplier)
             }
             property QtObject balanced: QtObject {
-                property real spring: 3.8
-                property real damping: 0.34
-                property real mass: 0.95
-                property real epsilon: 0.002
+                property real pointerLag: 28
+                property int strengthDuration: Math.round(150 * root.animMultiplier)
+                property int exitDuration: Math.round(280 * root.animMultiplier)
             }
             property QtObject smooth: QtObject {
-                property real spring: 2.8
-                property real damping: 0.38
-                property real mass: 1.1
-                property real epsilon: 0.002
+                property real pointerLag: 60
+                property int strengthDuration: Math.round(220 * root.animMultiplier)
+                property int exitDuration: Math.round(340 * root.animMultiplier)
             }
             property int hoverExitGrace: 90
         }

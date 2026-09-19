@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Window
 import QtQuick.Layouts
 import qs.modules.common
 import qs.modules.common.widgets
@@ -10,6 +11,29 @@ Item {
     id: root
 
     property int entranceTrigger: -1
+    property bool keyboardEnabled: root.visible
+    property bool ctrlPressed: false
+    readonly property bool showShortcutHints: root.keyboardEnabled && root.ctrlPressed
+        && (root.Window.window?.active ?? false)
+    readonly property var activeList: root.selectedTab === 0 ? unfinishedLoader.item : doneLoader.item
+
+    onKeyboardEnabledChanged: { if (!root.keyboardEnabled) root.ctrlPressed = false; }
+    Connections {
+        target: root.Window.window
+        function onActiveChanged() { root.ctrlPressed = false; }
+    }
+
+    function releaseKey(event) {
+        if (event.key === Qt.Key_Control || !(event.modifiers & Qt.ControlModifier))
+            root.ctrlPressed = false;
+    }
+
+    function syncTasks() {
+        if (Todo.connected)
+            Todo.refresh();
+        else
+            GlobalStates.openSettingsPage("tasksAccounts");
+    }
     // Defensive fallback for alternate hosts smaller than the dashboard's
     // fixed 350px bottom group.
     readonly property bool compact: root.height > 0 && root.height < 300
@@ -33,13 +57,13 @@ Item {
      * the right while the list leaves to the left.
      */
     property string activeView: ""
+    property var editingTask: null
+    readonly property var taskSheet: canvasViewLoader.item?.sheet ?? null
     readonly property bool viewOpen: root.activeView.length > 0
     readonly property int canvasSlideDistance: Appearance.font.pixelSize.huge * 1.5
     readonly property int canvasContentPadding: root.dense ? 10 : 16
-    // 56 is FloatingActionButton's own baseSize; fabSize was never handed to it,
-    // so the button was 56 while the list reserved room for 48. Compact scales
-    // both buttons by the same 260/350 the bottom group itself lost.
-    property int fabSize: root.dense ? 40 : (root.compact ? 42 : 56)
+    // Match the save FAB in NewTaskSheet, including compact and dense hosts.
+    property int fabSize: root.dense ? 40 : (root.compact ? 42 : 52)
     property int fabMargins: root.dense ? 6 : (root.compact ? 10 : 14)
     property int syncButtonSize: root.dense ? 32 : (root.compact ? 36 : 40)
 
@@ -102,38 +126,50 @@ Item {
         Persistent.states.sidebar.bottomGroup.todoTab = target;
     }
 
+    function openTaskEditor(task = null) {
+        root.editingTask = task;
+        root.activeView = task ? "editTask" : "newTask";
+    }
+
     function closeView() {
         // Clear while the view still exists: the Loader destroys its item the
         // moment activeView flips, so nothing survives to be cleaned after.
-        if (canvasViewLoader.item?.clearInput)
-            canvasViewLoader.item.clearInput();
+        if (root.taskSheet)
+            root.taskSheet.clearInput();
         root.activeView = "";
+        root.editingTask = null;
     }
 
-    Keys.onPressed: event => {
-        // Open the new-task subpage on "N" (any modifiers)
-        // Close the subpage on Esc if open
-
-        if ((event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp) && event.modifiers === Qt.NoModifier) {
-            if (event.key === Qt.Key_PageDown)
-                tabBar.incrementCurrentIndex();
-            else if (event.key === Qt.Key_PageUp)
-                tabBar.decrementCurrentIndex();
-            event.accepted = true;
-        } else if (event.key === Qt.Key_N) {
-            root.activeView = "newTask";
-            event.accepted = true;
-        } else if (event.key === Qt.Key_Escape && root.viewOpen) {
-            root.closeView();
-            event.accepted = true;
+    function handleKey(event) {
+        if (!root.keyboardEnabled)
+            return false;
+        root.ctrlPressed = event.key === Qt.Key_Control || !!(event.modifiers & Qt.ControlModifier);
+        if (root.viewOpen)
+            return root.taskSheet?.handleKey(event) ?? false;
+        const ctrl = event.modifiers === Qt.ControlModifier;
+        if (ctrl && event.key === Qt.Key_N) {
+            if (!event.isAutoRepeat) root.openTaskEditor();
+            return true;
         }
+        if (ctrl && event.key === Qt.Key_R && Todo.provider === "ticktick") {
+            if (!event.isAutoRepeat && !Todo.syncing) root.syncTasks();
+            return true;
+        }
+        if (event.modifiers === Qt.NoModifier && (event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp)) {
+            root.selectTab(event.key === Qt.Key_PageDown ? 1 : 0);
+            return true;
+        }
+        return root.activeList?.handleKey(event) ?? false;
     }
+
+    Keys.onPressed: event => { event.accepted = root.handleKey(event); }
+    Keys.onReleased: event => root.releaseKey(event)
 
     onActiveViewChanged: {
         // The view already cleared its own input in closeView(); here the
         // focus is handed back to the FAB that opened it.
         if (!root.viewOpen)
-            fabButton.focus = true;
+            fabButton.forceActiveFocus();
     }
 
     ColumnLayout {
@@ -146,6 +182,7 @@ Item {
         // as one surface swapping its content.
         opacity: root.viewOpen ? 0 : 1
         visible: opacity > 0.001
+        enabled: !root.viewOpen
         transform: Translate {
             x: root.viewOpen ? -root.canvasSlideDistance : 0
 
@@ -184,6 +221,36 @@ Item {
                     requestOnly: true
                     currentIndex: root.selectedTab
                     onIndexSelected: index => root.selectTab(index)
+                    delegate: ToolbarTabButton {
+                        id: taskTab
+                        required property int index
+                        required property var modelData
+                        current: index === root.selectedTab
+                        text: modelData.name
+                        materialSymbol: modelData.icon
+                        collapseInactiveLabel: root.dense
+                        onClicked: root.selectTab(index)
+                        Accessible.name: modelData.name
+                        contentItem: Row {
+                            anchors.centerIn: parent
+                            spacing: taskTab.labelCollapsed ? 0 : 6
+                            TaskShortcutContent {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Appearance.font.pixelSize.smallest * 3
+                                height: Appearance.font.pixelSize.larger
+                                symbol: taskTab.materialSymbol
+                                fill: taskTab.current ? 1 : 0
+                                shortcut: taskTab.index === 0 ? "PgUp" : "PgDn"
+                                showHint: root.showShortcutHints
+                            }
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: taskTab.text
+                                width: taskTab.labelCollapsed ? 0 : implicitWidth
+                                visible: !taskTab.labelCollapsed
+                            }
+                        }
+                    }
                 }
             }
 
@@ -200,24 +267,14 @@ Item {
                 colBackgroundActive: Appearance.colors.colSecondaryContainerActive
                 colRipple: Appearance.colors.colOnSecondaryContainer
 
-                onClicked: {
-                    if (Todo.connected) {
-                        Todo.refresh();
-                    } else {
-                        GlobalStates.openSettingsPage("tasksAccounts");
-                    }
-                }
+                onClicked: root.syncTasks()
 
-                contentItem: MaterialSymbol {
-                    anchors.centerIn: parent
-                    horizontalAlignment: Text.AlignHCenter
-                    text: {
-                        return Todo.syncing ? "sync" : "cloud_done";
-                    }
+                contentItem: TaskShortcutContent {
+                    symbol: Todo.syncing ? "sync" : "cloud_done"
+                    shortcut: "Ctrl\n+ R"
+                    showHint: root.showShortcutHints
                     fill: 1
-                    iconSize: root.dense
-                        ? Appearance.font.pixelSize.normal
-                        : Appearance.font.pixelSize.larger
+                    iconSize: root.dense ? Appearance.font.pixelSize.normal : Appearance.font.pixelSize.larger
                     color: Appearance.colors.colOnSecondaryContainer
                     opacity: Todo.connected ? 1.0 : 0.4
                 }
@@ -256,62 +313,78 @@ Item {
             // sizeable inbox, and keeping both unfinished and done ListViews
             // alive made the hidden tab pay for its delegates too.
             Loader {
+                id: unfinishedLoader
                 active: root.selectedTab === 0
                 asynchronous: true
                 sourceComponent: TaskList {
                     dense: root.dense
+                    showShortcutHints: root.showShortcutHints && !root.viewOpen
                     listBottomPadding: root.fabSize + root.fabMargins * 2
                     emptyPlaceholderIcon: "check_circle"
                     emptyPlaceholderText: Translation.tr("Nothing here!")
                     entranceTrigger: root.entranceTrigger
                     taskList: root.unfinishedTasks
+                    onEditRequested: task => root.openTaskEditor(task)
                 }
             }
 
             Loader {
+                id: doneLoader
                 active: root.selectedTab === 1
                 asynchronous: true
                 sourceComponent: TaskList {
                     dense: root.dense
+                    showShortcutHints: root.showShortcutHints && !root.viewOpen
                     listBottomPadding: root.fabSize + root.fabMargins * 2
                     emptyPlaceholderIcon: "checklist"
                     emptyPlaceholderText: Translation.tr("Finished tasks will go here")
                     entranceTrigger: root.entranceTrigger
                     taskList: root.doneTasks
+                    onEditRequested: task => root.openTaskEditor(task)
                 }
             }
         }
     }
 
-    // + FAB
+    // One persistent action above both the list and the editor canvas.
     StyledRectangularShadow {
         target: fabButton
+        z: fabButton.z
         radius: fabButton.buttonRadius
         blur: 0.6 * Appearance.sizes.elevationMargin
     }
 
     FloatingActionButton {
         id: fabButton
+        z: canvasViewLoader.z + 1
 
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.rightMargin: root.fabMargins
         anchors.bottomMargin: root.fabMargins
         baseSize: root.fabSize
-        iconSize: root.compact ? 20 : 26
-        opacity: root.viewOpen ? 0 : 1
-        visible: opacity > 0.001
-
-        Behavior on opacity {
-            NumberAnimation {
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Appearance.animationCurves.emphasizedDecel
-            }
+        iconSize: root.compact ? 20 : 24
+        enabled: !root.viewOpen || ((root.taskSheet?.canSave ?? false) && !(root.taskSheet?.datePickerOpen ?? false))
+        colBackground: root.viewOpen ? Appearance.colors.colTertiaryContainer : Appearance.colors.colPrimaryContainer
+        colBackgroundHover: root.viewOpen ? Appearance.colors.colTertiaryContainerHover : Appearance.colors.colPrimaryContainerHover
+        colBackgroundActive: root.viewOpen ? Appearance.colors.colTertiaryContainerActive : Appearance.colors.colPrimaryContainerActive
+        colRipple: colBackgroundActive
+        colOnBackground: root.viewOpen ? Appearance.colors.colOnTertiaryContainer : Appearance.colors.colOnPrimaryContainer
+        onClicked: {
+            if (root.viewOpen)
+                root.taskSheet?.save();
+            else
+                root.openTaskEditor();
         }
-
-        onClicked: root.activeView = "newTask"
-        iconText: "add"
+        iconText: root.viewOpen ? "check" : "add"
+        Accessible.name: root.viewOpen ? Translation.tr("Save task") : Translation.tr("Add task")
+        contentItem: TaskShortcutContent {
+            symbol: fabButton.iconText
+            shortcut: root.viewOpen ? "Ctrl\n+ Enter" : "Ctrl\n+ N"
+            showHint: root.showShortcutHints
+            iconSize: fabButton.iconSize
+            color: fabButton.colOnBackground
+        }
     }
 
     /**
@@ -327,6 +400,7 @@ Item {
 
         sourceComponent: Item {
             id: canvasView
+            readonly property alias sheet: editor
 
             opacity: 0
             transform: Translate {
@@ -374,9 +448,17 @@ Item {
             }
 
             NewTaskSheet {
+                id: editor
                 anchors.fill: parent
+                editTask: root.editingTask
+                showShortcutHints: root.showShortcutHints
+                onControlPressed: root.ctrlPressed = true
+                onControlReleased: root.ctrlPressed = false
                 onCloseRequested: root.closeView()
-                onSaved: root.selectTab(0)
+                onSaved: {
+                    if (!root.editingTask)
+                        root.selectTab(0);
+                }
             }
         }
     }

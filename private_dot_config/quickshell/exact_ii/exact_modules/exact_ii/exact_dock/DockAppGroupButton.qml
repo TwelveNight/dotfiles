@@ -147,8 +147,8 @@ DockButton {
         anchors.centerIn: parent
         radius: Appearance.rounding.small
         color: root.groupHovered
-            ? Appearance.colors.colLayer0Hover
-            : Appearance.colors.colLayer0
+            ? Appearance.colors.colLayer2Base
+            : Appearance.colors.colLayer1Base
 
         Behavior on color {
             animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
@@ -216,6 +216,7 @@ DockButton {
                         appId: member.appData?.appId ?? ""
                         desktopEntry: TaskbarApps.getCachedDesktopEntry(member.appData?.appId ?? "")
                         isRunning: (member.appData?.toplevels?.length ?? 0) > 0
+                        renderScale: root.dockContent?.magnificationRenderScale ?? 1
                     }
                 }
             }

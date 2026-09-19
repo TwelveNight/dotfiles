@@ -1,6 +1,5 @@
 import qs.modules.ii.bar.shared
-// Do not shadow bar.shared's StyledPopup with the legacy compatibility type.
-import qs.modules.ii.bar as IiBar
+import qs.modules.ii.bar
 import qs.modules.ii.bar.widgets.resources
 import QtQuick
 import QtQuick.Layouts
