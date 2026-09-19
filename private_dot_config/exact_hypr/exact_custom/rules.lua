@@ -10,6 +10,7 @@ hl.window_rule({ match = { class = "^(feh)$" }, float = true })
 hl.window_rule({ match = { class = "^(wemeetapp)$" }, float = true })
 hl.window_rule({ match = { class = "^(xdg-desktop-portal-gtk)$" }, float = true })
 hl.window_rule({ match = { class = "^(pavucontrol-qt)$" }, float = true })
+hl.window_rule({ match = { class = "^(cc-switch)$" }, float = true })
 
 -- Clash Verge
 hl.window_rule({ match = { class = "^(clash-verge)$" }, float = true })

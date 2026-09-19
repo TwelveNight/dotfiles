@@ -5,27 +5,27 @@
 -- Map Sunshine/Moonlight absolute touch input to the laptop display.
 -- Without an explicit output, Hyprland maps it across the full monitor layout.
 hl.device({
-    name = "libvirtualhid-touchscreen",
-    output = "eDP-1"
+	name = "libvirtualhid-touchscreen",
+	output = "eDP-1",
 })
 
 -- Replace the default four-finger swipe-down Quickshell overview gesture
 -- with the same maximize toggle dispatcher as SUPER+O.
 hl.gesture({
-    fingers = 4,
-    direction = "up",
-    action = function()
-        -- A gesture has no key-release phase, so use the Quickshell IPC
-        -- toggle directly instead of the Super release-sensitive shortcut.
-        hl.dispatch(hl.dsp.exec_cmd("qs -c ii ipc call search toggle"))
-    end
+	fingers = 4,
+	direction = "down",
+	action = function()
+		-- A gesture has no key-release phase, so use the Quickshell IPC
+		-- toggle directly instead of the Super release-sensitive shortcut.
+		hl.dispatch(hl.dsp.exec_cmd("qs -c ii ipc call search toggle"))
+	end,
 })
 
 -- Keep the original four-finger swipe-down maximize toggle.
 hl.gesture({
-    fingers = 4,
-    direction = "down",
-    action = function()
-        hl.dispatch(hl.dsp.window.fullscreen({mode = "maximized", action = "toggle"}))
-    end
+	fingers = 4,
+	direction = "up",
+	action = function()
+		hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }))
+	end,
 })
