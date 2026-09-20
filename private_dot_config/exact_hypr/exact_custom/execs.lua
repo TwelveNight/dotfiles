@@ -1,4 +1,7 @@
 hl.on("hyprland.start", function()
+    -- Keep HyprGlass' theme variant synchronized with Quickshell.
+    hl.exec_cmd("$HOME/.config/hypr/scripts/hyprglass-theme-sync.sh --watch >/dev/null 2>&1 &")
+
     -- Hyprland does not consume XDG autostart desktop files by itself, so
     -- start the input method explicitly.  Keep the guard for sessions where
     -- another launcher has already started it.
