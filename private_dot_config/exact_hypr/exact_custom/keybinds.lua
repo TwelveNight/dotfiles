@@ -111,6 +111,35 @@ hl.bind(
 	{ locked = true, description = "Media: Previous track" }
 )
 
+-- Mouse volume and media controls
+hl.bind(
+	"CTRL + ALT + mouse_up",
+	hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 1%+ -l 1.5"),
+	{ locked = true, description = "Media: Volume up" }
+)
+hl.bind(
+	"CTRL + ALT + mouse_down",
+	hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 1%-"),
+	{ locked = true, description = "Media: Volume down" }
+)
+hl.bind("CTRL + ALT + mouse:275", hl.dsp.exec_cmd("playerctl previous"), {
+	locked = true,
+	description = "Media: Previous track (Ctrl+Alt+mouse side button)",
+})
+hl.bind("CTRL + ALT + mouse:276", hl.dsp.exec_cmd("playerctl next"), {
+	locked = true,
+	description = "Media: Next track (Ctrl+Alt+mouse side button)",
+})
+-- Some receivers expose the two side buttons as buttons 6/7 instead.
+hl.bind("CTRL + ALT + mouse:277", hl.dsp.exec_cmd("playerctl previous"), {
+	locked = true,
+	description = "Media: Previous track (Ctrl+Alt+mouse side button 6)",
+})
+hl.bind("CTRL + ALT + mouse:278", hl.dsp.exec_cmd("playerctl next"), {
+	locked = true,
+	description = "Media: Next track (Ctrl+Alt+mouse side button 7)",
+})
+
 -- Screenshot
 hl.bind("CTRL + ALT + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh s"))
 hl.bind("CTRL + ALT + A", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh s"))

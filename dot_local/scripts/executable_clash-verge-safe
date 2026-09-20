@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -u
+
+data_dir="${XDG_DATA_HOME:-$HOME/.local/share}/io.github.clash-verge-rev.clash-verge-rev"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/clash-verge-safe"
+index_file="$data_dir/profiles.yaml"
+snapshot="$state_dir/last-good.tar.gz"
+lock_file="$state_dir/watcher.lock"
+
+mkdir -p "$state_dir"
+chmod 700 "$state_dir"
+
+valid_index() {
+    [[ -s "$index_file" ]] || return 1
+    grep -Eq '^current: [^[:space:]]+' "$index_file" || return 1
+    [[ $(grep -c '^- uid:' "$index_file" 2>/dev/null) -ge 3 ]] || return 1
+}
+
+make_snapshot() {
+    valid_index || return 0
+    local tmp="$state_dir/.last-good.tar.gz.tmp"
+    tar -C "$data_dir" -czf "$tmp" \
+        profiles profiles.yaml verge.yaml config.yaml dns_config.yaml 2>/dev/null || {
+        rm -f "$tmp"
+        return 1
+    }
+    chmod 600 "$tmp"
+    mv -f "$tmp" "$snapshot"
+}
+
+restore_if_needed() {
+    valid_index && return 0
+    [[ -s "$snapshot" ]] || return 0
+    tar -C "$data_dir" -xzf "$snapshot"
+}
+
+watch_index() {
+    exec 9>"$lock_file"
+    flock -n 9 || exit 0
+    local previous=""
+    while true; do
+        if valid_index; then
+            local current
+            current=$(sha256sum "$index_file" 2>/dev/null | cut -d' ' -f1)
+            if [[ -n "$current" && "$current" != "$previous" ]]; then
+                make_snapshot && previous="$current"
+            fi
+        fi
+        sleep 5
+    done
+}
+
+case "${1:-run}" in
+    watch)
+        watch_index
+        ;;
+    prepare)
+        restore_if_needed
+        make_snapshot
+        ;;
+    run)
+        restore_if_needed
+        make_snapshot
+        "$0" watch >/dev/null 2>&1 &
+        shift || true
+        exec /usr/bin/clash-verge "$@"
+        ;;
+    *)
+        printf 'usage: %s [run|prepare|watch] [clash-verge arguments...]\n' "$0" >&2
+        exit 2
+        ;;
+esac
