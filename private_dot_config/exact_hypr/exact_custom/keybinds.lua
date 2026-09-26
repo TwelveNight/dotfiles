@@ -11,13 +11,6 @@ hl.bind(
 	{ description = "Edit user keybinds" }
 )
 
--- Reload Quickshell in place without killing and restarting the process.
-hl.bind(
-	"CTRL + SUPER + ALT + R",
-	hl.dsp.exec_cmd("touch ~/.config/quickshell/$qsConfig/shell.qml"),
-	{ description = "Shell: Hot reload widgets" }
-)
-
 -- System keybind overrides
 -- Move Notes off the workspace-navigation chord used in this custom layer.
 hl.unbind("SUPER + ALT + N", hl.dsp.global("quickshell:notesToggle"))
