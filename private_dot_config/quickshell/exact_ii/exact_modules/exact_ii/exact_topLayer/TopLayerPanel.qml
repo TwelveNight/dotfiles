@@ -6,15 +6,12 @@ import Quickshell.Hyprland
 import qs
 import qs.services
 import qs.modules.common
+import qs.modules.ii.dynamicIsland.core
 import qs.modules.common.widgets
 import qs.modules.ii.bar as Bar
 import qs.modules.ii.bar.shared
 import qs.modules.ii.verticalBar as VBar
-import qs.modules.ii.sidebarPolicies as Policies
-import qs.modules.ii.sidebarDashboard as Dashboard
 import qs.modules.ii.wrappedFrame as Frame
-import qs.modules.ii.topLayer.search as SearchConnect
-import qs.modules.ii.topLayer.osd as OsdConnect
 import qs.modules.ii.overview
 
 PanelWindow {
@@ -41,27 +38,6 @@ PanelWindow {
 
     BarThemes {
         id: barThemes
-    }
-
-    Component {
-        id: policiesContentComponent
-        Policies.SidebarPoliciesContent {
-            scopeRoot: topPanel
-        }
-    }
-
-    Component {
-        id: leftDashboardContentComponent
-        Dashboard.SidebarDashboardContent {
-            keepWarm: topPanel.keepLeftSidebarContentLoaded
-        }
-    }
-
-    Component {
-        id: rightDashboardContentComponent
-        Dashboard.SidebarDashboardContent {
-            keepWarm: topPanel.keepRightSidebarContentLoaded
-        }
     }
 
     readonly property var activeTheme: barThemes.getTheme(Config.options.bar.expressiveColorTheme)
@@ -102,6 +78,18 @@ PanelWindow {
 
     property real leftSidebarMaskWidth: 0
     property real rightSidebarMaskWidth: 0
+    // Connect used to instantiate both full sidebars and the search surface in
+    // the same startup window as the bar. Preserve the keep-warm preference,
+    // but only after the visible shell has had time to map and settle. Opening
+    // any surface before then still loads it immediately through its open flag.
+    property bool secondaryWarmupReady: false
+
+    Timer {
+        interval: 12000
+        repeat: false
+        running: true
+        onTriggered: topPanel.secondaryWarmupReady = true
+    }
 
     readonly property real leftContentWidth: {
         const pos = Config.options.sidebar.position;
@@ -148,9 +136,11 @@ PanelWindow {
 
     readonly property bool leftSidebarOpenOnMonitor: GlobalStates.sidebarLeftOpen && screen.name === GlobalStates.effectiveLeftMonitor
     readonly property bool rightSidebarOpenOnMonitor: GlobalStates.sidebarRightOpen && screen.name === GlobalStates.effectiveRightMonitor
-    readonly property bool keepRightSidebarContentLoaded: Config.ready && Config.options.sidebar.keepRightSidebarLoaded
+    readonly property bool keepRightSidebarContentLoaded: topPanel.secondaryWarmupReady
+        && Config.ready && Config.options.sidebar.keepRightSidebarLoaded
     readonly property bool rightSidebarContentWanted: GlobalStates.sidebarRightOpen || topPanel.keepRightSidebarContentLoaded
-    readonly property bool keepLeftSidebarContentLoaded: Config.ready && Config.options.sidebar.keepLeftSidebarLoaded
+    readonly property bool keepLeftSidebarContentLoaded: topPanel.secondaryWarmupReady
+        && Config.ready && Config.options.sidebar.keepLeftSidebarLoaded
     readonly property bool leftSidebarContentWanted: GlobalStates.sidebarLeftOpen || topPanel.keepLeftSidebarContentLoaded
     readonly property bool leftSidebarActiveOnMonitor: (GlobalStates.animatedLeftSidebarWidth > 0 || GlobalStates.sidebarLeftOpen) && screen.name === GlobalStates.effectiveLeftMonitor && !(GlobalStates.policiesDetached && topPanel.policiesRenderedOnLeft)
     readonly property bool rightSidebarActiveOnMonitor: (GlobalStates.animatedRightSidebarWidth > 0 || GlobalStates.sidebarRightOpen) && screen.name === GlobalStates.effectiveRightMonitor && !(GlobalStates.policiesDetached && topPanel.policiesRenderedOnRight)
@@ -174,7 +164,7 @@ PanelWindow {
     }
     readonly property bool searchDropSuppressed: (Config.ready && Config.options.bar.dynamicIsland.notchMode.enable) || GlobalStates.floatingNotchOwnsSearch || !GlobalStates.searchConnectActive
     readonly property bool searchOpenOnMonitor: (GlobalStates.overviewOpen || (searchDropLoader.item && searchDropLoader.item.openProgress > 0.001)) && GlobalStates.searchConnectActive && screen.name === GlobalStates.activeSearchMonitor && !topPanel.searchDropSuppressed
-    readonly property bool osdOpenOnMonitor: GlobalStates.osdVolumeOpen && GlobalStates.osdConnectActive && !(Config.ready && (Config.options.osd.style === "minimalist" || Config.options.osd.style === "material")) && !(Config.ready && !BarPlacement.vertical && BarInteraction.cornerStyle === 3) && screen.name === (Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0])?.name && !(Config.ready && (Config.options.bar.floatingNotch.enable || Config.options.bar.floatingNotch.centerInBar))
+    readonly property bool osdOpenOnMonitor: GlobalStates.osdVolumeOpen && GlobalStates.osdConnectActive && !(Config.ready && (Config.options.osd.style === "minimalist" || Config.options.osd.style === "material" || Config.options.osd.style === "tuner")) && !(Config.ready && !BarPlacement.vertical && BarInteraction.cornerStyle === 3) && screen.name === (Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0])?.name && !IslandPolicy.ownsOsd
 
     readonly property bool hasFullscreenWindowOnMonitor: {
         const monitorData = HyprlandData.monitors.find(m => m.name === topPanel.screen.name);
@@ -799,25 +789,29 @@ PanelWindow {
             id: leftSidebarContentLoader
             active: GlobalStates.connectModeActive && !GlobalStates.connectSidebarsSeparate && topPanel.leftSidebarContentWanted && !(GlobalStates.policiesDetached && topPanel.policiesRenderedOnLeft)
             anchors.fill: parent
-            sourceComponent: {
+            source: active ? Qt.resolvedUrl("SidebarContentHost.qml") : ""
+            readonly property string wantedContentKind: {
                 const pos = Config.options.sidebar.position;
                 if (pos === "inverted") {
-                    return leftDashboardContentComponent;
+                    return "dashboard";
                 } else if (pos === "left") {
                     if (GlobalStates.dashboardPanelOpen) {
-                        return leftDashboardContentComponent;
+                        return "dashboard";
                     } else {
-                        return policiesContentComponent;
+                        return "policies";
                     }
                 } else {
-                    return policiesContentComponent;
+                    return "policies";
                 }
             }
             onLoaded: {
-                if (item && "isLoadedOnLeft" in item) {
-                    item.isLoadedOnLeft = true;
-                }
+                item.scopeRoot = topPanel;
+                item.contentKind = wantedContentKind;
+                item.loadedOnLeft = true;
+                item.keepWarm = topPanel.keepLeftSidebarContentLoaded;
             }
+            Binding { target: leftSidebarContentLoader.item; property: "contentKind"; value: leftSidebarContentLoader.wantedContentKind; when: leftSidebarContentLoader.item !== null }
+            Binding { target: leftSidebarContentLoader.item; property: "keepWarm"; value: topPanel.keepLeftSidebarContentLoaded; when: leftSidebarContentLoader.item !== null }
         }
     }
 
@@ -864,7 +858,12 @@ PanelWindow {
                 Loader {
                     anchors.fill: parent
                     active: true
-                    sourceComponent: policiesContentComponent
+                    source: Qt.resolvedUrl("SidebarContentHost.qml")
+                    onLoaded: {
+                        item.scopeRoot = topPanel;
+                        item.contentKind = "policies";
+                        item.loadedOnLeft = topPanel.policiesOnLeft;
+                    }
                 }
 
                 Keys.onPressed: event => {
@@ -921,25 +920,29 @@ PanelWindow {
             id: rightSidebarContentLoader
             active: GlobalStates.connectModeActive && !GlobalStates.connectSidebarsSeparate && topPanel.rightSidebarContentWanted && !(GlobalStates.policiesDetached && topPanel.policiesRenderedOnRight)
             anchors.fill: parent
-            sourceComponent: {
+            source: active ? Qt.resolvedUrl("SidebarContentHost.qml") : ""
+            readonly property string wantedContentKind: {
                 const pos = Config.options.sidebar.position;
                 if (pos === "inverted") {
-                    return policiesContentComponent;
+                    return "policies";
                 } else if (pos === "right") {
                     if (GlobalStates.sidebarLeftOpen) {
-                        return policiesContentComponent;
+                        return "policies";
                     } else {
-                        return rightDashboardContentComponent;
+                        return "dashboard";
                     }
                 } else {
-                    return rightDashboardContentComponent;
+                    return "dashboard";
                 }
             }
             onLoaded: {
-                if (item && "isLoadedOnLeft" in item) {
-                    item.isLoadedOnLeft = false;
-                }
+                item.scopeRoot = topPanel;
+                item.contentKind = wantedContentKind;
+                item.loadedOnLeft = false;
+                item.keepWarm = topPanel.keepRightSidebarContentLoaded;
             }
+            Binding { target: rightSidebarContentLoader.item; property: "contentKind"; value: rightSidebarContentLoader.wantedContentKind; when: rightSidebarContentLoader.item !== null }
+            Binding { target: rightSidebarContentLoader.item; property: "keepWarm"; value: topPanel.keepRightSidebarContentLoaded; when: rightSidebarContentLoader.item !== null }
         }
     }
 
@@ -1152,30 +1155,13 @@ PanelWindow {
     Loader {
         id: searchDropLoader
         z: 10
-        active: !GlobalStates.screenLocked && !topPanel.searchDropSuppressed
+        active: !GlobalStates.screenLocked && !topPanel.searchDropSuppressed && GlobalStates.overviewOpen
         focus: searchOpenOnMonitor
-        sourceComponent: Component {
-            SearchConnect.SearchDrop {
-                id: searchDrop
-                screen: topPanel.screen
-                monitorIndex: Quickshell.screens.indexOf(topPanel.screen)
-                panelWindow: topPanel
-                barVertical: topPanel.barVertical
-                barBottom: topPanel.barBottom
-                barOnLeft: topPanel.barOnLeft
-                barOnRight: topPanel.barOnRight
-                usingWrappedFrame: topPanel.usingWrappedFrame
-                frameThickness: Config.options.appearance.wrappedFrameThickness
-                barHeight: hasBarOnThisMonitor ? Appearance.sizes.barHeight : 0
-                verticalBarWidth: hasBarOnThisMonitor ? Appearance.sizes.verticalBarWindowWidth : 0
-                barMargin: topPanel.barMargin
-                hBarHiddenAmount: topPanel.hBarHiddenAmount
-                vBarHiddenAmount: topPanel.vBarHiddenAmount
-                animatedLeftSidebarWidth: GlobalStates.animatedLeftSidebarWidth
-                animatedRightSidebarWidth: GlobalStates.animatedRightSidebarWidth
-                leftSidebarActiveOnMonitor: topPanel.leftSidebarActiveOnMonitor
-                rightSidebarActiveOnMonitor: topPanel.rightSidebarActiveOnMonitor
-            }
+        onActiveChanged: {
+            if (active)
+                setSource(Qt.resolvedUrl("SearchDropHost.qml"), { scopeRoot: topPanel });
+            else
+                source = "";
         }
     }
 
@@ -1184,28 +1170,12 @@ PanelWindow {
         id: osdDropLoader
         z: 11
         // Only the horizontal Dynamic Island renders its own OSD.
-        active: GlobalStates.osdConnectActive && !GlobalStates.screenLocked && !(Config.ready && (Config.options.osd.style === "minimalist" || Config.options.osd.style === "material")) && !(Config.ready && !BarPlacement.vertical && BarInteraction.cornerStyle === 3) && !(Config.ready && Config.options.bar.dynamicIsland.notchMode.enable) && !(Config.ready && (Config.options.bar.floatingNotch.enable || Config.options.bar.floatingNotch.centerInBar))
-        sourceComponent: Component {
-            OsdConnect.OsdDrop {
-                screen: topPanel.screen
-                panelWindow: topPanel
-                barVertical: topPanel.barVertical
-                barBottom: topPanel.barBottom
-                barOnLeft: topPanel.barOnLeft
-                barOnRight: topPanel.barOnRight
-                usingWrappedFrame: topPanel.usingWrappedFrame
-                frameThickness: Config.options.appearance.wrappedFrameThickness
-                barHeight: hasBarOnThisMonitor ? Appearance.sizes.barHeight : 0
-                verticalBarWidth: hasBarOnThisMonitor ? Appearance.sizes.verticalBarWindowWidth : 0
-                barMargin: topPanel.barMargin
-                hBarHiddenAmount: topPanel.hBarHiddenAmount
-                vBarHiddenAmount: topPanel.vBarHiddenAmount
-                animatedLeftSidebarWidth: GlobalStates.animatedLeftSidebarWidth
-                animatedRightSidebarWidth: GlobalStates.animatedRightSidebarWidth
-                leftSidebarActiveOnMonitor: topPanel.leftSidebarActiveOnMonitor
-                rightSidebarActiveOnMonitor: topPanel.rightSidebarActiveOnMonitor
-                hasFullscreenWindow: topPanel.hasFullscreenWindowOnMonitor
-            }
+        active: GlobalStates.osdVolumeOpen && GlobalStates.osdConnectActive && !GlobalStates.screenLocked && !(Config.ready && (Config.options.osd.style === "minimalist" || Config.options.osd.style === "material" || Config.options.osd.style === "tuner")) && !(Config.ready && !BarPlacement.vertical && BarInteraction.cornerStyle === 3) && !(Config.ready && Config.options.bar.dynamicIsland.notchMode.enable) && !IslandPolicy.ownsOsd
+        onActiveChanged: {
+            if (active)
+                setSource(Qt.resolvedUrl("OsdDropHost.qml"), { scopeRoot: topPanel });
+            else
+                source = "";
         }
     }
 

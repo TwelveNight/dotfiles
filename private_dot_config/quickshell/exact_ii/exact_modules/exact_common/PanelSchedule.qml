@@ -31,9 +31,14 @@ Singleton {
     }
 
     Timer {
-        // Not zero: the panel built on the previous tick still has a first frame to
-        // render, and beating it to the next one puts the stall back.
-        interval: 8
+        // The bar owns ticket 1. Give its initial mapped frame a real quiet window
+        // before the background and the dozens of hidden utility surfaces begin
+        // compiling. Eight milliseconds was shorter than one 120 Hz frame, so the
+        // next synchronous panel could occupy the GUI thread before the compositor
+        // ever saw the bar. Afterwards keep several frames between panels: startup
+        // finishes a little later, but the visible shell arrives first and remains
+        // responsive while secondary surfaces are populated.
+        interval: root.released === 0 ? 1 : (root.released === 1 ? 700 : 120)
         repeat: true
         running: root.released < root.issued
 

@@ -7,6 +7,11 @@
 // fullscreen window on HiDPI.
 //@ pragma Env QSG_NO_DEPTH_BUFFER=1
 //@ pragma Env MALLOC_CONF=dirty_decay_ms:1000,muzzy_decay_ms:1000,background_thread:true
+// Qt falls back to the basic render loop on NVIDIA's Wayland EGL, which renders every window in
+// turn on the GUI thread. When the GPU has clocked down after a while idle, the driver spin-waits
+// there for 50-200 ms and every GUI-driven animation (the overview's opening zoom first) jumps.
+// Threaded gives each window its own render thread and keeps the GUI thread's clock at 120 Hz.
+//@ pragma Env QSG_RENDER_LOOP=threaded
 
 // Remove two slashes below and adjust the value to change the UI scale
 ////@ pragma Env QT_SCALE_FACTOR=1
@@ -45,87 +50,81 @@ ShellRoot {
             Qt.application.organizationDomain = "unknown.organization";
         }
         MaterialThemeLoader.reapplyTheme();
-        Wallpapers.load(); // The background layer renders the wallpaper — needed for first paint
+        Wallpapers.load();
         ConflictKiller.load(); // Startup hygiene: conflicting notification daemons must die early
         deferredServicesTimer.restart();
     }
 
     Timer {
         id: deferredServicesTimer
-        interval: 3000
-        onTriggered: root.loadDeferredServices()
+        interval: 7000
+        onTriggered: root.startDeferredServices()
     }
 
-    function loadDeferredServices() {
-        Hyprsunset.load();
-        DisplayColorFilter.load();
-        Cliphist.refresh();
-        Updates.load();
-        ShellUpdates.load(); // Touch singleton: the fork-update probe must run whether or not Settings is open
-        // The summary owns an AiTextTask, which resolves the complete AI
-        // catalog, Settings index and session store. Do not create that graph
-        // when the optional summary is disabled; opening the About page still
-        // loads it on demand through ShellUpdateSummaryCard.
-        if (Config.options?.update?.aiSummary)
-            ShellUpdateSummary.load();
-        if (Config.options?.light?.darkMode?.automatic ?? false)
-            DarkModeService.automatic;
-        if (Config.options?.sounds?.enable)
-            SoundService.indexReady; // Instantiate only if sound themes/effects are enabled
-        if (Config.options?.background?.mediaMode?.musicVideo?.enable)
-            VideoColorSampler.active;
-        if (Config.options?.waterReminder?.enable)
-            WaterReminderService.enabled;
-        if (Config.options?.calendar?.timetable?.notifications?.enable)
-            CalendarNotifier.enabled;
-        Todo.list; // Touch singleton: monitors due task notifications and done history
+    // A single callback that touches every service keeps the GUI thread busy for
+    // several seconds after Configuration Loaded. Run one initialization per
+    // event-loop slice instead: total background work is unchanged, but the bar,
+    // compositor and IPC get a chance to respond between expensive singletons.
+    property var deferredServiceSteps: []
+    property int deferredServiceStepIndex: 0
+
+    function startDeferredServices() {
         const timetable = Config.options?.calendar?.timetable;
         const hasCalendarSubscriptions = (timetable?.imports?.enable ?? false)
             || ((timetable?.subscriptions ?? []).length > 0);
-        if (hasCalendarSubscriptions)
-            CalendarSubscriptions.enabled;
-        if (Config.options?.calendar?.timetable?.imports?.enable) {
-            if (Config.options?.calendar?.timetable?.imports?.gmailIcs?.enable)
-                GmailCalendarImport.enabled;
-            if (Config.options?.calendar?.timetable?.imports?.outlook?.enable)
-                OutlookCalendarImport.enabled;
-            if (Config.options?.calendar?.timetable?.imports?.outlook?.icsAttachments?.enable)
-                OutlookIcsImport.enabled;
+        deferredServiceSteps = [
+            () => Hyprsunset.load(),
+            () => DisplayColorFilter.load(),
+            () => Cliphist.refresh(),
+            () => Updates.load(),
+            () => ShellUpdates.load(),
+            () => FeatureDeps.checkCore(),
+            () => { if (Config.options?.update?.aiSummary) ShellUpdateSummary.load(); },
+            () => { if (Config.options?.light?.darkMode?.automatic ?? false) DarkModeService.automatic; },
+            () => { if (Config.options?.sounds?.enable) SoundService.indexReady; },
+            () => { if (Config.options?.background?.mediaMode?.musicVideo?.enable) VideoColorSampler.active; },
+            () => { if (Config.options?.waterReminder?.enable) WaterReminderService.enabled; },
+            () => { if (Config.options?.calendar?.timetable?.notifications?.enable) CalendarNotifier.enabled; },
+            () => { Todo.list; },
+            () => { if (hasCalendarSubscriptions) CalendarSubscriptions.enabled; },
+            () => { if (timetable?.imports?.enable && timetable?.imports?.gmailIcs?.enable) GmailCalendarImport.enabled; },
+            () => { if (timetable?.imports?.enable && timetable?.imports?.outlook?.enable) OutlookCalendarImport.enabled; },
+            () => { if (timetable?.imports?.enable && timetable?.imports?.outlook?.icsAttachments?.enable) OutlookIcsImport.enabled; },
+            () => { if (timetable?.birthdays?.enable) BirthdaysService.enabled; },
+            () => { if (Config.options?.googleDrive?.enabled) GoogleDriveService.configured; },
+            () => { if (Config.options?.appStats?.enable ?? true) AppStats.stateDir; },
+            () => { if (Config.options?.notes?.enable ?? true) NotesService.ready; },
+            () => { if (Config.options?.modes?.enable ?? true) Modes.ready; },
+            () => { if (Config.options?.tiling?.enable) TilingAssistant.enabled; },
+            () => { if (Config.options?.launcher?.typeToSearch?.enable ?? false) TypeToSearch.armed; },
+            () => { StaleFocusRelease.active; },
+            () => { if (Config.options?.interactions?.touchGestures?.enable ?? true) TouchGestureService.enabled; },
+            () => { if (Config.options?.bar?.workspaces?.autoCompact ?? false) WorkspaceCompactor.enabled; },
+            () => { if (Config.options?.dictation?.enabled) DictationService.installed; },
+            () => { if (Config.options?.budsLink?.enabled) BudsLinkService.serviceAvailable; },
+            () => { if (Config.options?.policies?.phone !== 0) KdeConnectService.available; },
+            () => { if (Config.options?.policies?.phone !== 0) PhoneContactsService.available; },
+            () => { if (Config.options?.policies?.phone !== 0) PhoneScrcpyService.available; },
+            () => { if (Config.options?.localMedia?.enabled) LocalMediaService.hasSession; },
+            () => { if (Config.options?.localMedia?.enabled) LocalMediaSelection.lastSelectionDescription; },
+            () => root.applyOpenRgbIfEnabled()
+        ];
+        deferredServiceStepIndex = 0;
+        deferredServiceStepTimer.restart();
+    }
+
+    Timer {
+        id: deferredServiceStepTimer
+        interval: 150
+        repeat: true
+        onTriggered: {
+            if (root.deferredServiceStepIndex >= root.deferredServiceSteps.length) {
+                stop();
+                return;
+            }
+            const step = root.deferredServiceSteps[root.deferredServiceStepIndex++];
+            step();
         }
-        if (Config.options?.calendar?.timetable?.birthdays?.enable)
-            BirthdaysService.enabled;
-        if (Config.options?.googleDrive?.enabled)
-            GoogleDriveService.configured;
-        if (Config.options?.appStats?.enable ?? true)
-            AppStats.stateDir; // Instantiate only when usage tracking is enabled
-        if (Config.options?.notes?.enable ?? true)
-            NotesService.ready; // Touch singleton only when the notes feature is enabled
-        if (Config.options?.modes?.enable ?? true)
-            Modes.ready; // Touch singleton only when modes are enabled
-        if (Config.options?.tiling?.enable)
-            TilingAssistant.enabled; // Touch singleton: watches for window drags, does nothing while disabled
-        if (Config.options?.launcher?.typeToSearch?.enable ?? false)
-            TypeToSearch.armed; // Register binds only when type-to-search is enabled
-        if (Config.options?.interactions?.touchGestures?.enable ?? true)
-            TouchGestureService.enabled; // Start the touch helper only when gestures are enabled
-        if (Config.options?.bar?.workspaces?.autoCompact ?? false)
-            WorkspaceCompactor.enabled; // Start the compactor only when auto-compact is enabled
-        // IconThemes is loaded by the settings page when its data is actually needed.
-        if (Config.options?.dictation?.enabled)
-            DictationService.installed; // Touch singleton: registers the dictation keybind, whose surfaces are all optional
-        if (Config.options?.budsLink?.enabled)
-            BudsLinkService.serviceAvailable; // Touch singleton: candidate-aware BudsLink lifecycle
-        // EarbudsControlService is created by the media/Bluetooth surfaces on demand.
-        if (Config.options && Config.options.policies && Config.options.policies.phone !== 0) {
-            KdeConnectService.available;
-            PhoneContactsService.available;
-            PhoneScrcpyService.available;
-        }
-        if (Config.options?.localMedia?.enabled) {
-            LocalMediaService.hasSession; // Touch singleton: local media player service
-            LocalMediaSelection.lastSelectionDescription; // Touch singleton: local media picker
-        }
-        root.applyOpenRgbIfEnabled();
     }
 
     // Panel families. The list and the switch itself live on PanelFamily now — this file
@@ -259,7 +258,7 @@ ShellRoot {
     Timer {
         id: settingsWarmup
         property var components: []
-        interval: 15000
+        interval: 25000
         running: Config.ready && components.length === 0
         onTriggered: {
             const urls = ["SettingsWindow.qml"].concat(SettingsPageRegistry.pages.map(page => page.component));
