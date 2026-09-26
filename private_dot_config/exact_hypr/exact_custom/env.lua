@@ -1,6 +1,8 @@
 -- NVIDIA
 hl.env("LIBVA_DRIVER_NAME", "nvidia")
 hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
+-- Hybrid graphics: render primarily on the GPU driving the HDMI output.
+hl.env("AQ_DRM_DEVICES", "/home/night/.config/hypr/custom/nvidia-drm-card:/home/night/.config/hypr/custom/amd-drm-card")
 hl.env("WLR_NO_HARDWARE_CURSORS", "1")
 hl.env("WLR_DRM_NO_ATOMIC", "1")
 hl.env("__GL_VRR_ALLOWED", "1")
