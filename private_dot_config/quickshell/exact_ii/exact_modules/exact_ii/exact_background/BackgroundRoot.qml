@@ -18,6 +18,7 @@ import qs.modules.ii.background.parallax
 import qs.modules.ii.background.overview
 import qs.modules.ii.background.blur
 import qs.modules.ii.editMode
+import qs.modules.ii.background.shortcuts
 
 PanelWindow {
     id: bgRoot
@@ -130,7 +131,8 @@ PanelWindow {
 
     OverviewBackgroundController {
         id: overviewController
-        active: GlobalStates.overviewBackgroundActive && bgRoot.isMonitorFocused
+        active: (Config.options.background.useBackgroundOverviewAlways ?? false)
+            || (GlobalStates.overviewBackgroundActive && bgRoot.isMonitorFocused)
         style: Config.options.background.overviewBackgroundStyle
         legacyStyle: Config.options.background.zoomOutStyle
         videoEffectsDisabled: bgRoot.videoEffectsDisabled
@@ -612,6 +614,12 @@ PanelWindow {
 
         WallpaperImage {
             id: wallpaperImage
+            // The skwd-paper layer is the sole desktop renderer. II still
+            // draws this image while locked, where it supplies the lock view.
+            // Edit Mode's lockscreen tab also shows the lock palette. Draw the
+            // matching wallpaper there; otherwise selecting a new lock image
+            // only appears to change its colors until the session is locked.
+            visible: GlobalStates.lockLookActive
             overviewController: overviewController
             screen: bgRoot.screen
             wallpaperPath: bgRoot.wallpaperPath
@@ -675,6 +683,11 @@ PanelWindow {
                     GlobalStates.openDesktopMenu(bgRoot.editScreenName, bgRootLongPress.point.position.x, bgRootLongPress.point.position.y);
                 }
             }
+        }
+
+        DesktopShortcutDropArea {
+            anchors.fill: parent
+            screenName: bgRoot.editScreenName
         }
 
         // Edit Mode's card: the blurred backdrop, corner, shadow and edge around the shrunk

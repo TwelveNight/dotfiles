@@ -10,8 +10,8 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 /**
- * Provides a list of wallpapers and an "apply" action that calls the existing
- * switchwall.sh script. Pretty much a limited file browsing service.
+ * Keeps II's wallpaper metadata and colour consumers in sync with skwd-wall.
+ * skwd-paper is the desktop renderer for images, videos and Wallpaper Engine.
  */
 Singleton {
     id: root
@@ -54,12 +54,103 @@ Singleton {
     property string directoryError: ""
     readonly property bool directoryLoading: folderModel.status === FolderListModel.Loading
 
+    // Direct skwd-wall actions do not rewrite II's config.json: replacing that
+    // file forces Quickshell to rebuild the full Config tree.  The event bridge
+    // publishes this small record instead, so lightweight consumers such as the
+    // Settings wallpaper preview can still follow the wallpaper on screen.
+    property var skwdWallpaperState: ({})
+    property int skwdWallpaperStateConsumers: 0
+    property string _skwdWallpaperStateRaw: ""
+    readonly property bool activeUseWallpaperEngine: skwdWallpaperState.useWallpaperEngine !== undefined
+        ? skwdWallpaperState.useWallpaperEngine === true
+        : (Config.options?.background?.useWallpaperEngine === true)
+    readonly property string activeWallpaperPath: skwdWallpaperState.wallpaperPath !== undefined
+        ? String(skwdWallpaperState.wallpaperPath || "")
+        : String(Config.options?.background?.wallpaperPath || "")
+    readonly property string activeWallpaperEngineId: skwdWallpaperState.wallpaperEngineId !== undefined
+        ? String(skwdWallpaperState.wallpaperEngineId || "")
+        : String(Config.options?.background?.wallpaperEngineId || "")
+    readonly property string activeThumbnailPath: skwdWallpaperState.thumbnailPath !== undefined
+        ? String(skwdWallpaperState.thumbnailPath || "")
+        : String(Config.options?.background?.thumbnailPath || "")
+
     signal changed()
     signal thumbnailGenerated(directory: string)
     signal thumbnailGeneratedFile(filePath: string)
     signal sortChanged()
 
     function load () {} // For forcing initialization
+
+    function parseSkwdWallpaperState() {
+        try {
+            const raw = skwdWallpaperStateFile.text().trim();
+            if (raw === root._skwdWallpaperStateRaw)
+                return;
+            const parsed = raw ? JSON.parse(raw) : ({});
+            root._skwdWallpaperStateRaw = raw;
+            root.skwdWallpaperState = parsed && typeof parsed === "object" ? parsed : ({});
+        } catch (e) {
+            root._skwdWallpaperStateRaw = "";
+            root.skwdWallpaperState = ({});
+        }
+    }
+
+    function acquireSkwdWallpaperState() {
+        root.skwdWallpaperStateConsumers++;
+        if (root.skwdWallpaperStateConsumers === 1)
+            root.refreshSkwdWallpaperState();
+    }
+
+    function relinquishSkwdWallpaperState() {
+        if (root.skwdWallpaperStateConsumers > 0)
+            root.skwdWallpaperStateConsumers--;
+    }
+
+    function refreshSkwdWallpaperState() {
+        skwdWallpaperStateFile.reload();
+        skwdWallpaperStateReadTimer.restart();
+    }
+
+    Timer {
+        id: skwdWallpaperStateReadTimer
+        interval: 100
+        repeat: false
+        onTriggered: root.parseSkwdWallpaperState()
+    }
+
+    // QFileSystemWatcher can keep following the old inode when an external
+    // process replaces a file. Poll only while a wallpaper-state consumer is
+    // visible; the file is tiny and the timer stops when all consumers close.
+    Timer {
+        interval: 750
+        repeat: true
+        running: root.skwdWallpaperStateConsumers > 0
+        triggeredOnStart: true
+        onTriggered: root.refreshSkwdWallpaperState()
+    }
+
+    FileView {
+        id: skwdWallpaperStateFile
+        path: Qt.resolvedUrl(`${Directories.wallpaperThemeStatePath}/wallpaper-state.json`)
+        watchChanges: true
+        printErrors: false
+
+        onFileChanged: {
+            this.reload();
+            skwdWallpaperStateReadTimer.restart();
+        }
+        onLoaded: root.parseSkwdWallpaperState()
+        onLoadedChanged: {
+            if (skwdWallpaperStateFile.loaded)
+                root.parseSkwdWallpaperState();
+        }
+        onLoadFailed: {
+            if (root._skwdWallpaperStateRaw !== "") {
+                root._skwdWallpaperStateRaw = "";
+                root.skwdWallpaperState = ({});
+            }
+        }
+    }
 
     function normalizeSortField(value) {
         const field = String(value || "modified");
@@ -296,13 +387,8 @@ Singleton {
         function onReadyChanged() {
             if (!Config.ready) return;
             root.loadSortOptions();
-            if (Config.options.background.useWallpaperEngine) {
-                if (Config.options.background.wallpaperEngineId) {
-                    root.apply(Config.options.background.wallpaperEngineId, Appearance.m3colors.darkmode);
-                }
-            } else if (root.isVideoFile(Config.options.background.wallpaperPath.toLowerCase())) {
-                root.apply(Config.options.background.wallpaperPath, Appearance.m3colors.darkmode);
-            }
+            // Do not restore II's persisted path here: skwd-walld owns the
+            // canonical active wallpaper and the listener syncs it back.
             root.enforceVideoWallpaperConstraints();
             // Pre-generate lockscreen colors if configured but missing
             if (Config.options.background.useSeparateLockscreenWallpaper) {
@@ -327,6 +413,10 @@ Singleton {
     }
     
     function openFallbackPicker(darkMode = Appearance.m3colors.darkmode, lockscreen = false) {
+        if (!lockscreen) {
+            Quickshell.execDetached(["skwd-wall-v2"]);
+            return;
+        }
         const envBinPath = `${FileUtils.trimFileProtocol(Directories.home)}/.local/bin:${FileUtils.trimFileProtocol(Directories.home)}/.cargo/bin:/usr/local/bin:/usr/bin:/bin`;
         let args = [
             "env", "-u", "LD_LIBRARY_PATH", "-u", "PYTHONHOME", "-u", "PYTHONPATH",
@@ -364,15 +454,24 @@ Singleton {
             }
         }
         if (optionsChanged) Config.saveOptionsNow();
-        const requestSeq = ++root._wallpaperRequestSeq;
-        const envBinPath = `${FileUtils.trimFileProtocol(Directories.home)}/.local/bin:${FileUtils.trimFileProtocol(Directories.home)}/.cargo/bin:/usr/local/bin:/usr/bin:/bin`;
-        Quickshell.execDetached([
-            "env", "-u", "LD_LIBRARY_PATH", "-u", "PYTHONHOME", "-u", "PYTHONPATH",
-            `PATH=${envBinPath}`, "bash", Directories.wallpaperSwitchScriptPath,
-            "--mode", darkMode ? "dark" : "light", "--image", path,
-            "--request-seq", String(requestSeq)
-        ]);
+        // The skwd watcher invokes switchwall.sh only after the renderer has
+        // accepted the request, so Matugen follows what is actually on screen.
+        Quickshell.execDetached(["skwd-helm", "apply", path]);
         root.changed();
+    }
+
+    // Presets write config.json directly, so they do not pass through select()
+    // or apply().  Keep the renderer authoritative but explicitly hand its new
+    // configured source to skwd once the preset reload has settled.
+    function applyConfiguredDesktopWallpaper() {
+        const background = Config.options?.background;
+        if (!background)
+            return;
+        const source = background.useWallpaperEngine
+            ? String(background.wallpaperEngineId || "")
+            : String(background.wallpaperPath || "");
+        if (source !== "")
+            root.apply(source);
     }
 
     function applyLockscreen(path, darkMode = Appearance.m3colors.darkmode) {
@@ -385,16 +484,12 @@ Singleton {
             }
         }
         if (optionsChanged) Config.saveOptionsNow();
-        const requestSeq = ++root._wallpaperRequestSeq;
         const envBinPath = `${FileUtils.trimFileProtocol(Directories.home)}/.local/bin:${FileUtils.trimFileProtocol(Directories.home)}/.cargo/bin:/usr/local/bin:/usr/bin:/bin`;
+        // `switchwall.sh --noswitch` still runs the complete desktop Matugen
+        // and terminal-theme pipeline. A lockscreen pick owns only the
+        // separate lockscreen palette below.
         Quickshell.execDetached([
-            "env", "-u", "LD_LIBRARY_PATH", "-u", "PYTHONHOME", "-u", "PYTHONPATH",
-            `PATH=${envBinPath}`, "bash", Directories.wallpaperSwitchScriptPath,
-            "--mode", darkMode ? "dark" : "light", "--image", path, "--lockscreen", "--noswitch",
-            "--request-seq", String(requestSeq)
-        ]);
-        Quickshell.execDetached([
-            "env", "-u", "LD_LIBRARY_PATH", "-u", "PYTHONHOME", "-u", "PYTHONPATH",
+            "nice", "-n", "10", "env", "-u", "LD_LIBRARY_PATH", "-u", "PYTHONHOME", "-u", "PYTHONPATH",
             `PATH=${envBinPath}`, "bash", Directories.generateLockscreenColorsScriptPath,
             "--image", path, "--mode", darkMode ? "dark" : "light"
         ]);
@@ -411,14 +506,10 @@ Singleton {
             }
         }
         if (optionsChanged) Config.saveOptionsNow();
-        const requestSeq = ++root._wallpaperRequestSeq;
-        const envBinPath = `${FileUtils.trimFileProtocol(Directories.home)}/.local/bin:${FileUtils.trimFileProtocol(Directories.home)}/.cargo/bin:/usr/local/bin:/usr/bin:/bin`;
-        Quickshell.execDetached([
-            "env", "-u", "LD_LIBRARY_PATH", "-u", "PYTHONHOME", "-u", "PYTHONPATH",
-            `PATH=${envBinPath}`, "bash", Directories.wallpaperSwitchScriptPath,
-            "--mode", "light", "--image", path, "--lightmode",
-            "--request-seq", String(requestSeq)
-        ]);
+        // This used to start the legacy renderer directly.  The light-mode
+        // selector is still a desktop wallpaper action, so it must go through
+        // the same skwd backend as every other desktop picker.
+        Quickshell.execDetached(["skwd-helm", "apply", path]);
         root.changed();
     }
 
@@ -466,9 +557,14 @@ Singleton {
         if (Config.options?.background?.useSeparateLightModeWallpaper && !Appearance.m3colors.darkmode) {
             root.applyLightModeWallpaper(cleanPath);
         } else {
-            Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", darkMode ? "dark" : "light", "--image", cleanPath, "--lightmode", "--noswitch",
-                "--request-seq", String(++root._wallpaperRequestSeq)]);
-            root.changed()
+            // Saving a future light wallpaper is metadata only.  It must not
+            // disturb the currently-rendered desktop or revive mpvpaper/WPE.
+            if (Config.options?.background
+                    && String(Config.options.background.lightModeWallpaperPath || "") !== cleanPath) {
+                Config.options.background.lightModeWallpaperPath = cleanPath;
+                Config.saveOptionsNow();
+            }
+            root.changed();
         }
     }
 
@@ -606,7 +702,9 @@ Singleton {
         const forceArg = force ? " --force" : ""
         thumbgenProc.command = [
             "bash", "-c",
-            `${thumbgenScriptPath} --size ${size} --machine_progress -d '${StringUtils.shellSingleQuoteEscape(FileUtils.trimFileProtocol(root.directory))}' || true; ${generateThumbnailsMagickScriptPath} --size ${size}${forceArg} -d '${StringUtils.shellSingleQuoteEscape(FileUtils.trimFileProtocol(root.directory))}'`,
+            // GnomeDesktop's generic generator must not probe video files as
+            // images. The fallback handles them with ffmpeg.
+            `${thumbgenScriptPath} --size ${size} --only_images --machine_progress -d '${StringUtils.shellSingleQuoteEscape(FileUtils.trimFileProtocol(root.directory))}' || true; ${generateThumbnailsMagickScriptPath} --size ${size}${forceArg} -d '${StringUtils.shellSingleQuoteEscape(FileUtils.trimFileProtocol(root.directory))}'`,
         ]
         // console.log("[Wallpapers] Updating thumbnails with command ", thumbgenProc.command.join(" "))
         root.thumbnailGenerationProgress = 0
@@ -669,7 +767,7 @@ Singleton {
                 // File doesn't exist: generate lockscreen colors in background
                 const lockPath = Config.options.background.lockscreenWallpaperPath;
                 const mode = Appearance.m3colors.darkmode ? "dark" : "light";
-                Quickshell.execDetached(["bash", Directories.generateLockscreenColorsScriptPath, "--image", lockPath, "--mode", mode]);
+                Quickshell.execDetached(["nice", "-n", "10", "bash", Directories.generateLockscreenColorsScriptPath, "--image", lockPath, "--mode", mode]);
             }
         }
     }

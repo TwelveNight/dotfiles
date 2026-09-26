@@ -13,6 +13,13 @@ Singleton {
     readonly property string home: StandardPaths.standardLocations(StandardPaths.HomeLocation)[0] || ""
     readonly property string config: StandardPaths.standardLocations(StandardPaths.ConfigLocation)[0] || ""
     readonly property string state: StandardPaths.standardLocations(StandardPaths.StateLocation)[0] || ""
+    readonly property string xdgStateHome: {
+        const configured = Quickshell.env("XDG_STATE_HOME");
+        return configured && configured.length > 0
+            ? configured
+            : `${FileUtils.trimFileProtocol(home)}/.local/state`;
+    }
+    readonly property string wallpaperThemeStatePath: `${xdgStateHome}/ii-skwd-wall`
     readonly property string cache: StandardPaths.standardLocations(StandardPaths.CacheLocation)[0] || ""
     readonly property string genericCache: StandardPaths.standardLocations(StandardPaths.GenericCacheLocation)[0] || ""
     readonly property string documents: StandardPaths.standardLocations(StandardPaths.DocumentsLocation)[0] || ""
@@ -39,6 +46,9 @@ Singleton {
     // Other dirs used by the shell, without "file://"
     property string assetsPath: Quickshell.shellPath("assets")
     property string scriptPath: FileUtils.trimFileProtocol(Quickshell.shellPath("scripts"))
+    // Knows which Rust helpers exist, what each was built from, and whether that is
+    // still true. The shell asks it for a state; the updater asks it for a rebuild.
+    property string rustHelpersScriptPath: FileUtils.trimFileProtocol(`${Directories.scriptPath}/rust-helpers.sh`)
     property string favicons: FileUtils.trimFileProtocol(`${Directories.cache}/media/favicons`)
     property string coverArt: FileUtils.trimFileProtocol(`${Directories.cache}/media/coverart`)
     // Reconstructible artwork extracted from files selected by the local
@@ -111,7 +121,8 @@ Singleton {
     // re-fetched from anywhere if it gets cleared.
     property string customLyricsPath: FileUtils.trimFileProtocol(`${Directories.state}/user/custom-lyrics.json`)
     property string generatedMaterialThemePath: FileUtils.trimFileProtocol(`${Directories.state}/user/generated/colors.json`)
-    property string wallpaperPreviewColorsPath: FileUtils.trimFileProtocol(`${Directories.state}/user/generated/wallpaper_preview_colors.json`)
+    // Auxiliary palettes must not share colors.json's watched directory.
+    property string wallpaperPreviewColorsPath: FileUtils.trimFileProtocol(`${Directories.wallpaperThemeStatePath}/wallpaper_preview_colors.json`)
     // The same document as wallpaperPreviewColorsPath above, but for the
     // wallpaper the shell ships with, and generated at build time instead of by
     // a wallpaper switch. A first install never runs one - nothing applies a
@@ -126,17 +137,20 @@ Singleton {
         Quickshell.shellPath("assets/data/default_preview_colors_light.json"))
     property string defaultWallpaperImagePath: FileUtils.trimFileProtocol(
         Quickshell.shellPath("assets/images/default_wallpaper.png"))
-    property string lockscreenColorsPath: FileUtils.trimFileProtocol(`${Directories.state}/user/generated/lockscreen_colors.json`)
+    property string lockscreenColorsPath: FileUtils.trimFileProtocol(`${Directories.wallpaperThemeStatePath}/lockscreen_colors.json`)
+    // Service caches update independently of the active palette. Keep their
+    // file renames below a child directory, not beside watched colors.json.
+    property string auxiliaryGeneratedPath: FileUtils.trimFileProtocol(`${Directories.state}/user/generated/auxiliary`)
     // Public holidays fetched from Nager.Date, one entry per "<COUNTRY>-<YEAR>".
-    property string holidaysCachePath: FileUtils.trimFileProtocol(`${Directories.state}/user/generated/holidays.json`)
+    property string holidaysCachePath: FileUtils.trimFileProtocol(`${auxiliaryGeneratedPath}/holidays.json`)
     // AI summary of the commits behind the fork's remote, keyed by the range.
-    property string shellUpdateSummaryPath: FileUtils.trimFileProtocol(`${Directories.state}/user/generated/shell_update_summary.json`)
+    property string shellUpdateSummaryPath: FileUtils.trimFileProtocol(`${auxiliaryGeneratedPath}/shell_update_summary.json`)
     // ESPN scoreboards and per-game summaries shared by the sports widgets
     // and the timetable. Kept outside calendar storage by design.
-    property string sportsCachePath: FileUtils.trimFileProtocol(`${Directories.state}/user/generated/sports.json`)
+    property string sportsCachePath: FileUtils.trimFileProtocol(`${auxiliaryGeneratedPath}/sports.json`)
     // iCalUID -> Google colorId, plus the account palette. The synced .ics files
     // carry no COLOR, so this is the only place that mapping can live locally.
-    property string googleCalendarColorsPath: FileUtils.trimFileProtocol(`${Directories.state}/user/generated/google_calendar_colors.json`)
+    property string googleCalendarColorsPath: FileUtils.trimFileProtocol(`${auxiliaryGeneratedPath}/google_calendar_colors.json`)
     property string generateLockscreenColorsScriptPath: FileUtils.trimFileProtocol(`${Directories.scriptPath}/colors/generate-lockscreen-colors.sh`)
     property string gammaControlScriptPath: FileUtils.trimFileProtocol(`${Directories.scriptPath}/brightness/ii-gamma-control`)
     property string displayColorFilterWriterPath: FileUtils.trimFileProtocol(`${Directories.scriptPath}/display/write_color_filter.py`)

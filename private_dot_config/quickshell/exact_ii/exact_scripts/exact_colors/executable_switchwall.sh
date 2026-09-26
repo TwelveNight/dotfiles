@@ -7,6 +7,9 @@ XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 CONFIG_DIR="$XDG_CONFIG_HOME/quickshell/$QUICKSHELL_CONFIG_NAME"
 CACHE_DIR="$XDG_CACHE_HOME/quickshell"
 STATE_DIR="$XDG_STATE_HOME/quickshell"
+SKWD_THEME_STATE_DIR="$XDG_STATE_HOME/ii-skwd-wall"
+TERMINAL_THEME_DIR="$STATE_DIR/user/generated/terminal"
+TERMINAL_MATERIAL_FILE="$TERMINAL_THEME_DIR/material_colors.scss"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHELL_CONFIG_FILE="$XDG_CONFIG_HOME/illogical-impulse/config.json"
 CONFIG_LOCK_FILE="$STATE_DIR/config-write.lock"
@@ -14,32 +17,8 @@ MATUGEN_DIR="$XDG_CONFIG_HOME/matugen"
 terminalscheme="$SCRIPT_DIR/terminal/scheme-base.json"
 SHELL_MATUGEN_CONFIG="$SCRIPT_DIR/matugen-shell.toml"
 
-# Quickshell may prepend ~/.cargo/bin to PATH, which can select an older
-# user-installed Matugen than the system package.  Prefer a candidate that
-# advertises the modern `--prefer` option, but keep working with older builds.
-MATUGEN_BIN=""
-MATUGEN_FALLBACK=""
-declare -a MATUGEN_CANDIDATES=()
-while IFS= read -r candidate; do
-    [[ -n "$candidate" ]] && MATUGEN_CANDIDATES+=("$candidate")
-done < <(type -ap matugen 2>/dev/null || true)
-for candidate in /usr/bin/matugen /usr/local/bin/matugen "$HOME/.local/bin/matugen" "$HOME/.cargo/bin/matugen"; do
-    [[ -x "$candidate" ]] && MATUGEN_CANDIDATES+=("$candidate")
-done
-for candidate in "${MATUGEN_CANDIDATES[@]}"; do
-    [[ -x "$candidate" ]] || continue
-    [[ -n "$MATUGEN_FALLBACK" ]] || MATUGEN_FALLBACK="$candidate"
-    if "$candidate" image --help 2>&1 | grep -q -- "--prefer"; then
-        MATUGEN_BIN="$candidate"
-        break
-    fi
-done
-MATUGEN_BIN="${MATUGEN_BIN:-$MATUGEN_FALLBACK}"
-[[ -n "$MATUGEN_BIN" ]] || MATUGEN_BIN="matugen"
-MATUGEN_PREFER_ARGS=()
-if "$MATUGEN_BIN" image --help 2>&1 | grep -q -- "--prefer"; then
-    MATUGEN_PREFER_ARGS=(--prefer saturation)
-fi
+# Picks the newest installed Matugen; see the header of matugen.sh.
+source "$SCRIPT_DIR/matugen.sh"
 
 # Matugen aborts the whole run - colors.json included - as soon as any template
 # in its config points at an input file that does not exist, and it walks the
@@ -85,6 +64,14 @@ report_matugen_failure() {
 }
 
 handle_kde_material_you_colors() {
+    # This integration polls org.kde.plasmashell for its wallpaper even when
+    # invoked with --color. On Hyprland the DBus name cannot be activated; the
+    # helper then loops, burns CPU and repeatedly notifies "Could not get
+    # wallpaper". Only start it in an actual Plasma session.
+    if ! pgrep -x plasmashell >/dev/null 2>&1; then
+        return 0
+    fi
+
     # Check if Qt app theming is enabled in config
     if [ -f "$SHELL_CONFIG_FILE" ]; then
         enable_qt_apps=$(jq -r '.appearance.wallpaperTheming.enableQtApps' "$SHELL_CONFIG_FILE")
@@ -322,6 +309,49 @@ set_thumbnail_path() {
     update_config_value_if_changed '.background.thumbnailPath' string "$path" '""'
 }
 
+set_wallpaper_engine_id() {
+    update_config_value_if_changed '.background.wallpaperEngineId' string "$1" '""'
+}
+
+# skwd-walld has already committed the visual wallpaper. Never rewrite II's
+# config.json from this event bridge: even one replacement makes Quickshell
+# rebuild its whole Config/FileView tree, which stalls the shell for seconds.
+# Normal II and preset actions persist their chosen value before calling skwd;
+# this small state record is for bridge consumers and direct skwd calls only.
+update_skwd_wallpaper_state() {
+    local path="$1"
+    local we_id="$2"
+    local thumbnail="$3"
+    local state_file="$SKWD_THEME_STATE_DIR/wallpaper-state.json"
+    local temp_file
+
+    mkdir -p "$(dirname "$state_file")" 2>/dev/null || return 1
+    temp_file=$(mktemp "${state_file}.tmp.XXXXXX") || return 1
+    if [[ -n "$we_id" ]]; then
+        jq -n --arg id "$we_id" --arg thumbnail "$thumbnail" \
+            '{useWallpaperEngine: true, wallpaperEngineId: $id, thumbnailPath: $thumbnail}' > "$temp_file"
+    else
+        jq -n --arg path "$path" --arg thumbnail "$thumbnail" \
+            '{useWallpaperEngine: false, wallpaperPath: $path, thumbnailPath: $thumbnail}' > "$temp_file"
+    fi
+    if [[ $? -eq 0 ]]; then
+        if ! cmp -s "$temp_file" "$state_file"; then
+            # FileView watches this dedicated state file. Replacing it with mv
+            # leaves some Quickshell versions watching the old inode, so later
+            # skwd changes never reach Settings. Updating the existing file is
+            # safe here: the hook serializes writers with skwd-wall-theme.lock,
+            # and readers retry on the following change if they catch a write.
+            cp -- "$temp_file" "$state_file"
+            rm -f -- "$temp_file"
+        else
+            rm -f -- "$temp_file"
+        fi
+    else
+        rm -f -- "$temp_file"
+        return 1
+    fi
+}
+
 categorize_wallpaper() {
     img_cat=$("$SCRIPT_DIR/../ai/gemini-categorize-wallpaper.sh" "$1")
     # notify-send "Wallpaper category" "$img_cat"
@@ -343,7 +373,10 @@ switch() {
     # increasing in click order, since QML dispatch is single-threaded. Direct
     # callers without a sequence receive the next token under the same lock, so
     # they cannot be rejected just because an older QML token uses timestamps.
-    request_token_file="$STATE_DIR/user/generated/.preview_request_token"
+    # Keep coordination state away from generated/: MaterialThemeLoader watches
+    # that directory for colors.json and treats unrelated file changes as theme
+    # reloads.
+    request_token_file="$SKWD_THEME_STATE_DIR/request_token"
     mkdir -p "$(dirname "$request_token_file")"
     if [[ -n "$request_seq_flag" ]]; then
         my_request_token="$request_seq_flag"
@@ -397,7 +430,7 @@ switch() {
         cursorposy_inverted=$((screensizey - cursorposy))
     fi
 
-    matugen_args=("${MATUGEN_PREFER_ARGS[@]}")
+    matugen_args=(--source-color-index 0)
 
     if [[ "$color_flag" == "1" ]]; then
         matugen_args+=(color hex "$color")
@@ -422,11 +455,19 @@ switch() {
         wpe_assets=$(jq -r '.background.wallpaperEngineAssetsPath' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "")
 
         is_wpe=0
-        if [[ "$use_wpe" == "true" ]]; then
+        if [[ "$use_wpe" == "true" || ( -n "$skwd_wall_flag" && -n "$skwd_wallpaper_engine_id" ) ]]; then
             is_wpe=1
         fi
 
         if [[ $is_wpe -eq 1 ]]; then
+            # skwd supplies a stable Wallpaper Engine thumbnail. Use it
+            # directly instead of entering the legacy renderer compatibility
+            # path, and commit all II metadata with one config replacement.
+            if [[ -n "$skwd_wall_flag" && -n "$skwd_wallpaper_engine_id" ]]; then
+                update_skwd_wallpaper_state "" "$skwd_wallpaper_engine_id" "$imgpath"
+                matugen_args+=(image "$imgpath")
+                generate_colors_material_args=(--path "$imgpath")
+            else
             # Auto-detect wpe_assets if empty or invalid
             if [[ -z "$wpe_assets" || ! -d "$wpe_assets" ]]; then
                 for candidate_assets in \
@@ -609,6 +650,7 @@ done"
                     fi
                 fi
             fi
+            fi
         else
             # If not using Wallpaper Engine, make sure it is disabled in config.
             # A colors-only pass must not rewrite the config or cause another
@@ -715,6 +757,7 @@ done"
             fi
 
             if [ -f "$thumbnail" ]; then
+                [[ -n "$skwd_wall_flag" ]] && update_skwd_wallpaper_state "$imgpath" "" "$thumbnail"
                 matugen_args+=(image "$thumbnail")
                 generate_colors_material_args=(--path "$thumbnail")
                 if is_desktop_target && [[ "$colors_only_flag" != "1" && "$noswitch_flag" != "1" ]]; then
@@ -731,6 +774,9 @@ done"
             if is_desktop_target && [[ "$colors_only_flag" != "1" && "$noswitch_flag" != "1" ]]; then
                 kill_existing_mpvpaper
             fi
+            # skwd's static image has no video preview. Clear any thumbnail
+            # left by the previous video so II metadata remains truthful.
+            [[ -n "$skwd_wall_flag" ]] && update_skwd_wallpaper_state "$imgpath" "" ""
             matugen_args+=(image "$imgpath")
             generate_colors_material_args=(--path "$imgpath")
             # Update wallpaper path in config
@@ -770,7 +816,7 @@ done"
     fi
     generate_colors_material_args+=(--scheme "$type_flag")
     generate_colors_material_args+=(--termscheme "$terminalscheme" --blend_bg_fg)
-    generate_colors_material_args+=(--cache "$STATE_DIR/user/generated/color.txt")
+    generate_colors_material_args+=(--cache "$SKWD_THEME_STATE_DIR/color.txt")
 
     # Preset application already has the mode/config state in place. Avoid the
     # synchronous GNOME settings calls and cache-directory setup on the first
@@ -799,50 +845,108 @@ done"
     fi
 
     if [[ -n "$theme_file" ]]; then
-        mkdir -p "$(dirname "$STATE_DIR/user/generated/colors.json")"
-        cp "$theme_file" "$STATE_DIR/user/generated/colors.json"
+        if [[ -z "$preset_apps_only_flag" ]]; then
+            mkdir -p "$STATE_DIR/user/generated" "$SKWD_THEME_STATE_DIR"
+            local theme_colors_file
+            theme_colors_file=$(mktemp "$SKWD_THEME_STATE_DIR/colors.json.tmp.XXXXXX")
+            if ! cp -- "$theme_file" "$theme_colors_file"; then
+                rm -f -- "$theme_colors_file"
+                return 1
+            fi
+            if cmp -s -- "$theme_colors_file" "$STATE_DIR/user/generated/colors.json"; then
+                rm -f -- "$theme_colors_file"
+            else
+                mv -f -- "$theme_colors_file" "$STATE_DIR/user/generated/colors.json"
+            fi
+        fi
         rm -f "$STATE_DIR/matugen_error_notified"
         echo "[switchwall.sh] Applied theme: $type_flag"
         if [[ -z "$colors_only_flag" && "$(jq -r '.appearance.icons.enableThemed' "$SHELL_CONFIG_FILE" 2>/dev/null)" == "true" ]]; then python3 "$HOME/.config/quickshell/ii/scripts/colors/recolor_icons.py"; fi
         "$SCRIPT_DIR"/applycolor.sh
     else
         matugen_exit_code=0
-        matugen_config_args=()
-        if [[ -n "$colors_only_flag" && -f "$SHELL_MATUGEN_CONFIG" ]]; then
-            # The normal config fans out to GTK, Hyprland, terminals, yazi,
-            # browsers and other integrations. The first preset frame only
-            # needs the m3colors template that Quickshell watches.
-            matugen_config_args+=(--config "$SHELL_MATUGEN_CONFIG")
+        atomic_colors_file=""
+        atomic_matugen_config=""
+        if [[ -f "$SHELL_MATUGEN_CONFIG" && -z "$preset_apps_only_flag" ]]; then
+            # Quickshell watches colors.json. Always publish that one template
+            # atomically, even when the normal Matugen config also updates
+            # external consumers such as GTK and Hyprland.
+            mkdir -p "$STATE_DIR/user/generated" "$SKWD_THEME_STATE_DIR"
+            atomic_colors_file=$(mktemp "$SKWD_THEME_STATE_DIR/colors.json.tmp.XXXXXX")
+            atomic_matugen_config=$(mktemp "${TMPDIR:-/tmp}/ii-matugen-shell.XXXXXX.toml")
+            sed "s#output_path = '.*colors.json'#output_path = '$atomic_colors_file'#" \
+                "$SHELL_MATUGEN_CONFIG" > "$atomic_matugen_config"
         fi
-        if "$MATUGEN_BIN" "${matugen_config_args[@]}" "${matugen_args[@]}"; then
-            rm -f "$STATE_DIR/matugen_error_notified"
+        if [[ -z "$colors_only_flag" ]] && ! matugen "${matugen_args[@]}"; then
+            matugen_exit_code=1
+        elif [[ -n "$preset_apps_only_flag" ]]; then
+            # The earlier colors-only pass has already published colors.json.
+            # App templates above still run, but do not generate the shell
+            # palette again and invalidate all its bindings a second time.
+            :
+        elif matugen --config "$atomic_matugen_config" "${matugen_args[@]}"; then
+            if [[ -n "$atomic_colors_file" ]]; then
+                if jq -e 'type == "object" and length > 0' "$atomic_colors_file" >/dev/null 2>&1; then
+                    if [[ "$type_flag" == "scheme-intense" ]]; then
+                        python3 "$SCRIPT_DIR/boost_surface_chroma.py" "$atomic_colors_file" --mode "$mode_flag" || matugen_exit_code=1
+                    fi
+                    if [[ $matugen_exit_code -eq 0 ]]; then
+                        if cmp -s -- "$atomic_colors_file" "$STATE_DIR/user/generated/colors.json"; then
+                            rm -f -- "$atomic_colors_file"
+                        else
+                            mv -f -- "$atomic_colors_file" "$STATE_DIR/user/generated/colors.json"
+                        fi
+                    fi
+                else
+                    matugen_exit_code=1
+                    rm -f -- "$atomic_colors_file"
+                fi
+            fi
+            [[ $matugen_exit_code -eq 0 ]] && rm -f "$STATE_DIR/matugen_error_notified"
         else
             matugen_exit_code=$?
-            report_matugen_failure "switchwall.sh" "$matugen_exit_code"
         fi
-        if [[ "$type_flag" == "scheme-intense" ]]; then
-            echo "[switchwall.sh] Applying intense surface boost to colors.json (mode: $mode_flag)" >&2
-            python3 "$SCRIPT_DIR/boost_surface_chroma.py" "$STATE_DIR/user/generated/colors.json" --mode "$mode_flag"
+        rm -f -- "$atomic_matugen_config"
+        if [[ $matugen_exit_code -ne 0 ]]; then
+            rm -f -- "$atomic_colors_file"
+            report_matugen_failure "switchwall.sh" "$matugen_exit_code"
+            return "$matugen_exit_code"
         fi
         if [[ -z "$colors_only_flag" && "$(jq -r '.appearance.icons.enableThemed' "$SHELL_CONFIG_FILE" 2>/dev/null)" == "true" ]]; then python3 "$HOME/.config/quickshell/ii/scripts/colors/recolor_icons.py"; fi
         source "$(eval echo $ILLOGICAL_IMPULSE_VIRTUAL_ENV)/bin/activate"
+        mkdir -p "$TERMINAL_THEME_DIR"
         preview_args=()
         if [[ -z "$colors_only_flag" ]]; then
             preview_args+=(
-                --all-previews "$STATE_DIR/user/generated/wallpaper_preview_colors.json"
+                --all-previews "$SKWD_THEME_STATE_DIR/wallpaper_preview_colors.json"
                 --request-token "$request_token_file"
                 --request-value "$my_request_token"
             )
         fi
-        if python3 "$SCRIPT_DIR/generate_colors_material.py" "${generate_colors_material_args[@]}" "${preview_args[@]}" \
-            > "$STATE_DIR"/user/generated/material_colors.scss.tmp; then
-            mv "$STATE_DIR"/user/generated/material_colors.scss.tmp "$STATE_DIR"/user/generated/material_colors.scss
+        if [[ -n "$colors_only_flag" ]]; then
+            # colors.json is ready after matugen. Generate terminal colors only
+            # after Quickshell can repaint, and discard an outdated request.
+            (
+                temp_material="$TERMINAL_THEME_DIR/material_colors.scss.tmp.$my_request_token"
+                if nice -n 10 python3 "$SCRIPT_DIR/generate_colors_material.py" "${generate_colors_material_args[@]}" > "$temp_material" \
+                    && [[ "$(cat "$request_token_file" 2>/dev/null)" == "$my_request_token" ]]; then
+                    mv "$temp_material" "$TERMINAL_MATERIAL_FILE"
+                    nice -n 10 "$SCRIPT_DIR/applycolor.sh"
+                else
+                    rm -f -- "$temp_material"
+                fi
+                deactivate
+            ) >/dev/null 2>&1 & disown
+        elif python3 "$SCRIPT_DIR/generate_colors_material.py" "${generate_colors_material_args[@]}" "${preview_args[@]}" \
+            > "$TERMINAL_MATERIAL_FILE.tmp"; then
+            mv "$TERMINAL_MATERIAL_FILE.tmp" "$TERMINAL_MATERIAL_FILE"
+            deactivate
+            "$SCRIPT_DIR"/applycolor.sh
         else
-            rm -f "$STATE_DIR"/user/generated/material_colors.scss.tmp
+            rm -f "$TERMINAL_MATERIAL_FILE.tmp"
             echo "[switchwall.sh] Color generation skipped; preserving the previous terminal palette." >&2
+            deactivate
         fi
-        deactivate
-        "$SCRIPT_DIR"/applycolor.sh
     fi
 
 
@@ -852,12 +956,6 @@ done"
     #python3 "$HOME/.config/quickshell/ii/scripts/colors/recolor_icons.py"
     #local _venv="${ILLOGICAL_IMPULSE_VIRTUAL_ENV:-$XDG_STATE_HOME/quickshell/.venv}"
     #source "$(eval echo $_venv)/bin/activate"
-    #python3 "$SCRIPT_DIR/generate_colors_material.py" "${generate_colors_material_args[@]}" \
-    #    > "$STATE_DIR"/user/generated/material_colors.scss.tmp && \
-    #mv "$STATE_DIR"/user/generated/material_colors.scss.tmp "$STATE_DIR"/user/generated/material_colors.scss
-    #"$SCRIPT_DIR"/applycolor.sh
-    #deactivate
-
     # KDE/code/YouTube Music theming is deliberately outside the first preset
     # frame. They are still run for a normal wallpaper switch, but colors-only
     # is a shell-palette transaction and must not fan out into more processes.
@@ -875,6 +973,9 @@ main() {
     color_flag=""
     color=""
     noswitch_flag=""
+    skwd_wall_flag=""
+    skwd_wallpaper_engine_id=""
+    preset_apps_only_flag=""
 
     get_type_from_config() {
         jq -r '.appearance.palette.type' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "auto"
@@ -920,6 +1021,22 @@ main() {
             --colors-only)
                 colors_only_flag="1"
                 shift
+                ;;
+            --preset-apps-only)
+                preset_apps_only_flag="1"
+                shift
+                ;;
+            --skwd-wall)
+                # skwd-paper has already applied this wallpaper. This mode is
+                # deliberately colour/state-only: never start mpvpaper or the
+                # legacy Wallpaper Engine renderer from an event callback.
+                skwd_wall_flag="1"
+                colors_only_flag="1"
+                shift
+                ;;
+            --wallpaper-engine)
+                skwd_wallpaper_engine_id="${2:-}"
+                shift 2
                 ;;
             --color)
                 if [[ "$2" =~ ^#?[A-Fa-f0-9]{6}$ ]]; then
@@ -1034,6 +1151,21 @@ main() {
         imgpath="$CONFIG_DIR/assets/images/default_wallpaper.png"
     fi
 
+    # The system file picker reaches here with --lockscreen. Treat that as a
+    # lock-only change: the normal switch path also rewrites desktop colors,
+    # starts app theming and can stop the desktop video renderer.
+    if [[ -n "$lockscreen_flag" && -z "$noswitch_flag" ]]; then
+        if [[ ! -f "$imgpath" ]]; then
+            echo "[switchwall.sh] Lock wallpaper does not exist: $imgpath" >&2
+            return 1
+        fi
+        set_wallpaper_path "$imgpath" "lockscreen" || return 1
+        local lock_color_args=(--image "$imgpath")
+        [[ -n "$mode_flag" ]] && lock_color_args+=(--mode "$mode_flag")
+        nice -n 10 "$SCRIPT_DIR/generate-lockscreen-colors.sh" "${lock_color_args[@]}"
+        return $?
+    fi
+
     # If --lightmode is passed and --noswitch is passed:
     # Only save to config without running matugen or changing theme colors
     if [[ -n "$lightmode_flag" && -n "$noswitch_flag" ]]; then
@@ -1055,7 +1187,7 @@ main() {
 
     # Only clear accent color if a NEW image is provided and noswitch is NOT set
     current_wallpaper=$(jq -r '.background.wallpaperPath' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "")
-    if [[ -n "$imgpath" && -z "$noswitch_flag" && "$imgpath" != "$current_wallpaper" ]]; then
+    if [[ -z "$skwd_wall_flag" && -n "$imgpath" && -z "$noswitch_flag" && "$imgpath" != "$current_wallpaper" ]]; then
         set_accent_color ""
         color_flag=""
         color=""

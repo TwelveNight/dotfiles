@@ -15,7 +15,8 @@ Singleton {
 
     // ── 1. Weather ────────────────────────────────────────────────────────────
     readonly property var weatherData: Weather.data
-    readonly property bool weatherAvailable: (options.enableWeather ?? true) && Weather.data && Weather.data.temp !== ""
+    readonly property bool weatherAvailable: Weather.enabled && (options.enableWeather ?? true)
+        && Weather.data?.lastRefresh !== "00:00" && Weather.data?.temp !== ""
     readonly property string weatherTemperature: weatherAvailable ? String(Weather.data.temp).replace("°C", "°C").replace("°F", "°F") : ""
     readonly property string weatherDescription: weatherAvailable ? (Weather.data.wDesc || "") : ""
     readonly property string weatherCity: weatherAvailable ? (Weather.data.city || "") : ""

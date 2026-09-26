@@ -748,7 +748,7 @@ RippleButton {
                                 implicitHeight: activeText.implicitHeight
                                 radius: Appearance.rounding.full
                                 color: Appearance.colors.colPrimary
-                                visible: itemName == Quickshell.clipboardText && root.cliphistRawString
+                                visible: itemName == Cliphist.currentEntryText && root.cliphistRawString
                                 MaterialSymbol {
                                     id: activeText
                                     anchors.centerIn: parent

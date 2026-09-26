@@ -222,7 +222,11 @@ if args.all_previews:
         tmp_path = args.all_previews + ".tmp"
         with open(tmp_path, 'w') as f:
             json.dump(previews, f, indent=2)
-        os.replace(tmp_path, args.all_previews)
+        import filecmp
+        if os.path.exists(args.all_previews) and filecmp.cmp(tmp_path, args.all_previews, shallow=False):
+            os.remove(tmp_path)
+        else:
+            os.replace(tmp_path, args.all_previews)
     except Exception as e:
         print(f"Error saving all previews: {e}")
 

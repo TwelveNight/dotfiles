@@ -49,6 +49,13 @@ ContentPage {
         title: Translation.tr("Weather Service")
 
         ConfigSwitch {
+            buttonIcon: "cloud"
+            text: Translation.tr("Enable weather service")
+            checked: Config.options.bar.weather.enable
+            onCheckedChanged: Config.options.bar.weather.enable = checked
+        }
+
+        ConfigSwitch {
             buttonIcon: "assistant_navigation"
             text: Translation.tr("Enable GPS location")
             checked: Config.options.bar.weather.enableGPS

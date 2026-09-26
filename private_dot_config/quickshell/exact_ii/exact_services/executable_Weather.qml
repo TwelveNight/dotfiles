@@ -10,6 +10,7 @@ import qs.modules.common
 Singleton {
     id: root
 
+    readonly property bool enabled: Config.options.bar.weather.enable
     readonly property int fetchInterval: Config.options.bar.weather.fetchInterval * 60 * 1000
     readonly property bool useUSCS: Config.options.bar.weather.useUSCS
     
@@ -18,13 +19,13 @@ Singleton {
     readonly property string city: Config.options.bar.weather.city
 
     // Config settling at startup flips city/units from their defaults, which looks
-    // identical to a user changing them. WeatherPopup already fetches on its own at
-    // startup, so a forced fetch here would bypass the rate limit and double up.
-    // Coalesce, then only force when the request differs from what was last fetched.
+    // identical to a user changing them. Coalesce changes and fetch only while
+    // the service is enabled and the request differs from the last one.
     readonly property string fetchKey: `${root.city}|${root.useUSCS}|${root.gpsActive}`
     property string lastFetchedKey: ""
 
     function requestRefetch() {
+        if (!root.enabled) return;
         refetchDebounce.restart();
     }
 
@@ -37,6 +38,7 @@ Singleton {
     property bool manualRefreshPending: false
 
     function refreshManually() {
+        if (!root.enabled) return;
         // Repeated clicks while a request is still in flight would each hit the API,
         // since a manual refresh skips the rate limit. Fold them into the first one.
         if (root.manualRefreshPending) return;
@@ -90,6 +92,7 @@ Singleton {
         interval: 250
         repeat: false
         onTriggered: {
+            if (!root.enabled) return;
             if (root.fetchKey === root.lastFetchedKey)
                 return;
             root.getData(true);
@@ -99,7 +102,7 @@ Singleton {
     onUseUSCSChanged: requestRefetch()
     onCityChanged: requestRefetch()
     onGpsActiveChanged: {
-        if (root.gpsActive) {
+        if (root.enabled && root.gpsActive) {
             positionSource.start();
         } else {
             positionSource.stop();
@@ -107,8 +110,26 @@ Singleton {
         }
     }
     onFetchIntervalChanged: {
-        timer.restart();
+        if (root.enabled) timer.restart();
     }
+
+    onEnabledChanged: {
+        if (!root.initialized) return;
+        if (root.enabled) {
+            if (root.gpsActive) {
+                positionSource.start();
+                fallbackTimer.start();
+            } else {
+                root.requestRefetch();
+            }
+        } else {
+            refetchDebounce.stop();
+            fallbackTimer.stop();
+            positionSource.stop();
+        }
+    }
+
+    property bool initialized: false
 
     property var location: ({
         valid: false,
@@ -305,6 +326,7 @@ Singleton {
     property double lastFetchTimestamp: 0
 
     function getData(force = false) {
+        if (!root.enabled) return;
         const now = Date.now();
         if (!force && (now - lastFetchTimestamp < 60000)) { // 1 minute rate limit
             return;
@@ -353,10 +375,12 @@ Singleton {
     }
 
     function fetchCoordinates(cityName) {
+        if (!root.enabled) return;
         const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`;
         const xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (!root.enabled) return;
                 if (xhr.status === 200) {
                     try {
                         const res = JSON.parse(xhr.responseText);
@@ -387,12 +411,14 @@ Singleton {
     }
 
     function fetchWeather(lat, lon, cityName) {
+        if (!root.enabled) return;
         root.forecastLoading = true;
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,uv_index,visibility&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,weather_code&hourly=temperature_2m,weather_code&timezone=auto`;
         
         const xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (!root.enabled) return;
                 if (xhr.status === 200) {
                     try {
                         const weather = JSON.parse(xhr.responseText);
@@ -414,6 +440,8 @@ Singleton {
     }
 
     Component.onCompleted: {
+        root.initialized = true;
+        if (!root.enabled) return;
         if (root.gpsActive) {
             console.info("[WeatherService] Starting the GPS service.");
             positionSource.start();

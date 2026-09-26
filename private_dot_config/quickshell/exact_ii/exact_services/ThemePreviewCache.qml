@@ -34,6 +34,8 @@ Singleton {
     property int consumers: 0
 
     function acquire() {
+        if (root.consumers === 0)
+            root.wallpaperPreviewLoadSettled = false;
         root.consumers++;
     }
 
@@ -52,6 +54,9 @@ Singleton {
     // wallpaper switch writes, and the pair shipped in assets that describes the
     // wallpaper the shell shows before the user has chosen one.
     property var userWallpaperPreviews: ({})
+    // Swatches arrive before FileView's first async read; an empty in-memory
+    // map at that point does not mean the on-disk cache is missing.
+    property bool wallpaperPreviewLoadSettled: false
     property var seedWallpaperPreviews: ({})
 
     /// True while the shell is showing the wallpaper it ships with - the only
@@ -123,10 +128,15 @@ Singleton {
             wallpaperPreviewReadTimer.restart();
         }
         onLoadedChanged: {
-            if (root.consumers > 0 && wallpaperPreviewFile.loaded)
+            if (root.consumers > 0 && wallpaperPreviewFile.loaded) {
                 root._parseWallpaperPreviews();
+                root.wallpaperPreviewLoadSettled = true;
+            }
         }
-        onLoadFailed: root.userWallpaperPreviews = ({})
+        onLoadFailed: {
+            root.userWallpaperPreviews = ({});
+            root.wallpaperPreviewLoadSettled = true;
+        }
     }
 
     // The shipped previews for the wallpaper the shell shows until the user
@@ -186,7 +196,7 @@ Singleton {
         const script = `${Directories.scriptPath}/colors/generate_colors_material.py`;
         const termscheme = `${Directories.scriptPath}/colors/terminal/scheme-base.json`;
         const out = Directories.wallpaperPreviewColorsPath;
-        const token = `${Directories.state}/user/generated/.preview_request_token`;
+        const token = `${Directories.wallpaperThemeStatePath}/request_token`;
         return `unset LD_LIBRARY_PATH PYTHONHOME PYTHONPATH; `
             + `export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"; `
             + `venv="\${ILLOGICAL_IMPULSE_VIRTUAL_ENV:-\${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/.venv}"; `
@@ -204,6 +214,8 @@ Singleton {
     function ensureWallpaperPreviews() {
         if (root.consumers === 0)
             return false;
+        if (!root.wallpaperPreviewLoadSettled)
+            return true;
         const wallpaper = Wallpapers.effectiveWallpaperPath;
         const mode = root._previewMode();
         const decision = PreviewLogic.generationDecision({

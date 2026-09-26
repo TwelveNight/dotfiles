@@ -2,8 +2,7 @@
 # generate-lockscreen-colors.sh
 # Pre-generates M3 color scheme for the lockscreen wallpaper using matugen --dry-run.
 # Does NOT touch colors.json or any other active theme file.
-# Output: $STATE_DIR/user/generated/lockscreen_colors.json
-# Also backs up current desktop colors to: $STATE_DIR/user/generated/desktop_colors.json
+# Auxiliary outputs live away from colors.json's watched directory.
 
 QUICKSHELL_CONFIG_NAME="ii"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -12,10 +11,12 @@ CONFIG_DIR="$XDG_CONFIG_HOME/quickshell/$QUICKSHELL_CONFIG_NAME"
 STATE_DIR="$XDG_STATE_HOME/quickshell"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHELL_CONFIG_FILE="$XDG_CONFIG_HOME/illogical-impulse/config.json"
+source "$SCRIPT_DIR/matugen.sh"
 
 CURRENT_COLORS="$STATE_DIR/user/generated/colors.json"
-LOCKSCREEN_COLORS="$STATE_DIR/user/generated/lockscreen_colors.json"
-DESKTOP_COLORS="$STATE_DIR/user/generated/desktop_colors.json"
+THEME_STATE_DIR="$XDG_STATE_HOME/ii-skwd-wall"
+LOCKSCREEN_COLORS="$THEME_STATE_DIR/lockscreen_colors.json"
+DESKTOP_COLORS="$THEME_STATE_DIR/desktop_colors.json"
 
 imgpath=""
 mode_flag=""
@@ -32,6 +33,28 @@ if [[ -z "$imgpath" || ! -f "$imgpath" ]]; then
     echo "[generate-lockscreen-colors] ERROR: --image <path> required and file must exist" >&2
     exit 1
 fi
+
+# Matugen reads still images. A lockscreen video therefore needs one bounded
+# poster frame; using switchwall for that used to launch desktop theming too.
+color_source="$imgpath"
+temporary_frame=""
+case "${imgpath,,}" in
+    *.mp4|*.webm|*.mkv|*.avi|*.mov|*.m4v|*.ogv)
+        if ! command -v ffmpeg >/dev/null 2>&1; then
+            echo "[generate-lockscreen-colors] ERROR: ffmpeg is required for video lockscreen wallpapers" >&2
+            exit 1
+        fi
+        temporary_frame="$(mktemp "${TMPDIR:-/tmp}/ii-lockscreen-frame.XXXXXX.png")"
+        if ! ffmpeg -v error -y -i "$imgpath" -frames:v 1 \
+                -vf "scale=1920:-2:force_original_aspect_ratio=decrease" "$temporary_frame"; then
+            rm -f -- "$temporary_frame"
+            echo "[generate-lockscreen-colors] ERROR: could not extract a video frame" >&2
+            exit 1
+        fi
+        color_source="$temporary_frame"
+        ;;
+esac
+trap '[[ -n "$temporary_frame" ]] && rm -f -- "$temporary_frame"' EXIT
 
 # Auto-detect mode if not set
 if [[ -z "$mode_flag" ]]; then
@@ -50,7 +73,7 @@ for t in "${allowed_types[@]}"; do [[ "$type_flag" == "$t" ]] && { valid=1; brea
 
 echo "[generate-lockscreen-colors] Generating for: $imgpath (mode=$mode_flag type=$type_flag)"
 
-mkdir -p "$STATE_DIR/user/generated"
+mkdir -p "$THEME_STATE_DIR"
 
 # Step 1: backup current desktop colors (cp = new inode, does NOT trigger inotify on existing watch)
 if [[ -f "$CURRENT_COLORS" ]]; then
@@ -60,7 +83,7 @@ fi
 
 # Step 2: use matugen --dry-run --json hex to get colors WITHOUT writing any files
 #         then transform the JSON to match the colors.json format (snake_case keys, hex values)
-matugen_json=$(matugen image "$imgpath" \
+matugen_json=$(matugen image "$color_source" \
     --json hex \
     --source-color-index 0 \
     --mode "$mode_flag" \
@@ -112,5 +135,9 @@ if [[ $py_status -ne 0 || ! -s "$LOCKSCREEN_COLORS.tmp" ]]; then
     exit 1
 fi
 
-mv "$LOCKSCREEN_COLORS.tmp" "$LOCKSCREEN_COLORS"
+if cmp -s -- "$LOCKSCREEN_COLORS.tmp" "$LOCKSCREEN_COLORS"; then
+    rm -f -- "$LOCKSCREEN_COLORS.tmp"
+else
+    mv "$LOCKSCREEN_COLORS.tmp" "$LOCKSCREEN_COLORS"
+fi
 echo "[generate-lockscreen-colors] Done → $LOCKSCREEN_COLORS"

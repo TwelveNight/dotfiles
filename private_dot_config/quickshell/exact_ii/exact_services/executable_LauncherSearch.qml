@@ -83,17 +83,73 @@ Singleton {
         target: GlobalStates
         function onOverviewOpenChanged() {
             if (GlobalStates.overviewOpen) {
+                closeTeardownTimer.stop();
+                coldPurgeTimer.stop();
                 // `query` is commonly already empty, so opening Search does not
                 // emit onQueryChanged. Refresh the idle result set explicitly;
                 // otherwise it can retain the empty result computed at boot.
                 root._scheduleResultsUpdate();
             } else {
-                root.rememberQuery(root.query);
-                root.query = "";
-                root.selectedResult = null;
-                root.clearResults();
+                closeTeardownTimer.restart();
             }
         }
+    }
+
+    /**
+     * Closing tears the results down once the surface has gone, not as it starts to go.
+     *
+     * Clearing the query and the results, purging the caches and forcing a garbage
+     * collection all ran in the very frame the close began. The rows vanished before
+     * the surface had moved, and the collection stalled the first frames of its
+     * animation, so the island dropped a chunk of its size at once. Reopening inside
+     * the window cancels the teardown; the surfaces reset their own field on open.
+     */
+    Timer {
+        id: closeTeardownTimer
+        interval: 750
+        repeat: false
+        onTriggered: {
+            if (GlobalStates.overviewOpen)
+                return;
+            root.rememberQuery(root.query);
+            root.query = "";
+            root.selectedResult = null;
+            root.clearResults();
+            coldPurgeTimer.restart();
+        }
+    }
+
+    /**
+     * The indexes behind the results stay warm between sessions.
+     *
+     * Unloading the Settings index, the quick-toggle models and the fuzzy
+     * caches on every close made the first keystroke of every reopen rebuild
+     * them — a ~90ms freeze on the first letter, exactly when someone who
+     * types fast is already three letters further. They are released only
+     * once Search has been left alone for a while.
+     */
+    Timer {
+        id: coldPurgeTimer
+        interval: 5 * 60 * 1000
+        repeat: false
+        onTriggered: {
+            if (root.hasResultConsumer)
+                return;
+            root.purgeWarmCaches();
+        }
+    }
+
+    function purgeWarmCaches(): void {
+        root.appResultCache = ({});
+        root._publishedByKey = ({});
+        root.watchSettingsIndex = false;
+        root.watchQuickToggleRevision = false;
+        AiSettingsIntegration.unload();
+        QuickToggleRegistry.purge();
+        // Fuzzy's caches are not purged: they only hold prepared query
+        // strings (a few KB after a long session), and the targets it
+        // matches against stay prepared in AppSearch regardless.
+        Qt.callLater(root.collectReleasedResults);
     }
 
     function clearResults() {
@@ -112,8 +168,6 @@ Singleton {
         fileProc.pending = [];
         contentProc.pending = [];
         root.results = [];
-        root._publishedByKey = ({});
-        root.appResultCache = ({});
         root.fileResults = [];
         root.allFileResults = [];
         root.contentResults = [];
@@ -125,11 +179,8 @@ Singleton {
         root.selectedResult = null;
         root.processConfirmKey = "";
         root.confirmKey = "";
-        root.watchSettingsIndex = false;
-        root.watchQuickToggleRevision = false;
-        AiSettingsIntegration.unload();
-        QuickToggleRegistry.purge();
-        Fuzzy.cleanup();
+        // The warm indexes are released by `coldPurgeTimer`, not here.
+        AiSettingsIntegration.purge();
         // Other close handlers still hold the ListModel and rowRefs during
         // this signal. Collect only after those handlers and deferred deletes.
         Qt.callLater(root.collectReleasedResults);
@@ -141,6 +192,7 @@ Singleton {
     }
 
     Component.onCompleted: Qt.callLater(() => {
+        root.rebuildAppCategories();
         root.enforceAlwaysListAppsOverviewPolicy();
         root._scheduleResultsUpdate();
     })
@@ -335,6 +387,36 @@ Singleton {
             desc: Translation.tr("Restart Quickshell shell seamlessly")
         }
     ]
+
+    // One builder for the typed and idle rows, so neither can skip the
+    // confirmation gate: the first press only arms it, the second runs it.
+    function createSystemControlResult(definition: var): var {
+        const isPendingConfirm = definition.requiresConfirmation && root.confirmKey === definition.cmd;
+        return resultComp.createObject(null, {
+            key: "sys:" + definition.cmd,
+            name: isPendingConfirm ? definition.label + " (" + Translation.tr("Are you sure?") + ")" : definition.label,
+            type: Translation.tr("System Control"),
+            comment: isPendingConfirm ? Translation.tr("Press Enter again to confirm") : definition.desc,
+            verb: isPendingConfirm ? Translation.tr("Confirm") : Translation.tr("Execute"),
+            iconName: definition.icon,
+            iconType: LauncherSearchResult.IconType.Material,
+            requiresConfirmation: definition.requiresConfirmation,
+            execute: () => {
+                // The confirming press closes Search, and closing clears the
+                // query, which clears `confirmKey` before this runs. A row built
+                // after arming stays confirmed while the launcher goes away.
+                const confirmed = isPendingConfirm
+                    && (root.confirmKey === definition.cmd || !GlobalStates.overviewOpen);
+                if (!definition.requiresConfirmation || confirmed) {
+                    root.confirmKey = "";
+                    definition.execute();
+                    return;
+                }
+                root.confirmKey = definition.cmd;
+                root._scheduleResultsUpdate();
+            }
+        });
+    }
 
     /**
      * Application matching, as a cascade of increasingly forgiving passes.
@@ -1414,14 +1496,22 @@ Singleton {
 
     // https://specifications.freedesktop.org/menu/latest/category-registry.html
     property list<string> mainRegisteredCategories: ["AudioVideo", "Development", "Education", "Game", "Graphics", "Network", "Office", "Science", "Settings", "System", "Utility"]
-    property list<string> appCategories: DesktopEntries.applications.values.reduce((acc, entry) => {
-        for (const category of entry.categories) {
-            if (!acc.includes(category) && mainRegisteredCategories.includes(category)) {
-                acc.push(category);
+    property list<string> appCategories: []
+    function rebuildAppCategories() {
+        const acc = [];
+        for (const entry of AppSearch.list) {
+            for (const category of entry.categories) {
+                if (!acc.includes(category) && mainRegisteredCategories.includes(category)) {
+                    acc.push(category);
+                }
             }
         }
-        return acc;
-    }, []).sort()
+        root.appCategories = acc.sort();
+    }
+    Connections {
+        target: AppSearch
+        function onListChanged() { root.rebuildAppCategories(); }
+    }
 
     // Load user action scripts from ~/.config/illogical-impulse/actions/
     // Uses FolderListModel to auto-reload when scripts are added/removed
@@ -2386,7 +2476,7 @@ Singleton {
             type: Translation.tr("App"),
             id: entry.id,
             name: entry.name,
-            iconName: entry.icon,
+            iconName: AppSearch.entryIcon(entry),
             iconType: LauncherSearchResult.IconType.System,
             verb: Translation.tr("Open"),
             execute: () => root.launchApplication(entry),
@@ -2720,18 +2810,8 @@ Singleton {
         }
 
         if (cfg.showCommands && Config.options.search.modules.systemControls) {
-            for (const cmd of root.systemControlDefinitions) {
-                result.push(resultComp.createObject(null, {
-                    key: "sys:" + cmd.cmd,
-                    name: cmd.label,
-                    type: Translation.tr("System Control"),
-                    comment: cmd.desc,
-                    verb: Translation.tr("Execute"),
-                    iconName: cmd.icon,
-                    iconType: LauncherSearchResult.IconType.Material,
-                    execute: cmd.execute
-                }));
-            }
+            for (const cmd of root.systemControlDefinitions)
+                result.push(root.createSystemControlResult(cmd));
         }
 
         if (cfg.showPanels) {
@@ -2862,6 +2942,13 @@ Singleton {
         ///////////// Special cases ///////////////
         if (Config.options.search.modules.clipboard && root.query.startsWith(Config.options.search.prefix.clipboard)) {
             // Clipboard
+            // The ii Search answers this prefix with its clipboard panel, which reads
+            // the history itself; these rows were built behind it and never shown -
+            // sixty result objects, each with its actions, on the frame the launcher
+            // opens. The tablet drawer and the Waffle menu have no such panel and
+            // still list the rows.
+            if (GlobalStates.classicOverviewOpen && PanelFamily.isIi)
+                return [];
             const searchString = StringUtils.cleanPrefix(root.query, Config.options.search.prefix.clipboard);
 
             const pinnedMatches = Cliphist.pinnedEntries.filter(e => {
@@ -3000,10 +3087,12 @@ Singleton {
             iconType: LauncherSearchResult.IconType.Material,
             isMath: Config.options.search.enableMathPreview,
             comment: root.mathExpression,
-            execute: () => {
-                Quickshell.clipboardText = root.mathResult;
-                root.recordCalculation(root.mathExpression, root.mathResult);
-            }
+            // Captured now: running the row closes Search first, and the
+            // query reset that follows clears `mathResult` before this runs.
+            execute: ((result, expression) => () => {
+                Quickshell.clipboardText = result;
+                root.recordCalculation(expression, result);
+            })(root.mathResult, root.mathExpression)
         }) : null;
         // Gated here rather than at the point of use: this built a result plus
         // three action objects per path for a list the caller then discarded.
@@ -3243,28 +3332,8 @@ Singleton {
         if (Config.options.search.modules.systemControls && (hasColonPrefix || queryClean.length >= 2)) {
             const sysCommands = root.systemControlDefinitions;
             const matches = sysCommands.filter(c => c.cmd.startsWith(queryClean));
-            for (const match of matches) {
-                const isPendingConfirm = match.requiresConfirmation && root.confirmKey === match.cmd;
-                systemControlResults.push(resultComp.createObject(null, {
-                    key: "sys:" + match.cmd,
-                    name: isPendingConfirm ? match.label + " (" + Translation.tr("Are you sure?") + ")" : match.label,
-                    type: Translation.tr("System Control"),
-                    comment: isPendingConfirm ? Translation.tr("Press Enter again to confirm") : match.desc,
-                    verb: isPendingConfirm ? Translation.tr("Confirm") : Translation.tr("Execute"),
-                    iconName: match.icon,
-                    iconType: LauncherSearchResult.IconType.Material,
-                    requiresConfirmation: match.requiresConfirmation,
-                    execute: () => {
-                        if (!match.requiresConfirmation || root.confirmKey === match.cmd) {
-                            root.confirmKey = "";
-                            match.execute();
-                        } else {
-                            root.confirmKey = match.cmd;
-                            root._scheduleResultsUpdate();
-                        }
-                    }
-                }));
-            }
+            for (const match of matches)
+                systemControlResults.push(root.createSystemControlResult(match));
         }
 
         if (systemControlResults.length > 0) {
@@ -3589,6 +3658,7 @@ Singleton {
             isAlias: !!properties.isAlias,
             isFallback: !!properties.isFallback,
             keepOverviewOpen: !!properties.keepOverviewOpen,
+            requiresConfirmation: !!properties.requiresConfirmation,
             controlKind: properties.controlKind || "",
             controlValue: properties.controlValue ?? null,
             panelId: properties.panelId || "",

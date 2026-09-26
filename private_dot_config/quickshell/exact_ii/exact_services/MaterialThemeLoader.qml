@@ -139,18 +139,19 @@ Singleton {
         repeat: false
         running: false
         onTriggered: {
-            // While a preset is being applied, crossfade the palette instead of
-            // snapping — a preset switch is the one time colors.json changes
-            // wholesale, and the flash is exactly what the staged transition is
-            // meant to remove. Ordinary edits keep their instant apply.
-            root.applyCurrentPalette(GlobalStates.presetRecoloring)
+            // The bar is hidden during a preset's palette change. Animating
+            // dozens of global color roles here invalidates the whole shell
+            // every frame and stalls the transition; publish them together.
+            root.applyCurrentPalette(false)
         }
     }
 
     Connections {
         target: root
         function onLockThemeActiveChanged() {
-            root.applyCurrentPalette(true);
+            // The lock face fades in separately. Keep this palette switch
+            // atomic so locking does not rebind every colored item per frame.
+            root.applyCurrentPalette(false);
         }
     }
 

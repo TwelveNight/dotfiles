@@ -45,10 +45,10 @@ Singleton {
         }
     ]
 
-    // Deduped list to fix double icons, pre-sorted alphabetically to avoid sorting on every query.
-    // Deduped through a Set rather than findIndex per entry: this rebuilds on every
-    // desktop entry rescan, and the quadratic version made each rescan a visible hitch.
-    readonly property list<DesktopEntry> list: {
+    // A desktop-entry rescan can emit valuesChanged once per entry. Rebuild the
+    // fuzzy indexes once after the burst, rather than once for every signal.
+    property list<DesktopEntry> list: []
+    function rebuildList() {
         const seen = new Set();
         const arr = [];
         for (const app of DesktopEntries.applications.values) {
@@ -58,8 +58,19 @@ Singleton {
             arr.push(app);
         }
         arr.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-        return arr;
+        root.list = arr;
     }
+    Timer {
+        id: rebuildListTimer
+        interval: 150
+        repeat: false
+        onTriggered: root.rebuildList()
+    }
+    Connections {
+        target: DesktopEntries.applications
+        function onValuesChanged() { rebuildListTimer.restart(); }
+    }
+    Component.onCompleted: root.rebuildList()
 
     readonly property var preppedNames: list.map(a => ({
                 name: Fuzzy.prepare(`${a.name} `),
@@ -228,6 +239,15 @@ Singleton {
         }
     }
 
+    // A regenerated or switched icon theme adds and removes names just the same.
+    Connections {
+        target: TaskbarApps
+        function onIconThemeRevisionChanged() {
+            root._iconExistsCache = ({});
+            root._iconCache = ({});
+        }
+    }
+
     function getReverseDomainNameAppName(str) {
         return str.split('.').slice(-1)[0];
     }
@@ -241,6 +261,19 @@ Singleton {
     }
 
     property var _iconCache: ({})
+
+    /**
+     * The icon to draw for a desktop entry. Themed icons can't recolor an absolute-path
+     * icon in place, so recolor_icons.py injects a copy named after the .desktop file; use
+     * it only while themed icons are on, so a custom icon stays custom otherwise.
+     */
+    function entryIcon(entry) {
+        const icon = String(entry?.icon ?? "");
+        if (!icon.startsWith("/") || !Config.options.appearance.icons.enableThemed)
+            return icon;
+        const id = String(entry.id ?? "").replace(/\.desktop$/, "");
+        return iconExists(id) ? id : icon;
+    }
 
     function guessIcon(str) {
         if (!str || str.length == 0)

@@ -248,6 +248,12 @@ RippleButton {
             root.applySwatch(ThemePreviewCache.wallpaperPreview(root.colorScheme));
         }
 
+        function onWallpaperPreviewLoadSettledChanged() {
+            if (ThemePreviewCache.wallpaperPreviewLoadSettled && !ThemePreviewCache.wallpaperPreviewsReady
+                    && !root.customTheme && !root.builtInTheme)
+                Qt.callLater(root.startColorFetch);
+        }
+
         function onWallpaperPreviewsGenerationFailed() {
             if (root.customTheme || root.builtInTheme)
                 return;
