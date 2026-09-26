@@ -1,4 +1,5 @@
 import qs.modules.common
+import qs.modules.ii.dynamicIsland.core
 import qs.modules.common.widgets
 import qs.services
 import qs
@@ -18,7 +19,8 @@ Item {
 
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || Translation.tr("No media")
-    readonly property bool hasTrack: (activePlayer?.trackTitle ?? "").length > 0
+    // Out in a Dynamic Island bubble, the track is shown there and not twice.
+    readonly property bool hasTrack: (activePlayer?.trackTitle ?? "").length > 0 && !IslandGeometry.bubbled("media")
 
     visible: hasTrack
 
@@ -224,7 +226,7 @@ Item {
             implicitSize: root.progressButtonSize
 
             lineWidth: Appearance.rounding.unsharpen
-            value: (activePlayer?.length ?? 0) > 0 ? Math.min(1, Math.max(0, activePlayer.position / activePlayer.length)) : 0
+            value: MprisController.trackProgressOf(activePlayer)
             colPrimary: Appearance.colors.colOnSecondaryContainer
             enableAnimation: false
 

@@ -158,6 +158,56 @@ Scope { // Scope
         Qt.callLater(root.attachContent);
     }
 
+    // Stands in for the focus grab while the phone mirror's cut-out is open.
+    // The grab cannot be used then — it would hold every pointer event on the
+    // panel and the cut-out would never be crossed — so a click outside is
+    // noticed by a surface that covers everything except the sidebar's own
+    // column, which is where the cut-out lives.
+    Loader {
+        id: dismissCatcher
+        active: false // TEMP probe
+
+        sourceComponent: PanelWindow {
+            id: catcherWindow
+            screen: Quickshell.screens.find(s => s.name === root.policyMonitorName)
+            color: "transparent"
+            exclusionMode: ExclusionMode.Ignore
+            WlrLayershell.namespace: "quickshell:policiesDismissCatcher"
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
+            }
+
+            // Everything but the strip the sidebar occupies. Excluding the
+            // whole column rather than the panel's exact rectangle keeps this
+            // free of the compositor's exclusive-zone arithmetic; the only
+            // thing it costs is a click on the bar directly above the sidebar,
+            // which lands on the bar as it always did.
+            readonly property real strip: root.sidebarWidth
+
+            mask: Region {
+                x: root.isOnLeft ? catcherWindow.strip : 0
+                y: 0
+                width: Math.max(0, catcherWindow.width - catcherWindow.strip)
+                height: catcherWindow.height
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                onPressed: {
+                    if (GlobalStates.policiesHoldOpen > 0 && !GlobalStates.policiesPointerHoleActive)
+                        return;
+                    GlobalStates.sidebarLeftOpen = false;
+                }
+            }
+        }
+    }
+
     Loader {
         id: sidebarLoader
         active: (!GlobalStates.connectModeActive || GlobalStates.connectSidebarsSeparate) && !root.detach
@@ -251,18 +301,67 @@ Scope { // Scope
                 right: root.pin ? (root.barReservesSpace ? 0 : root.rightBarOffset) : 0
             }
 
+            // The embedded phone mirror's cut-out. A real scrcpy window sits
+            // exactly here with the panel painting its picture on top, so a
+            // click has to fall through to it rather than stop at this
+            // surface. Zero-sized unless that page is open and settled.
+            Region {
+                id: pointerHoleRegion
+                intersection: Intersection.Subtract
+                x: GlobalStates.policiesPointerHole.x
+                y: GlobalStates.policiesPointerHole.y
+                width: GlobalStates.policiesPointerHole.width
+                height: GlobalStates.policiesPointerHole.height
+            }
+
             // Keep the bar clickable without clipping the slide drawn over its strip.
             mask: Region {
                 x: root.isOnLeft ? panelWindow.effectiveBarOffset : 0
                 y: 0
                 width: panelWindow.width - panelWindow.effectiveBarOffset
                 height: panelWindow.height
+                regions: GlobalStates.policiesPointerHoleActive ? [pointerHoleRegion] : []
+            }
+
+            // Published so the embedded phone mirror can put its scrcpy window
+            // exactly under the cut-out: the surface's own position accounts
+            // for the bar's exclusive zone, which nothing in QML does.
+            function publishSurface(): void {
+                const live = panelWindow.visible;
+                GlobalStates.policiesSurfaceNamespace = live ? panelWindow.WlrLayershell.namespace : "";
+                GlobalStates.policiesSurfaceScreen = live ? (panelWindow.screen?.name ?? "") : "";
+            }
+
+            Component.onCompleted: panelWindow.publishSurface()
+            Component.onDestruction: {
+                GlobalStates.policiesSurfaceNamespace = "";
+                GlobalStates.policiesSurfaceScreen = "";
+            }
+            onScreenChanged: panelWindow.publishSurface()
+
+            // A focus grab keeps every pointer event on its own surfaces, so
+            // while one is up the cut-out is inert — the pointer cannot reach
+            // the phone underneath it at all. The two cannot both be on, so
+            // the grab gives way to the cut-out and dismissCatcher takes over
+            // the job of noticing a click somewhere else.
+            readonly property bool wantsDismissGrab: panelWindow.visible && !root.pin
+                && !GlobalStates.policiesPointerHoleActive
+
+            onWantsDismissGrabChanged: {
+                console.warn("[GrabProbe] wantsGrab=", panelWindow.wantsDismissGrab, "holeActive=", GlobalStates.policiesPointerHoleActive, "before=", GlobalFocusGrab.dismissable.length);
+                if (panelWindow.wantsDismissGrab)
+                    GlobalFocusGrab.addDismissable(panelWindow);
+                else
+                    GlobalFocusGrab.removeDismissable(panelWindow);
+                console.warn("[GrabProbe] after=", GlobalFocusGrab.dismissable.length);
             }
 
             onVisibleChanged: {
+                panelWindow.publishSurface();
                 if (visible) {
                     keyboardFocusDowngrade.restart();
-                    GlobalFocusGrab.addDismissable(panelWindow);
+                    if (!GlobalStates.policiesPointerHoleActive)
+                        GlobalFocusGrab.addDismissable(panelWindow);
                 } else {
                     keyboardFocusDowngrade.stop();
                     panelWindow.keyboardExclusive = true;
@@ -318,10 +417,10 @@ Scope { // Scope
                 transform: Translate { x: panelWindow.slideOffset }
                 focus: GlobalStates.sidebarLeftOpen
                 color: Config.options.bar.expressiveColors ? activeTheme.barBackground : Appearance.colors.colLayer0
-                radius: root.pin ? 0 : Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
+                radius: (root.pin && GlobalStates.connectModeActive) ? 0 : Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
                 
-                height: root.pin ? parent.height : parent.height - (Appearance.sizes.hyprlandGapsOut * 2)
-                y: root.pin ? 0 : Appearance.sizes.hyprlandGapsOut
+                height: (root.pin && GlobalStates.connectModeActive) ? parent.height : parent.height - (Appearance.sizes.hyprlandGapsOut * 2)
+                y: (root.pin && GlobalStates.connectModeActive) ? 0 : Appearance.sizes.hyprlandGapsOut
                 width: panelWindow.sidebarWidth - Appearance.sizes.hyprlandGapsOut - Appearance.sizes.elevationMargin
                 property bool _initialized: false
 
@@ -360,7 +459,7 @@ Scope { // Scope
                         }
                         PropertyChanges {
                             target: sidebarLeftBackground
-                            anchors.leftMargin: root.pin ? 0 : Appearance.sizes.hyprlandGapsOut + panelWindow.effectiveBarOffset
+                            anchors.leftMargin: (root.pin && GlobalStates.connectModeActive) ? 0 : Appearance.sizes.hyprlandGapsOut + panelWindow.effectiveBarOffset
                             anchors.rightMargin: 0
                         }
                     },
@@ -373,7 +472,7 @@ Scope { // Scope
                         }
                         PropertyChanges {
                             target: sidebarLeftBackground
-                            anchors.rightMargin: root.pin ? 0 : Appearance.sizes.hyprlandGapsOut + panelWindow.effectiveBarOffset
+                            anchors.rightMargin: (root.pin && GlobalStates.connectModeActive) ? 0 : Appearance.sizes.hyprlandGapsOut + panelWindow.effectiveBarOffset
                             anchors.leftMargin: 0
                         }
                     }
@@ -408,17 +507,19 @@ Scope { // Scope
                 }
             }
 
-            property bool pinned: root.pin
+            property bool pinned: root.pin && GlobalStates.connectModeActive
             onPinnedChanged: {
-                if (root.pin) return;
-                roundDecorators.active = false
+                if (!panelWindow.pinned) {
+                    roundDecorators.active = false;
+                    return;
+                }
             }
 
             Timer {
-                running: root.pin
+                running: panelWindow.pinned
                 interval: 150
                 onTriggered: {
-                    if (!root.pin) return;
+                    if (!panelWindow.pinned) return;
                     roundDecorators.active = true
                 }
             }
@@ -506,6 +607,7 @@ Scope { // Scope
                 anchors.fill: parent
                 focus: true
                 color: Config.options.bar.expressiveColors ? activeTheme.barBackground : Appearance.colors.colLayer0
+                radius: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
 
                 Keys.onPressed: (event) => {
                     if (event.key === Qt.Key_Escape) {

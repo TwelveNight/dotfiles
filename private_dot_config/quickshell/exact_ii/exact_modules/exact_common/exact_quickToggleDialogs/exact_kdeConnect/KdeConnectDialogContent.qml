@@ -14,7 +14,11 @@ StyledFlickable {
 
     Layout.fillWidth: true
     Layout.fillHeight: true
-    contentHeight: mainLayout.implicitHeight + 36
+    // Exactly what is laid out: any slack showed as an empty band above the footer.
+    contentHeight: mainLayout.implicitHeight + mainLayout.anchors.topMargin
+    // A page hugs this whole height: given any less the body can still scroll, and
+    // the bottom fade greys out the last row.
+    readonly property real naturalHeight: mainLayout.y + root.contentHeight
     clip: true
 
     readonly property var device: KdeConnectService.activeDevice
@@ -85,7 +89,7 @@ StyledFlickable {
         function onActionFeedback(message, ok) {
             root.feedbackMessage = message;
             root.feedbackOk = ok;
-            root.feedbackTimer.restart();
+            feedbackTimer.restart();
         }
     }
 
@@ -300,6 +304,104 @@ StyledFlickable {
             }
         }
 
+        // ── Screen Mirroring ────────────────────────────────────────────
+        StyledText {
+            visible: root.connected
+            text: Translation.tr("Screen Mirroring")
+            font.pixelSize: Appearance.font.pixelSize.normal
+            font.bold: true
+            color: Appearance.colors.colSubtext
+            Layout.fillWidth: true
+        }
+
+        RippleButton {
+            id: mirrorToggleRow
+            visible: root.connected
+            Layout.fillWidth: true
+            implicitHeight: 56
+            buttonRadius: Appearance.rounding.full
+            colBackground: PhoneScrcpyService.mirrorRunning
+                ? Appearance.colors.colPrimaryContainer
+                : Appearance.colors.colSurfaceContainerHighest
+            colBackgroundHover: PhoneScrcpyService.mirrorRunning
+                ? Appearance.colors.colPrimaryContainerHover
+                : Appearance.colors.colSurfaceContainerHighestHover
+            colBackgroundActive: PhoneScrcpyService.mirrorRunning
+                ? Appearance.colors.colPrimaryContainerActive
+                : Appearance.colors.colSurfaceContainerHighestActive
+            colRipple: PhoneScrcpyService.mirrorRunning
+                ? Appearance.colors.colPrimaryContainerActive
+                : Appearance.colors.colSurfaceContainerHighestActive
+            enabled: PhoneScrcpyService.available
+
+            contentItem: RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 20
+                anchors.rightMargin: 16
+                spacing: 12
+
+                MaterialSymbol {
+                    text: PhoneScrcpyService.mirrorRunning ? "screen_share" : "smartphone"
+                    iconSize: 22
+                    color: PhoneScrcpyService.mirrorRunning
+                        ? Appearance.colors.colOnPrimaryContainer
+                        : Appearance.colors.colOnSurface
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: Translation.tr("Screen Mirror")
+                        font.bold: true
+                        color: PhoneScrcpyService.mirrorRunning
+                            ? Appearance.colors.colOnPrimaryContainer
+                            : Appearance.colors.colOnSurface
+                        elide: Text.ElideRight
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: !PhoneScrcpyService.available
+                            ? Translation.tr("scrcpy not available")
+                            : PhoneScrcpyService.mirrorLaunching
+                                ? Translation.tr("Launching…")
+                                : PhoneScrcpyService.mirrorRunning
+                                    ? Translation.tr("Mirror running")
+                                    : Translation.tr("Mirror phone screen to desktop")
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: PhoneScrcpyService.mirrorRunning
+                            ? ColorUtils.transparentize(Appearance.colors.colOnPrimaryContainer, 0.2)
+                            : Appearance.colors.colSubtext
+                        elide: Text.ElideRight
+                    }
+                }
+
+                StyledSwitch {
+                    checked: PhoneScrcpyService.mirrorRunning || PhoneScrcpyService.mirrorLaunching
+                    enabled: false
+                    down: mirrorToggleRow.pressed
+                    isPressed: mirrorToggleRow.pressed
+                }
+            }
+
+            onClicked: {
+                if (PhoneScrcpyService.mirrorRunning) {
+                    PhoneScrcpyService.stopMirror();
+                } else {
+                    PhoneScrcpyService.launchMirror();
+                }
+            }
+
+            StyledToolTip {
+                text: PhoneScrcpyService.mirrorRunning
+                    ? Translation.tr("Stop screen mirroring")
+                    : Translation.tr("Start screen mirroring")
+            }
+        }
+
         // ── Send actions ────────────────────────────────────────────────
         StyledText {
             visible: root.connected && root.hasAnyAction
@@ -411,6 +513,103 @@ StyledFlickable {
                     StyledToolTip {
                         text: actionRow.modelData.label
                     }
+                }
+            }
+        }
+
+        // ── Phone screen ────────────────────────────────────────────────
+        // scrcpy over ADB: needs the phone reachable there, not just paired.
+        StyledText {
+            visible: root.connected
+            text: Translation.tr("Phone screen")
+            font.pixelSize: Appearance.font.pixelSize.normal
+            font.bold: true
+            color: Appearance.colors.colSubtext
+            Layout.fillWidth: true
+        }
+
+        RowLayout {
+            id: mirrorRow
+            visible: root.connected
+            Layout.fillWidth: true
+            spacing: 6
+
+            readonly property bool running: PhoneScrcpyService.mirrorRunning
+            readonly property bool launching: PhoneScrcpyService.mirrorLaunching
+            readonly property bool usable: PhoneScrcpyService.available && KdeConnectService.adbReachable
+
+            RippleButton {
+                id: mirrorButton
+                Layout.fillWidth: true
+                implicitHeight: 52
+                buttonRadius: Appearance.rounding.full
+                colBackground: Appearance.colors.colSurfaceContainerHighest
+                colBackgroundHover: Appearance.colors.colSurfaceContainerHighestHover
+                colBackgroundActive: Appearance.colors.colSurfaceContainerHighestActive
+                colRipple: Appearance.colors.colSurfaceContainerHighestActive
+                enabled: mirrorRow.running || (mirrorRow.usable && !mirrorRow.launching)
+                opacity: mirrorRow.running || mirrorRow.usable ? 1.0 : 0.4
+                // Focuses the window when it is already open.
+                onClicked: PhoneScrcpyService.launchMirror()
+
+                contentItem: RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 20
+                    anchors.rightMargin: 20
+                    spacing: 12
+
+                    MaterialSymbol {
+                        text: mirrorRow.running ? "open_in_new" : "mobile_screen_share"
+                        iconSize: 22
+                        color: Appearance.colors.colOnSurface
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: mirrorRow.running ? Translation.tr("Show mirror")
+                            : mirrorRow.launching ? Translation.tr("Starting mirror…")
+                            : Translation.tr("Start mirror")
+                        color: Appearance.colors.colOnSurface
+                        elide: Text.ElideRight
+                    }
+
+                    MaterialSymbol {
+                        visible: !mirrorRow.running && !mirrorRow.usable
+                        text: "block"
+                        iconSize: Appearance.font.pixelSize.normal
+                        color: Appearance.colors.colSubtext
+                    }
+                }
+
+                StyledToolTip {
+                    text: !PhoneScrcpyService.available ? Translation.tr("scrcpy is not installed")
+                        : !KdeConnectService.adbReachable && !mirrorRow.running
+                            ? Translation.tr("The phone is not reachable over ADB")
+                        : Translation.tr("Mirror the phone's screen in a window")
+                }
+            }
+
+            RippleButton {
+                visible: mirrorRow.running
+                implicitWidth: 52
+                implicitHeight: 52
+                buttonRadius: Appearance.rounding.full
+                colBackground: Appearance.colors.colSurfaceContainerHighest
+                colBackgroundHover: Appearance.colors.colSurfaceContainerHighestHover
+                colBackgroundActive: Appearance.colors.colSurfaceContainerHighestActive
+                colRipple: Appearance.colors.colSurfaceContainerHighestActive
+                onClicked: PhoneScrcpyService.stopMirror()
+
+                contentItem: MaterialSymbol {
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: "stop_circle"
+                    iconSize: 22
+                    color: Appearance.colors.colOnSurface
+                }
+
+                StyledToolTip {
+                    text: Translation.tr("Stop mirror")
                 }
             }
         }

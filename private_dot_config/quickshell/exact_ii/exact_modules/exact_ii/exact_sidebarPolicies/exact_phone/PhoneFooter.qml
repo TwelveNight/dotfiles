@@ -208,10 +208,20 @@ Item {
             readonly property bool isRunning: KdeConnectService.scrcpyRunning || PhoneScrcpyService.mirrorRunning
             readonly property bool isLaunching: KdeConnectService.scrcpyLaunching || PhoneScrcpyService.mirrorLaunching
             readonly property string launchErr: PhoneScrcpyService.mirrorLaunchError || KdeConnectService.scrcpyLaunchError
+            // The card opens the phone inside the sidebar now; the separate
+            // scrcpy window is still here, one inline action away — and it is
+            // all the card does when the sidebar mirror is switched off.
+            readonly property bool embedEnabled: Config.options?.phone?.scrcpy?.embed?.enabled ?? true
+            readonly property bool isEmbedded: card1.embedEnabled && PhoneMirrorService.running
 
             iconName: "smart_display"
             iconShape: MaterialShape.Shape.Cookie9Sided
-            title: root._scrcpyPresent ? (isRunning ? Translation.tr("scrcpy Mirror") : (isLaunching ? Translation.tr("Connecting scrcpy…") : Translation.tr("Open scrcpy Mirror"))) : Translation.tr("Install scrcpy")
+            title: !root._scrcpyPresent ? Translation.tr("Install scrcpy")
+                : isEmbedded ? Translation.tr("Phone screen")
+                : isLaunching ? Translation.tr("Connecting scrcpy…")
+                : !card1.embedEnabled && isRunning ? Translation.tr("scrcpy Mirror")
+                : card1.embedEnabled ? Translation.tr("Open phone screen")
+                : Translation.tr("Open scrcpy Mirror")
             subtitle: {
                 if (!root._scrcpyPresent)
                     return Translation.tr("Click to see missing dependencies and install guide");
@@ -219,15 +229,21 @@ Item {
                     return Translation.tr("Pair a reachable device to mirror its screen");
                 if (launchErr.length > 0)
                     return launchErr.split("\n")[0];
+                if (isEmbedded)
+                    return Translation.tr("Mirroring here · click to open it again");
                 if (isRunning)
-                    return Translation.tr("Mirror is running · click to focus window");
+                    return card1.embedEnabled
+                        ? Translation.tr("Mirror window is open · click to mirror here instead")
+                        : Translation.tr("Mirror is running · click to focus window");
                 if (isLaunching)
                     return Translation.tr("Launching scrcpy…");
                 if (!KdeConnectService.adbReachable)
                     return Translation.tr("Connect via USB (ADB debugging) or set wireless IP in settings");
-                return Translation.tr("Launches a floating SDL window for the active phone");
+                return card1.embedEnabled
+                    ? Translation.tr("Opens the phone inside the sidebar, touch and keyboard included")
+                    : Translation.tr("Launches a floating scrcpy window for the active phone");
             }
-            state: !root._scrcpyPresent ? "unavailable" : !root._deviceOnline ? "offline" : launchErr.length > 0 ? "offline" : isRunning ? "active" : isLaunching ? "connecting" : "ready"
+            state: !root._scrcpyPresent ? "unavailable" : !root._deviceOnline ? "offline" : launchErr.length > 0 ? "offline" : (isEmbedded || isRunning) ? "active" : isLaunching ? "connecting" : "ready"
             detailLine: isRunning ? Translation.tr("Active for %1").arg(root._fmtElapsed(PhoneScrcpyService.mirrorElapsedMs || KdeConnectService.scrcpyElapsedMs)) : ""
             dropEnabled: isRunning && root._deviceOnline
             onFilesDropped: urls => {
@@ -237,11 +253,16 @@ Item {
                         KdeConnectService.shareUrl(KdeConnectService.activeDeviceId, file);
                 });
             }
-            inlineActions: KdeConnectService.scrcpyRunning ? [
+            inlineActions: root._scrcpyPresent && root._deviceOnline && card1.embedEnabled ? [
                 {
-                    icon: "center_focus_strong",
-                    label: Translation.tr("Focus window"),
-                    onClicked: () => KdeConnectService.focusScrcpyWindow()
+                    icon: "open_in_new",
+                    label: KdeConnectService.scrcpyRunning
+                        ? Translation.tr("Focus mirror window")
+                        : Translation.tr("Open in a window instead"),
+                    onClicked: () => {
+                        if (KdeConnectService.scrcpyRunning) KdeConnectService.focusScrcpyWindow();
+                        else PhoneScrcpyService.launchMirror();
+                    }
                 },
                 {
                     icon: "screenshot_monitor",
@@ -261,15 +282,21 @@ Item {
             ] : []
             lastError: ""
             onClicked: {
-                if (root._scrcpyPresent) {
-                    if (KdeConnectService.scrcpyRunning || PhoneScrcpyService.mirrorRunning) {
-                        PhoneScrcpyService.stopMirror();
-                        KdeConnectService.killScrcpy();
-                    } else if (!KdeConnectService.scrcpyLaunching && !PhoneScrcpyService.mirrorLaunching) {
-                        PhoneScrcpyService.launchMirror();
-                    }
-                } else {
+                if (!root._scrcpyPresent) {
                     root._openInstallGuide(KdeConnectService.scrcpyMissingDeps, Translation.tr("scrcpy Mirror — Missing Dependencies"));
+                    return;
+                }
+                if (card1.embedEnabled) {
+                    root.requestOpenSubPage(Qt.resolvedUrl("PhoneMirrorPage.qml"));
+                    return;
+                }
+                // Switched off, the card is what it always was: a toggle for a
+                // scrcpy window of its own.
+                if (KdeConnectService.scrcpyRunning || PhoneScrcpyService.mirrorRunning) {
+                    PhoneScrcpyService.stopMirror();
+                    KdeConnectService.killScrcpy();
+                } else if (!KdeConnectService.scrcpyLaunching && !PhoneScrcpyService.mirrorLaunching) {
+                    PhoneScrcpyService.launchMirror();
                 }
             }
             onStopClicked: {

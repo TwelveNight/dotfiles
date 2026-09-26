@@ -153,36 +153,22 @@ Item {
     readonly property bool magnificationOverflowing: isVertical
         ? scrollArea.contentHeight > scrollArea.height + 1
         : scrollArea.contentWidth > scrollArea.width + 1
-    // Islands magnify one at a time. Each island fades by how far the pointer
-    // is outside it, so crossing a gap hands the lens over instead of
-    // switching islands in one frame.
-    readonly property var _magnificationIslandSpans: {
-        const spans = {};
-        if (!islandsStyle)
-            return spans;
+    // The lens measures distance with island gaps squeezed out, so crossing
+    // a gap costs nothing whatever the island spacing: a pointer inside a gap
+    // sits on the seam between both islands and the lens holds still.
+    readonly property real magnificationLensPointer: _lensCoordinateFor(magnificationPointerContentMain)
+
+    function _lensCoordinateFor(p) {
+        let removed = 0;
         for (const m of baseMetrics.items) {
-            const id = String(m.islandId ?? "");
-            const end = m.bodyStart + m.bodyExtent;
-            const span = spans[id];
-            if (!span)
-                spans[id] = { start: m.bodyStart, end: end };
-            else
-                spans[id] = { start: Math.min(span.start, m.bodyStart), end: Math.max(span.end, end) };
+            const gap = m.bodyStart - m.baseStart;
+            if (gap <= 0)
+                continue;
+            if (p <= m.baseStart)
+                break;
+            removed += Math.min(gap, p - m.baseStart);
         }
-        return spans;
-    }
-    readonly property var _magnificationIslandGates: {
-        const gates = {};
-        if (!islandsStyle)
-            return gates;
-        const p = magnificationPointerContentMain;
-        const fade = Math.max(1, buttonSlotSize / 2 + islandSpacing / 2);
-        const spans = _magnificationIslandSpans;
-        for (const id in spans) {
-            const outside = Math.max(0, spans[id].start - p, p - spans[id].end);
-            gates[id] = Math.max(0, 1 - outside / fade);
-        }
-        return gates;
+        return p - removed;
     }
 
     // macOS keeps the point under the cursor fixed: the dock grows by the
@@ -208,7 +194,17 @@ Item {
         return (after - before) / 2;
     }
 
-    readonly property real _lensStrengthTarget: magnificationInteractionActive ? magnificationCrossReach : 0
+    // A context menu freezes the lens where it is, so the icon under the
+    // menu keeps its size instead of shrinking away from it.
+    property real _lensFrozenStrength: 0
+    onAnyContextMenuOpenChanged: {
+        if (!anyContextMenuOpen)
+            return;
+        _lensFrozenStrength = magnificationStrength;
+        magnificationPointerTarget = magnificationPointerMain;
+    }
+    readonly property real _lensStrengthTarget: anyContextMenuOpen ? _lensFrozenStrength
+        : magnificationInteractionActive ? magnificationCrossReach : 0
     property bool _lensSettled: true
     // Exit run: strength it started from and progress 0..1; -1 when idle.
     property real _lensExitFrom: 0
@@ -272,15 +268,18 @@ Item {
         const items = [];
         const spacing = Config.options?.dock?.iconSpacing ?? 0;
         let cursor = 0;
+        let removedGap = 0;
         const itemCount = root.flattenedItems.length;
         for (let i = 0; i < itemCount; i++) {
             const leadingGap = root._leadingIslandGapForIndex(i);
             const bodyExtent = root._baseItemMainExtentForIndex(i);
             const mainExtent = leadingGap + bodyExtent;
+            removedGap += leadingGap;
             items.push({
                 baseStart: cursor,
                 bodyStart: cursor + leadingGap,
                 baseCenter: cursor + leadingGap + bodyExtent / 2,
+                lensCenter: cursor + leadingGap + bodyExtent / 2 - removedGap,
                 baseExtent: mainExtent,
                 bodyExtent: bodyExtent,
                 islandId: root._islandIdForIndex(i),
@@ -309,9 +308,7 @@ Item {
             for (const metric of baseMetrics.items) {
                 if (!metric.magnifiable)
                     continue;
-                if (root.islandsStyle && metric.islandId !== candidate.islandId)
-                    continue;
-                total += root.magnificationSafetyExtraForFactor(root.magnificationFactorForDistance(Math.abs(candidate.baseCenter - metric.baseCenter)));
+                total += root.magnificationSafetyExtraForFactor(root.magnificationFactorForDistance(Math.abs(candidate.lensCenter - metric.lensCenter)));
             }
             maximum = Math.max(maximum, total);
         }
@@ -753,11 +750,8 @@ Item {
         const metric = baseMetrics.items[index];
         if (!enableMagnification || !metric || !metric.magnifiable || magnificationStrength <= 0)
             return 0;
-        const gate = root.islandsStyle ? (root._magnificationIslandGates[String(metric.islandId ?? "")] ?? 0) : 1;
-        if (gate <= 0)
-            return 0;
-        const distance = Math.abs(magnificationPointerContentMain - metric.baseCenter);
-        return magnificationFactorForDistance(distance) * magnificationStrength * gate;
+        const distance = Math.abs(magnificationLensPointer - metric.lensCenter);
+        return magnificationFactorForDistance(distance) * magnificationStrength;
     }
 
     function _magnificationExtraForIndex(index) {
@@ -821,7 +815,7 @@ Item {
     }
 
     function updateMagnificationPointerFrom(item, x, y) {
-        if (!item)
+        if (!item || root.anyContextMenuOpen)
             return;
         root._updateMagnificationCrossReach(item, x, y);
         if (root.magnificationOverflowing) {
@@ -953,6 +947,14 @@ Item {
     property var _dragGroupable: []
     property var _dragState: DockReorder.createDragState()
     property real _groupDropProgress: 0
+    property bool exportingShortcut: false
+    Item {
+        id: shortcutDrag
+        Drag.dragType: Drag.None
+        Drag.supportedActions: Qt.CopyAction
+        Drag.proposedAction: Qt.CopyAction
+        Drag.imageSourceSize: Qt.size(48, 48)
+    }
 
     // The pointer must penetrate a neighbour by this fraction of that
     // neighbour's own extent before it takes over as the drop target. Without
@@ -1710,6 +1712,8 @@ Item {
     }
 
     function cancelDrag() {
+        if (root.exportingShortcut)
+            return;
         reorderMotionTimer.restart();
         // A cancelled drag is still a drag that ends somewhere: send the item
         // home with the same settle instead of teleporting it.
@@ -1768,11 +1772,38 @@ Item {
         if (!dragging)
             return;
         var mapped = child.mapToItem(root, eventX, eventY);
+        const outside = root.isVertical ? (mapped.x < -16 || mapped.x > root.width + 16)
+            : (mapped.y < -16 || mapped.y > root.height + 16);
+        const entry = root.flattenedItems[root.dragSourceIndex];
+        if (PanelFamily.isIi && outside && entry
+            && (entry.type === "app" || entry.type === "appGroup" || entry.type === "file")) {
+            const appIds = entry.type === "appGroup" ? Array.from(entry.appIds) : [entry.appId];
+            shortcutDrag.Drag.mimeData = entry.type === "file"
+                ? { "text/uri-list": "file://" + encodeURI(entry.path).replace(/#/g, "%23").replace(/\?/g, "%3F") }
+                : { "application/x-ii-desktop-shortcut": JSON.stringify({
+                    type: entry.type === "appGroup" ? "group" : "app", apps: appIds }) };
+            shortcutDrag.Drag.imageSource = Quickshell.iconPath(entry.type === "file" ? "folder"
+                : TaskbarApps.getCachedIcon(appIds[0]), "image-missing");
+            root.exportingShortcut = true;
+            root._clearGroupDwell();
+            // Native QDrag owns the pointer until release/cancel. Keep the model
+            // frozen until it returns; exporting never changes pins or dock order.
+            shortcutDrag.Drag.active = true;
+            shortcutDrag.Drag.startDrag(Qt.CopyAction);
+            shortcutDrag.Drag.active = false;
+            root.exportingShortcut = false;
+            shortcutDrag.Drag.mimeData = {};
+            shortcutDrag.Drag.imageSource = "";
+            root.cancelDrag();
+            return;
+        }
         dragCursorX = isVertical ? mapped.y : mapped.x;
         recomputeDragTarget();
     }
 
     function endItemDrag() {
+        if (root.exportingShortcut || !root.dragging)
+            return;
         finishDrag();
     }
 

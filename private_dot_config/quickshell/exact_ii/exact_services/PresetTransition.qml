@@ -136,6 +136,16 @@ Singleton {
         onTriggered: root._finish()
     }
 
+    // presets.sh replaces config.json and Config reloads it asynchronously.
+    // Waiting a short, fixed debounce lets the heavy renderer/colour work start
+    // after the reload burst, rather than competing with the transition frame.
+    Timer {
+        id: presetWallpaperApply
+        interval: 220
+        repeat: false
+        onTriggered: Wallpapers.applyConfiguredDesktopWallpaper()
+    }
+
     // Anchor the countdown on the real end of the apply script: config.json has
     // been written by now and the reload is milliseconds away.
     Connections {
@@ -148,6 +158,7 @@ Singleton {
                 root._finish();
                 return;
             }
+            presetWallpaperApply.restart();
             reloadGate.restart();
         }
     }

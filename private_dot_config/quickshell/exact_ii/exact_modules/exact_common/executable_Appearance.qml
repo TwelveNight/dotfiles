@@ -691,6 +691,29 @@ Singleton {
             }
         }
 
+        // Context menus and popups opening under the cursor: the WINDOW the
+        // cascade lives in. The reveal scalar runs LINEAR and every slice
+        // eases its own arrival — the sidebar's rhythm (StaggeredEntrance:
+        // 26 ms stagger, ~400 ms fade per row). Two clocks, strictly
+        // separate: the card body + plate land in the first ~22% (the menu
+        // pops in and STANDS STILL), and the rows wave in inside it from
+        // there to 100%. One global curve over the scalar was the blink
+        // (emphasizedDecel is ~85% done at 30% of its time — every row
+        // flashed at once); a body that grows across the whole window makes
+        // the menu itself perform as a cascade item and hides the rows'
+        // wave behind its drift. The exit stays short and flat: a menu
+        // waving away, not a page leaving.
+        // Duration only: the scalar runs Linear and the slices carry the
+        // easing, so there is no curve to hand out. Kept short: 640 ms read
+        // well once, then made a menu opened many times a day feel stuck.
+        property QtObject popupEnter: QtObject {
+            property int duration: Math.round(280 * root.animMultiplier)
+        }
+
+        property QtObject popupExit: QtObject {
+            property int duration: Math.round(150 * root.animMultiplier)
+        }
+
         property QtObject elementMoveSlow: QtObject {
             property int duration: Math.round(animationCurves.expressiveEffectsDuration * 2.5 * root.animMultiplier)
             property int type: Easing.BezierSpline
@@ -816,9 +839,9 @@ Singleton {
         // since an accelerating exit is invisible for a sidebar but stops the wallpaper dead.
         property QtObject sidebarSlide: QtObject {
             property int enterDuration: Math.round(500 * root.animMultiplier)
-            property int exitDuration: Math.round(300 * root.animMultiplier)
+            property int exitDuration: Math.round(500 * root.animMultiplier)
             property list<real> enterCurve: root.animationCurves.emphasized
-            property list<real> exitCurve: root.animationCurves.standardAccel
+            property list<real> exitCurve: root.animationCurves.emphasized
             property int parallaxDuration: Math.round(700 * root.animMultiplier)
             property list<real> parallaxCurve: root.animationCurves.emphasized
         }

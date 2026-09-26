@@ -52,12 +52,37 @@ Item {
         }
 
         ConfigSwitch {
+            buttonIcon: "smart_display"
+            text: Translation.tr("Mirror the phone inside the sidebar")
+            checked: Config.options.phone.scrcpy.embed.enabled
+            onCheckedChanged: {
+                Config.options.phone.scrcpy.embed.enabled = checked;
+            }
+            StyledToolTip {
+                text: Translation.tr("On, the mirror opens as a page in the Phone tab with the phone's screen drawn inside it, touch and keyboard included. Off, it opens as a separate scrcpy window like it always did.")
+            }
+        }
+
+        ConfigSwitch {
             buttonIcon: "sync"
             text: Translation.tr("Enable KDE Connect Service")
             checked: Config.options.phone.kdeconnectEnabled
             configPage: Qt.resolvedUrl("widgets/KdeConnectConfig.qml")
             onCheckedChanged: {
                 Config.options.phone.kdeconnectEnabled = checked;
+            }
+        }
+
+        ConfigSwitch {
+            buttonIcon: "notifications"
+            text: Translation.tr("Show phone notifications with desktop ones")
+            checked: Config.options.phone.mirrorNotificationsToDesktop
+            enabled: Config.options.phone.kdeconnectEnabled
+            onCheckedChanged: {
+                Config.options.phone.mirrorNotificationsToDesktop = checked;
+            }
+            StyledToolTip {
+                text: Translation.tr("On, phone notifications pop up and stay in the sidebar list like any other, and also show in the Phone tab. Off, they only show in the Phone tab while your phone is connected.")
             }
         }
 

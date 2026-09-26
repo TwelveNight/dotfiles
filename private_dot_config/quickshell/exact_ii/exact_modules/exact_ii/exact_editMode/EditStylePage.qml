@@ -41,14 +41,23 @@ StyledFlickable {
     signal fieldFocusRequested(Item field)
     signal fieldFocusReleased()
 
+    Component.onCompleted: Wallpapers.acquireSkwdWallpaperState()
+    Component.onDestruction: Wallpapers.relinquishSkwdWallpaperState()
+
     readonly property var background: Config.options.background
     readonly property bool darkMode: Appearance.m3colors.darkmode
     readonly property bool lockTarget: GlobalStates.editLockPreview && root.separateLock
     readonly property bool lightTarget: !root.lockTarget && root.separateLight && !root.darkMode
+    readonly property bool desktopTarget: !root.lockTarget && !root.lightTarget
     readonly property string targetPath: FileUtils.trimFileProtocol(String(
         (root.lockTarget ? root.background.lockscreenWallpaperPath
             : root.lightTarget ? root.background.lightModeWallpaperPath
-            : root.background.wallpaperPath) ?? ""))
+            : Wallpapers.activeWallpaperPath) ?? ""))
+    readonly property string previewPath: root.desktopTarget
+        && Wallpapers.activeThumbnailPath !== ""
+        && (root.wallpaperEngine || Wallpapers.isVideoFile(root.targetPath))
+            ? Wallpapers.activeThumbnailPath
+            : root.targetPath
     readonly property string targetName: root.fileName(root.targetPath)
     readonly property string targetDisplayName: root.wallpaperEngine
         ? Translation.tr("Wallpaper Engine scene") : root.targetName
@@ -63,7 +72,9 @@ StyledFlickable {
     }
     readonly property string targetLabel: root.lockTarget ? Translation.tr("Lock screen wallpaper")
         : root.lightTarget ? Translation.tr("Light mode wallpaper") : Translation.tr("Wallpaper")
-    readonly property bool wallpaperEngine: root.background.useWallpaperEngine ?? false
+    readonly property bool wallpaperEngine: root.desktopTarget
+        ? Wallpapers.activeUseWallpaperEngine
+        : false
 
     readonly property string schemeType: String(Config.options.appearance.palette.type ?? "scheme-auto")
     function schemeName(type) {
@@ -130,9 +141,9 @@ StyledFlickable {
 
                 Loader {
                     anchors.fill: parent
-                    active: root.targetPath !== "" && !root.wallpaperEngine
+                    active: root.previewPath !== ""
                     sourceComponent: ThumbnailImage {
-                        sourcePath: root.targetPath
+                        sourcePath: root.previewPath
                         thumbnailService: Wallpapers
                         fillMode: Image.PreserveAspectCrop
                         cache: false
@@ -142,7 +153,7 @@ StyledFlickable {
 
             MaterialSymbol {
                 anchors.centerIn: parent
-                visible: root.targetPath === "" || root.wallpaperEngine
+                visible: root.previewPath === ""
                 text: root.wallpaperEngine ? "animation" : "wallpaper"
                 iconSize: 36
                 color: Appearance.colors.colOnSurfaceVariant

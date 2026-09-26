@@ -390,6 +390,7 @@ Singleton {
             // Do not restore II's persisted path here: skwd-walld owns the
             // canonical active wallpaper and the listener syncs it back.
             root.enforceVideoWallpaperConstraints();
+            root.recordRecent(Config.options.background.wallpaperPath);
             // Pre-generate lockscreen colors if configured but missing
             if (Config.options.background.useSeparateLockscreenWallpaper) {
                 const lockPath = Config.options.background.lockscreenWallpaperPath;
@@ -406,12 +407,44 @@ Singleton {
         enabled: Config.ready
         function onWallpaperPathChanged() {
             root.enforceVideoWallpaperConstraints();
+            root.recordRecent(Config.options.background.wallpaperPath);
         }
         function onUseWallpaperEngineChanged() {
             root.enforceVideoWallpaperConstraints();
         }
     }
     
+    // ── Recent wallpapers ────────────────────────────────────────────────────
+    // Fed by the config key rather than by apply(), so every way a wallpaper
+    // lands (the pickers, switchwall.sh, a mode, a preset) counts. Wallpaper
+    // Engine scenes are ids, not files, and stay out.
+    readonly property int recentLimit: 7
+    readonly property list<string> recentWallpapers: Persistent.ready
+        ? Persistent.states.background.recentWallpapers : []
+
+    function recordRecent(path) {
+        if (!Persistent.ready || !Config.ready)
+            return;
+        const clean = FileUtils.trimFileProtocol(String(path || ""));
+        if (clean === "" || Config.options.background.useWallpaperEngine)
+            return;
+        const current = Array.from(Persistent.states.background.recentWallpapers);
+        if (current[0] === clean)
+            return;
+        Persistent.states.background.recentWallpapers =
+            [clean].concat(current.filter(p => p !== clean)).slice(0, root.recentLimit);
+    }
+
+    // The wallpaper that was already up before this history existed is its
+    // first entry; afterwards the change handler above keeps it.
+    Connections {
+        target: Persistent
+        function onReadyChanged() {
+            if (Persistent.ready && Config.ready)
+                root.recordRecent(Config.options.background.wallpaperPath);
+        }
+    }
+
     function openFallbackPicker(darkMode = Appearance.m3colors.darkmode, lockscreen = false) {
         if (!lockscreen) {
             Quickshell.execDetached(["skwd-wall-v2"]);
@@ -484,10 +517,14 @@ Singleton {
             }
         }
         if (optionsChanged) Config.saveOptionsNow();
+        const requestSeq = ++root._wallpaperRequestSeq;
         const envBinPath = `${FileUtils.trimFileProtocol(Directories.home)}/.local/bin:${FileUtils.trimFileProtocol(Directories.home)}/.cargo/bin:/usr/local/bin:/usr/bin:/bin`;
-        // `switchwall.sh --noswitch` still runs the complete desktop Matugen
-        // and terminal-theme pipeline. A lockscreen pick owns only the
-        // separate lockscreen palette below.
+        Quickshell.execDetached([
+            "env", "-u", "LD_LIBRARY_PATH", "-u", "PYTHONHOME", "-u", "PYTHONPATH",
+            `PATH=${envBinPath}`, "bash", Directories.wallpaperSwitchScriptPath,
+            "--mode", darkMode ? "dark" : "light", "--image", path, "--lockscreen", "--noswitch",
+            "--request-seq", String(requestSeq)
+        ]);
         Quickshell.execDetached([
             "nice", "-n", "10", "env", "-u", "LD_LIBRARY_PATH", "-u", "PYTHONHOME", "-u", "PYTHONPATH",
             `PATH=${envBinPath}`, "bash", Directories.generateLockscreenColorsScriptPath,
@@ -702,9 +739,7 @@ Singleton {
         const forceArg = force ? " --force" : ""
         thumbgenProc.command = [
             "bash", "-c",
-            // GnomeDesktop's generic generator must not probe video files as
-            // images. The fallback handles them with ffmpeg.
-            `${thumbgenScriptPath} --size ${size} --only_images --machine_progress -d '${StringUtils.shellSingleQuoteEscape(FileUtils.trimFileProtocol(root.directory))}' || true; ${generateThumbnailsMagickScriptPath} --size ${size}${forceArg} -d '${StringUtils.shellSingleQuoteEscape(FileUtils.trimFileProtocol(root.directory))}'`,
+            `${thumbgenScriptPath} --size ${size} --machine_progress -d '${StringUtils.shellSingleQuoteEscape(FileUtils.trimFileProtocol(root.directory))}' || true; ${generateThumbnailsMagickScriptPath} --size ${size}${forceArg} -d '${StringUtils.shellSingleQuoteEscape(FileUtils.trimFileProtocol(root.directory))}'`,
         ]
         // console.log("[Wallpapers] Updating thumbnails with command ", thumbgenProc.command.join(" "))
         root.thumbnailGenerationProgress = 0

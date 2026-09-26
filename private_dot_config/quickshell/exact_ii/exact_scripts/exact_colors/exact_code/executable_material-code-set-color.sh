@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-COLOR_FILE_PATH="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/generated/color.txt"
+COLOR_FILE_PATH="${XDG_STATE_HOME:-$HOME/.local/state}/ii-skwd-wall/color.txt"
 
 # Define an array of possible VSCode settings file paths for various forks
 settings_paths=(
@@ -30,4 +30,3 @@ for CODE_SETTINGS_PATH in "${settings_paths[@]}"; do
         fi
     fi
 done
-

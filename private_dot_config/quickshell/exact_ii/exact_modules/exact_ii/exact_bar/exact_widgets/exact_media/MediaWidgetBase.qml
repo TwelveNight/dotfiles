@@ -8,6 +8,7 @@ import Quickshell.Services.Mpris
 import qs
 import qs.services
 import qs.modules.common
+import qs.modules.ii.dynamicIsland.core
 import qs.modules.common.functions
 import qs.modules.common.widgets
 
@@ -38,9 +39,7 @@ Item {
     readonly property string trackArtist: activePlayer?.trackArtist ?? ""
     readonly property bool hasTrack: (activePlayer?.trackTitle ?? "").length > 0
     readonly property bool playing: activePlayer?.isPlaying ?? false
-    readonly property real progress: (activePlayer?.length ?? 0) > 0
-        ? Math.min(1, Math.max(0, activePlayer.position / activePlayer.length))
-        : 0
+    readonly property real progress: MprisController.trackProgressOf(activePlayer)
 
     // Lyrics are a horizontal-bar feature. A 44px column cannot hold a line of
     // text at any size worth reading, so the vertical form never asks for them
@@ -59,11 +58,19 @@ Item {
         ? Appearance.sizes.verticalBarWidth - 8
         : Appearance.sizes.baseBarHeight - 8
 
-    visible: root.hasTrack
+    /**
+     * Out in one of the Dynamic Island's auxiliary bubbles right now, so the bar
+     * leaves it to the bubble instead of showing it twice.
+     */
+    readonly property bool bubbled: !root.previewMode && IslandGeometry.bubbled("media")
+    /** Whether the bar shows this widget at all. */
+    readonly property bool present: root.hasTrack && !root.bubbled
 
-    onHasTrackChanged: {
+    visible: root.present
+
+    onPresentChanged: {
         if (typeof rootItem !== "undefined")
-            rootItem.toggleVisible(root.hasTrack);
+            rootItem.toggleVisible(root.present);
     }
 
     // ── Cover art ────────────────────────────────────────────────────────────
@@ -149,7 +156,7 @@ Item {
         root.refreshArt();
         LyricsService.initiliazeLyrics();
         if (typeof rootItem !== "undefined")
-            rootItem.toggleVisible(root.hasTrack);
+            rootItem.toggleVisible(root.present);
         Qt.callLater(root.updatePopupRect);
     }
 

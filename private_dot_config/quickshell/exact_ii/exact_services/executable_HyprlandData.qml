@@ -90,6 +90,38 @@ Singleton {
         return ids.some(id => id === workspaceId);
     }
 
+    /**
+     * Whether the named monitor is showing a fullscreen window right now: one on the
+     * workspace it displays, or on a special workspace pulled over it.
+     *
+     * Built from the client list rather than a workspace's own `toplevels`, because the
+     * workspace compactor renumbers workspaces in place (`changeworkspaceid`) and those
+     * lists never follow: the windows stay in the workspace object they were in while the
+     * numbers move underneath them, so the workspace the user is standing on goes on
+     * reporting a fullscreen window that left with its old number - and the bar, the
+     * corners and the island all hide over nothing until the shell is restarted.
+     * `Hyprland.refreshToplevels()` is no cure: it adds the new link without dropping the
+     * stale one, and the window ends up counted twice.
+     *
+     * Addresses survive a renumbering, so the fullscreen flag still comes from the Wayland
+     * toplevel - it flips the instant the window goes fullscreen - and only the workspace
+     * it sits on is read from the client list.
+     */
+    function monitorHasFullscreenWindow(monitorName) {
+        if (!monitorName) return false;
+        const monitor = root.monitors.find(candidate => candidate?.name === monitorName);
+        if (!monitor) return false;
+        const visibleIds = [monitor.activeWorkspace?.id, monitor.specialWorkspace?.id]
+            .map(id => Number(id ?? NaN))
+            .filter(id => isFinite(id) && id !== 0);
+        if (visibleIds.length === 0) return false;
+        return ToplevelManager.toplevels.values.some(toplevel => {
+            if (!toplevel?.fullscreen) return false;
+            const client = root.clientForToplevel(toplevel);
+            return !!client && visibleIds.some(id => id === Number(client.workspace?.id ?? NaN));
+        });
+    }
+
     // Internals
 
     property bool _windowListNeedsUpdate: false
@@ -97,6 +129,7 @@ Singleton {
     property bool _layersNeedsUpdate: false
     property bool _workspacesNeedsUpdate: false
     property bool _activeWorkspaceNeedsUpdate: false
+    property string _activeWindowAddress: ""
 
     function updateWindowList() {
         if (getClients.running) {
@@ -152,7 +185,23 @@ Singleton {
         }, null);
     }
 
+    // Quickshell connects its event socket only after an async status request comes back, so the
+    // first read below can predate it: a window closed in between is never reported, and the
+    // wallpaper blur keeps seeing it on an empty workspace until something else changes.
+    // Quickshell refreshes its monitors right after connecting, so its first focused monitor
+    // marks the point from which no event is lost: read everything once more then.
+    property bool _eventStreamSynced: false
+
+    function syncAfterEventStream() {
+        if (root._eventStreamSynced || !Hyprland.focusedMonitor)
+            return;
+        root._eventStreamSynced = true;
+        root.updateAll();
+    }
+
     Component.onCompleted: {
+        // Already connected: nothing can have slipped past the read below.
+        root._eventStreamSynced = Hyprland.focusedMonitor !== null;
         updateAll();
         if (Config.ready) {
             syncWorkspaceMap();
@@ -174,6 +223,10 @@ Singleton {
 
     Connections {
         target: Hyprland
+
+        function onFocusedMonitorChanged() {
+            root.syncAfterEventStream();
+        }
 
         function onRawEvent(event) {
             // console.log("Hyprland raw event:", event.name);
@@ -197,8 +250,17 @@ Singleton {
                     root.updateWindowList();
                     break;
 
+                // Hyprland re-sends activewindow on every title change of the focused
+                // window (spinners, media titles: about once a second). Only an address
+                // change is a focus change; the rest is a title change like any other.
                 case "activewindow":
+                    break;
                 case "activewindowv2":
+                    if (event.data === root._activeWindowAddress) {
+                        windowTitleUpdateDebounce.restart();
+                        break;
+                    }
+                    root._activeWindowAddress = event.data;
                     root.updateWindowList();
                     root.updateWorkspaces();
                     break;
@@ -225,6 +287,17 @@ Singleton {
                     root.updateWorkspaces();
                     break;
 
+                // The workspace compactor renumbers workspaces in place instead of moving
+                // windows, so every client's workspace id changes without a single window event.
+                // Quickshell's own Hyprland model does not know this event either.
+                case "changeworkspaceid":
+                    Hyprland.refreshWorkspaces();
+                    Hyprland.refreshMonitors();
+                    root.updateMonitors();
+                    root.updateWorkspaces();
+                    root.updateWindowList();
+                    break;
+
                 case "monitoradded":
                 case "monitorremoved":
                     root.updateMonitors();
@@ -240,7 +313,13 @@ Singleton {
         stdout: StdioCollector {
             id: clientsCollector
             onStreamFinished: {
+                // The phone mirror's scrcpy window is a piece of the Phone
+                // sidebar, not a window of the user's: it lives under a
+                // cut-out in the panel and is painted over, so an overview or
+                // a task list offering to raise it would be offering to raise
+                // something that cannot be seen.
                 root.windowList = JSON.parse(clientsCollector.text)
+                    .filter(win => !String(win?.title ?? "").startsWith("ii-phone-embed-"));
                 root.windowListLoaded = true;
                 let tempWinByAddress = {};
                 for (var i = 0; i < root.windowList.length; ++i) {

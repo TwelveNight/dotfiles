@@ -34,28 +34,6 @@ if [[ -z "$imgpath" || ! -f "$imgpath" ]]; then
     exit 1
 fi
 
-# Matugen reads still images. A lockscreen video therefore needs one bounded
-# poster frame; using switchwall for that used to launch desktop theming too.
-color_source="$imgpath"
-temporary_frame=""
-case "${imgpath,,}" in
-    *.mp4|*.webm|*.mkv|*.avi|*.mov|*.m4v|*.ogv)
-        if ! command -v ffmpeg >/dev/null 2>&1; then
-            echo "[generate-lockscreen-colors] ERROR: ffmpeg is required for video lockscreen wallpapers" >&2
-            exit 1
-        fi
-        temporary_frame="$(mktemp "${TMPDIR:-/tmp}/ii-lockscreen-frame.XXXXXX.png")"
-        if ! ffmpeg -v error -y -i "$imgpath" -frames:v 1 \
-                -vf "scale=1920:-2:force_original_aspect_ratio=decrease" "$temporary_frame"; then
-            rm -f -- "$temporary_frame"
-            echo "[generate-lockscreen-colors] ERROR: could not extract a video frame" >&2
-            exit 1
-        fi
-        color_source="$temporary_frame"
-        ;;
-esac
-trap '[[ -n "$temporary_frame" ]] && rm -f -- "$temporary_frame"' EXIT
-
 # Auto-detect mode if not set
 if [[ -z "$mode_flag" ]]; then
     current_mode=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null | tr -d "'")
@@ -83,7 +61,7 @@ fi
 
 # Step 2: use matugen --dry-run --json hex to get colors WITHOUT writing any files
 #         then transform the JSON to match the colors.json format (snake_case keys, hex values)
-matugen_json=$(matugen image "$color_source" \
+matugen_json=$(matugen image "$imgpath" \
     --json hex \
     --source-color-index 0 \
     --mode "$mode_flag" \

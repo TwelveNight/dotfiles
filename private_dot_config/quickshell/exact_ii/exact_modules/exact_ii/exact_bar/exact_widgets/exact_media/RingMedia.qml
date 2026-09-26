@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import qs.services
@@ -28,6 +29,10 @@ MediaWidgetBase {
     readonly property real ringWeight: Math.max(3, Math.round(root.thickness * 0.11))
     readonly property real artSize: root.ringSize - root.ringWeight * 2
     readonly property real spacing: Math.round(root.thickness * 0.26)
+    /** The rim and the cover in it, for the island's bubble to hand to its card (see AuxiliaryBubble). */
+    readonly property Item ringItem: ringSlot
+    /** The rim and the glyph over the cover, faded while the cover alone grows into a card. */
+    property real chromeOpacity: 1
 
     readonly property int textLength: Math.min(
         Math.max(titleMetrics.advanceWidth, artistMetrics.advanceWidth) + 8,
@@ -61,6 +66,8 @@ MediaWidgetBase {
 
     Item {
         id: ringSlot
+        /** The share of this box the cover spans, for the bubble's hand-over. */
+        readonly property real heroFill: root.ringSize > 0 ? root.artSize / root.ringSize : 1
         width: root.ringSize
         height: root.ringSize
         anchors.verticalCenter: root.vertical ? undefined : parent.verticalCenter
@@ -76,7 +83,7 @@ MediaWidgetBase {
             implicitSize: root.ringSize
             shape: MaterialShape.Shape.Cookie9Sided
             color: Appearance.colors.colPrimary
-            opacity: 0.22
+            opacity: 0.22 * root.chromeOpacity
         }
 
         // The played rim. A `CircularProgress` can only ever draw an arc, so the
@@ -102,26 +109,39 @@ MediaWidgetBase {
             anchors.fill: parent
             visible: false
 
-            ConicalGradient {
+            // Rebuilt whenever this item changes window, and never kept across a window
+            // that no longer exists. ConicalGradient feeds its ShaderEffect from an
+            // inline ShaderEffectSource declared as a property value, so that source is
+            // not a child in the visual tree and never gets ItemSceneChange when the
+            // window goes away; the window reference it holds on the effect's internal
+            // gradient Rectangle is never released, and the Rectangle is left pointing
+            // at a destroyed QQuickWindow for the next forceUpdate() to segfault on.
+            // This widget reaches the island through AuxiliaryBubbleContent, and the
+            // island's window is destroyed on lock. See AGENTS.md, "Resolucoes de Bugs
+            // Conhecidos do Quickshell", item 7.
+            Loader {
                 anchors.fill: parent
-                // Zero degrees is 3 o'clock, so start the sweep at the top.
-                angle: 270
-                gradient: Gradient {
-                    GradientStop {
-                        position: 0
-                        color: "white"
-                    }
-                    GradientStop {
-                        position: Math.max(0.0001, root.progress)
-                        color: "white"
-                    }
-                    GradientStop {
-                        position: Math.min(1, Math.max(0.0001, root.progress) + 0.0001)
-                        color: "transparent"
-                    }
-                    GradientStop {
-                        position: 1
-                        color: "transparent"
+                active: sweepMask.Window.window !== null
+                sourceComponent: ConicalGradient {
+                    // Zero degrees is 3 o'clock, so start the sweep at the top.
+                    angle: 270
+                    gradient: Gradient {
+                        GradientStop {
+                            position: 0
+                            color: "white"
+                        }
+                        GradientStop {
+                            position: Math.max(0.0001, root.progress)
+                            color: "white"
+                        }
+                        GradientStop {
+                            position: Math.min(1, Math.max(0.0001, root.progress) + 0.0001)
+                            color: "transparent"
+                        }
+                        GradientStop {
+                            position: 1
+                            color: "transparent"
+                        }
                     }
                 }
             }
@@ -129,6 +149,7 @@ MediaWidgetBase {
 
         OpacityMask {
             anchors.fill: parent
+            opacity: root.chromeOpacity
             source: rimInk
             maskSource: sweepMask
         }
@@ -172,6 +193,8 @@ MediaWidgetBase {
                 visible: root.artSource === "" || artImage.status === Image.Error || !root.playing
                 fill: 1
                 text: (root.artSource === "" || artImage.status === Image.Error) ? "music_note" : "pause"
+                // Without art the note is the whole cover, and stays.
+                opacity: text === "pause" ? root.chromeOpacity : 1
                 iconSize: Math.max(10, Math.round(root.artSize * 0.55))
                 color: Appearance.colors.colOnSecondaryContainer
             }

@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import qs.modules.common
+import qs.modules.ii.dynamicIsland.core
 import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.services
@@ -34,7 +35,8 @@ Item {
     readonly property string trackTitle: activePlayer?.trackTitle ?? ""
     readonly property string trackArtist: activePlayer?.trackArtist ?? ""
     readonly property bool isPlaying: activePlayer?.isPlaying ?? false
-    readonly property bool hasTrack: trackTitle.length > 0
+    // Out in a Dynamic Island bubble, the track is shown there and not twice.
+    readonly property bool hasTrack: trackTitle.length > 0 && !IslandGeometry.bubbled("media")
 
     onHasTrackChanged: {
         if (typeof rootItem !== "undefined") {
@@ -185,7 +187,7 @@ Item {
         sourceComponent: ClippedFilledCircularProgress {
             implicitSize: 20
             lineWidth: Appearance.rounding.unsharpen
-            value: (root.activePlayer?.length ?? 0) > 0 ? Math.min(1, Math.max(0, root.activePlayer.position / root.activePlayer.length)) : 0
+            value: MprisController.trackProgressOf(root.activePlayer)
             colPrimary: Appearance.colors.colOnSecondaryContainer
             enableAnimation: false
             Item {
@@ -332,7 +334,7 @@ Item {
                 Layout.leftMargin: 3
                 implicitSize: 20
                 lineWidth: Appearance.rounding.unsharpen
-                value: (root.activePlayer?.length ?? 0) > 0 ? Math.min(1, Math.max(0, root.activePlayer.position / root.activePlayer.length)) : 0
+                value: MprisController.trackProgressOf(root.activePlayer)
                 colPrimary: Appearance.colors.colOnSecondaryContainer
                 enableAnimation: false
                 Item {

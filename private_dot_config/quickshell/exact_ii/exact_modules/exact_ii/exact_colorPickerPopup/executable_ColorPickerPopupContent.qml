@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 
+import qs
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -27,9 +28,16 @@ Item {
         id: rootHover
     }
 
+    /**
+     * Drawn on a host's surface rather than as a floating card of its own; see
+     * LocalSendPopupContent.hosted for why.
+     */
+    property bool hosted: false
+    readonly property real surfaceMargin: root.hosted ? 0 : Appearance.sizes.elevationMargin
+
     // Border gap = elevationMargin (Bug 4), same as BluetoothConnectionPopupContent
-    implicitWidth: contentBackground.implicitWidth + 2 * Appearance.sizes.elevationMargin
-    implicitHeight: contentBackground.implicitHeight + 2 * Appearance.sizes.elevationMargin
+    implicitWidth: contentBackground.implicitWidth + 2 * root.surfaceMargin
+    implicitHeight: contentBackground.implicitHeight + 2 * root.surfaceMargin
 
     // Computed color properties
     readonly property var colorRgb: {
@@ -124,7 +132,8 @@ Item {
     Process {
         id: matugenProcess
         command: {
-            return ["matugen", "color", "hex", "--dry-run", "-j", "hex", "-t", "scheme-content", root.colorHex];
+            return ["bash", `${Directories.scriptPath}/colors/matugen.sh`, "color", "hex", "--dry-run", "-j", "hex",
+                "-t", "scheme-content", root.colorHex];
         }
         running: true
         // matugen 4.x pretty-prints JSON across many lines; SplitParser only ever saw the
@@ -299,7 +308,8 @@ Item {
         if (headerCard.children.length > 1) {
             headerCard.children[1].scale = 0;
         }
-        entranceAnim.start()
+        if (!root.hosted)
+            entranceAnim.start();
     }
 
     // === BACKGROUND with shadow and rounding (mask target) ===
@@ -307,17 +317,20 @@ Item {
         id: contentBackground
         anchors {
             fill: parent
-            margins: Appearance.sizes.elevationMargin
+            margins: root.surfaceMargin
         }
         implicitWidth: mainLayout.implicitWidth + root.contentPadding * 2
         implicitHeight: mainLayout.implicitHeight + root.contentPadding * 2
 
         radius: Appearance.rounding.large
-        color: Config.options.appearance.transparency.popups ? Appearance.colors.colLayer0 : Appearance.m3colors.m3surfaceContainer
+        color: root.hosted ? "transparent"
+            : (Config.options.appearance.transparency.popups ? Appearance.colors.colLayer0 : Appearance.m3colors.m3surfaceContainer)
 
-        // Animations applied on the card itself to keep root window input mapping clean
-        opacity: 0
-        scale: 0.88
+        // Animations applied on the card itself to keep root window input mapping clean.
+        // Hosted, the host plays the entrance, so the card starts in place: its own
+        // scale-and-fade on top of the island's arrival read as two separate motions.
+        opacity: root.hosted ? 1 : 0
+        scale: root.hosted ? 1 : 0.88
         transformOrigin: Item.TopRight
 
         ParallelAnimation {

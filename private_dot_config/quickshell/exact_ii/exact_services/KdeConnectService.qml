@@ -39,6 +39,7 @@ Singleton {
             if (cached.length > 0) root.notifications = cached
         }
     root._probeAdbDeviceName()
+        root._pickMdnsHost()
     }
 
     property var devices: []
@@ -131,7 +132,7 @@ Singleton {
      *  wireless-debugging service. Carries the CURRENT randomly-assigned
      *  port, which changes on every toggle/reboot. Empty when not found
      *  (avahi missing, wireless debugging off, or nothing on the network).
-     *  Refreshed by mdnsProber while wireless auto mode is active. */
+     *  Kept live by mdnsBrowseProc while wireless auto mode is active. */
     property string mdnsWirelessHost: ""
 
     readonly property string resolvedWirelessHost: {
@@ -211,6 +212,8 @@ Singleton {
 
     signal devicePairingRequested(string devId, string name)
     signal deviceShareReceived(string devId, string url)
+    /** Telephony: state is "ringing", "talking" or "missedCall"; see PhoneCallService. */
+    signal callEvent(string devId, string state, string number, string contact)
     signal actionFeedback(string message, bool ok)
     // Emitted when the active device transitions from reachable→offline
     // while a phone feature (webcam/mic/scrcpy) is running — shell UI
@@ -581,6 +584,9 @@ Singleton {
             break
         case "share_received":
             root.deviceShareReceived(ev.id, ev.url)
+            break
+        case "call":
+            root.callEvent(ev.id, ev.state ?? "", ev.number ?? "", ev.contact ?? "")
             break
         case "pairing_request":
             root._addPairingRequest(ev.id, ev.name ?? "")
@@ -1113,18 +1119,26 @@ Singleton {
                 "if ! command -v adb >/dev/null 2>&1; then exit 1; fi; " +
                 resolveIp +
                 "if [ -n \"$IP\" ]; then " +
+                "  BASE=${IP%:*}; " +
+                "  PIN=\"$BASE:5555\"; " +
+                // A classic-TCP port pinned with `adb tcpip 5555` keeps
+                // answering across the random TLS re-rolls, so it is tried
+                // first and never torn down.
+                "  adb connect \"$PIN\" >/dev/null 2>&1; " +
+                "  PINOK=$(adb devices | awk -v p=\"$PIN\" '$1==p && $2==\"device\" {print p}'); " +
                 // Android re-rolls the wireless-debugging port on every toggle,
                 // leaving adb holding a dead `ip:oldport` entry that would keep
                 // answering `adb devices`. Drop same-IP/other-port entries first.
-                "  BASE=${IP%:*}; " +
                 "  for S in $(adb devices | awk 'NF>1 && $1!=\"List\" {print $1}' | grep \"^${BASE}:\"); do " +
-                "    [ \"$S\" = \"$IP\" ] || adb disconnect \"$S\" >/dev/null 2>&1; " +
+                "    [ \"$S\" = \"$IP\" ] || [ \"$S\" = \"$PIN\" ] || adb disconnect \"$S\" >/dev/null 2>&1; " +
                 "  done; " +
-                "  adb connect \"$IP\" >/dev/null 2>&1; " +
+                "  if [ -n \"$PINOK\" ]; then echo \"PINNED:$PIN\"; else adb connect \"$IP\" >/dev/null 2>&1; fi; " +
                 "fi; " +
                 // A USB serial never contains a colon; prefer it over any
-                // network target so a plugged-in phone always wins.
+                // network target so a plugged-in phone always wins. The pinned
+                // port comes next: it outlives the TLS port it was found with.
                 "SERIAL=$(adb devices | awk '$2==\"device\" {print $1}' | grep -v ':' | head -n1); " +
+                "if [ -z \"$SERIAL\" ]; then SERIAL=\"$PINOK\"; fi; " +
                 "if [ -z \"$SERIAL\" ]; then SERIAL=$(adb devices | awk '$2==\"device\" {print $1}' | head -n1); fi; " +
                 "echo \"COUNT:$(adb devices | awk '$2==\"device\"' | wc -l)\"; " +
                 "if [ -n \"$SERIAL\" ]; then echo \"SERIAL:$SERIAL\"; exit 0; fi; " +
@@ -1136,14 +1150,17 @@ Singleton {
                 const lines = this.text.split("\n")
                 let serial = ""
                 let mdns = ""
+                let pinned = ""
                 let count = 0
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i].trim()
                     if (line.startsWith("SERIAL:")) serial = line.substring(7).trim()
                     else if (line.startsWith("MDNS:")) mdns = line.substring(5).trim()
+                    else if (line.startsWith("PINNED:")) pinned = line.substring(7).trim()
                     else if (line.startsWith("COUNT:")) count = parseInt(line.substring(6).trim()) || 0
                 }
                 root.adbDeviceCount = count
+                root.pinnedAdbHost = pinned
                 // Assign unconditionally: leaving the previous serial in place
                 // when the probe finds nothing is what made a changed port
                 // stick forever, since adbTargetArgs() prefers it over the
@@ -1248,34 +1265,166 @@ Singleton {
 
     // ─── mDNS discovery of the phone's wireless-debugging port ────
     // Android 11+ wireless debugging listens on a RANDOM port that changes
-    // on every toggle/reboot. avahi discovers the live ip:port so the user
-    // never has to look it up. Only runs while wireless auto mode is on.
-    Timer {
-        id: mdnsProber
-        interval: 12000
-        repeat: true
-        triggeredOnStart: true
-        running: root.ready && root._enabled
-            && Config.options.phone && Config.options.phone.scrcpy
-            && Config.options.phone.scrcpy.useWireless
-            && Config.options.phone.scrcpy.autoWirelessIp
-        onTriggered: root._probeMdns()
+    // on every toggle/reboot. One long-lived avahi browse reports every
+    // announce and goodbye as it happens, so a new port shows up within a
+    // second instead of on the next poll. Only runs while wireless auto
+    // mode is on.
+    readonly property bool _mdnsBrowseWanted: root.ready && root._enabled
+        && !!Config.options.phone && !!Config.options.phone.scrcpy
+        && Config.options.phone.scrcpy.useWireless
+        && Config.options.phone.scrcpy.autoWirelessIp
+    // "iface;proto;name" -> "ip:port" for every resolved IPv4 service.
+    property var _mdnsServices: ({})
+
+    on_MdnsBrowseWantedChanged: {
+        mdnsBrowseRestart.stop()
+        mdnsBrowseProc.running = root._mdnsBrowseWanted
     }
 
     Process {
-        id: mdnsProbeProc
+        id: mdnsBrowseProc
         running: false
-        command: ["bash", "-c", root._mdnsDiscoverSnippet(root._kdeConnectIp(root.activeDeviceId))]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                root.mdnsWirelessHost = this.text.trim()
+        command: ["avahi-browse", "-rp", "_adb-tls-connect._tcp"]
+        stdout: SplitParser {
+            onRead: data => {
+                const lines = String(data).split("\n")
+                for (let i = 0; i < lines.length; i++) root._onMdnsLine(lines[i])
             }
+        }
+        onRunningChanged: {
+            if (running) return
+            root._mdnsServices = ({})
+            root._pickMdnsHost()
+        }
+        // avahi-daemon restarts or a missing binary end the browse; retry
+        // slowly rather than leaving discovery dead until the next reload.
+        onExited: if (root._mdnsBrowseWanted) mdnsBrowseRestart.restart()
+    }
+
+    Timer {
+        id: mdnsBrowseRestart
+        interval: 15000
+        onTriggered: mdnsBrowseProc.running = root._mdnsBrowseWanted
+    }
+
+    function _onMdnsLine(line) {
+        const f = String(line).trim().split(";")
+        if (f.length < 4) return
+        const key = f[1] + ";" + f[2] + ";" + f[3]
+        if (f[0] === "=" && f.length >= 9) {
+            // IPv6 hosts can't be written as "ip:port" for adb.
+            if (f[2] !== "IPv4" || !f[7] || !f[8]) return
+            root._mdnsServices[key] = f[7] + ":" + f[8]
+        } else if (f[0] === "-") {
+            if (!(key in root._mdnsServices)) return
+            delete root._mdnsServices[key]
+        } else {
+            return
+        }
+        root._pickMdnsHost()
+    }
+
+    /** Prefers the service on the active device's KDE Connect address, so
+     *  a second phone on the network doesn't win. */
+    function _pickMdnsHost() {
+        const want = root._kdeConnectIp(root.activeDeviceId)
+        let first = ""
+        for (const k in root._mdnsServices) {
+            const host = root._mdnsServices[k]
+            if (want && host.split(":")[0] === want) {
+                root.mdnsWirelessHost = host
+                return
+            }
+            if (!first) first = host
+        }
+        root.mdnsWirelessHost = first
+    }
+
+    /** Host the last reconnect probe was fired for, so re-announces of the
+     *  same service don't spawn a probe each time. */
+    property string _lastMdnsProbedHost: ""
+
+    // adbd restarts whenever the phone unlocks (and on every toggle/reboot),
+    // and comes back on a fresh random port — the old one is dead the moment
+    // the browse reports a new announce. Reconnect right there instead of
+    // leaving ADB pointed at a dead port until the next 30 s poll.
+    onMdnsWirelessHostChanged: {
+        if (root.mdnsWirelessHost === "" || root.mdnsWirelessHost === root._lastMdnsProbedHost) return
+        mdnsReconnectTimer.restart()
+    }
+
+    Timer {
+        id: mdnsReconnectTimer
+        interval: 400
+        repeat: false
+        onTriggered: {
+            // A probe already in flight may have started before this port
+            // was announced; come back once it is done rather than let the
+            // announce go unanswered until the next poll.
+            if (root._adbTargetResolving) {
+                mdnsReconnectTimer.restart()
+                return
+            }
+            root._lastMdnsProbedHost = root.mdnsWirelessHost
+            root._probeAdb()
         }
     }
 
-    function _probeMdns() {
-        mdnsProbeProc.running = false
-        mdnsProbeProc.running = true
+    // ─── Pinning ADB to a port that survives adbd restarts ────────
+    // The random TLS port is not just inconvenient: every re-roll kills the
+    // live adb connection, and with it any scrcpy window. `adb tcpip 5555`
+    // puts adbd back on a fixed classic-TCP port that keeps answering across
+    // those restarts, until the phone reboots.
+
+    /** "ip:5555" while the pinned port is answering, empty otherwise. */
+    property string pinnedAdbHost: ""
+
+    /** IP the pin was last attempted for. A phone that refuses to pin must
+     *  not be sent an adbd restart every 30 s. Cleared once a pin takes, so
+     *  a reboot gets a fresh attempt. */
+    property string _pinAttemptedFor: ""
+
+    // Pinning restarts adbd, which drops whatever is connected right then —
+    // so it only ever runs while nothing is mirroring.
+    readonly property bool _wantsAdbPin: root.adbReachable
+        && !!Config.options.phone?.scrcpy?.useWireless
+        && !!Config.options.phone?.scrcpy?.pinAdbPort
+        && root.pinnedAdbHost === ""
+        && !root.scrcpyRunning
+        && root.resolvedAdbSerial.indexOf(":") > 0
+
+    on_WantsAdbPinChanged: if (root._wantsAdbPin) adbPinTimer.restart()
+
+    Timer {
+        id: adbPinTimer
+        interval: 1500
+        repeat: false
+        onTriggered: {
+            if (!root._wantsAdbPin) return
+            const serial = root.resolvedAdbSerial
+            const ip = serial.split(":")[0]
+            if (!ip || ip === root._pinAttemptedFor) return
+            root._pinAttemptedFor = ip
+            adbPinProc.command = ["bash", "-c",
+                "S=" + root._shellQuote(serial) + "; IP=${S%:*}; "
+                + "adb -s \"$S\" tcpip 5555 >/dev/null 2>&1 || exit 1; "
+                // adbd needs a moment to come back up on the new port.
+                + "for i in 1 2 3 4 5 6; do sleep 1; "
+                + "  adb connect \"$IP:5555\" >/dev/null 2>&1; "
+                + "  adb devices | grep -q \"^$IP:5555[[:space:]]\\+device\" && exit 0; "
+                + "done; exit 1"]
+            adbPinProc.running = false
+            adbPinProc.running = true
+        }
+    }
+
+    Process {
+        id: adbPinProc
+        running: false
+        onExited: (code, status) => {
+            if (code === 0) root._pinAttemptedFor = ""
+            root._probeAdb()
+        }
     }
 
     /**
@@ -1978,6 +2127,28 @@ Singleton {
             : []
     }
 
+    /** Opens the phone's Extended unlock (Smart Lock) screen.
+     *
+     *  Android gives a desktop no way to register itself as trusted — the
+     *  phone has to be told once, and only the phone can be told. All this
+     *  does is put the user on the right screen with the phone awake.
+     */
+    function openExtendedUnlockSettings() {
+        const target = root.adbTargetArgs().map(a => root._shellQuote(a)).join(" ")
+        trustSettingsProc.command = ["bash", "-c",
+            "adb " + target + " shell input keyevent 224 >/dev/null 2>&1; " +
+            "adb " + target + " shell am start -n " +
+            "com.google.android.gms/.trustagent.TrustAgentSearchEntryPointActivity >/dev/null 2>&1 " +
+            "|| adb " + target + " shell am start -a android.settings.SECURITY_SETTINGS >/dev/null 2>&1"]
+        trustSettingsProc.running = false
+        trustSettingsProc.running = true
+    }
+
+    Process {
+        id: trustSettingsProc
+        running: false
+    }
+
     function killScrcpy() {
         // Only kill scrcpy MIRROR processes (ones with --window-title).
         // The PhoneMicService also uses scrcpy with --audio-source=mic and
@@ -2009,12 +2180,17 @@ Singleton {
      * `hyprctl dispatch focuswindow` regex.
      */
     function focusScrcpyWindow() {
+        // Hyprland evaluates `hyprctl dispatch` as Lua when the config is a
+        // Lua file, where the classic `focuswindow <selector>` form is a
+        // syntax error — and hyprctl still exits 0, so the reply body is the
+        // only thing that says whether it took.
         Quickshell.execDetached(["bash", "-c",
             "if command -v wmctrl >/dev/null 2>&1; then " +
-            "  wmctrl -a 'ii scrcpy' 2>/dev/null; " +
-            "elif command -v hyprctl >/dev/null 2>&1; then " +
-            "  hyprctl dispatch focuswindow '^(scrcpy)$' 2>/dev/null; " +
-            "fi"
+            "  wmctrl -a 'ii scrcpy' 2>/dev/null && exit 0; " +
+            "fi; " +
+            "command -v hyprctl >/dev/null 2>&1 || exit 0; " +
+            "hyprctl dispatch focuswindow 'class:^(scrcpy)$' 2>/dev/null | grep -qi '^ok' && exit 0; " +
+            "hyprctl dispatch 'hl.dsp.focus{window=\"class:^(scrcpy)$\"}' >/dev/null 2>&1"
         ])
     }
 
@@ -2069,9 +2245,14 @@ Singleton {
         // 10s fallback timer cleared `scrcpyLaunching`.
         command: ["bash", "-c",
             "for pid in $(pgrep -x scrcpy 2>/dev/null); do " +
-            "  if tr '\\0' ' ' < /proc/$pid/cmdline 2>/dev/null | grep -q -- '--window-title'; then " +
-            "    exit 0; " +
-            "  fi; " +
+            "  CMD=$(tr '\\0' ' ' < /proc/$pid/cmdline 2>/dev/null); " +
+            "  case \"$CMD\" in " +
+            // The throwaway mirror opened only so the keyguard can be
+            // dismissed is not a session; counting it lights up the mirror
+            // card for a window the user is about to lose.
+            "    *ii-phone-unlock*) ;; " +
+            "    *--window-title*) exit 0 ;; " +
+            "  esac; " +
             "done; " +
             "exit 1"]
         onExited: (code, status) => {

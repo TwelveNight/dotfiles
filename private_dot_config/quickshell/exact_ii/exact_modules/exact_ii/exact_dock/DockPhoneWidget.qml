@@ -46,7 +46,16 @@ Item {
     readonly property bool hasDevice: KdeConnectService.activeDeviceId !== "" && KdeConnectService.activeReachable
     readonly property string deviceName: KdeConnectService.activeDeviceDisplayName || Translation.tr("No connected phone")
     readonly property int deviceCharge: KdeConnectService.activeDevice?.charge ?? -1
-    readonly property string deviceImageSource: "file://" + Directories.assetsPath + "/images/devices/Google_Pixel_9_Pro_XL_(Hazel)_rear.svg"
+    // BluetoothDeviceImages owns the whole chain: the photo the user attached to
+    // this phone's Bluetooth device in Settings → Bluetooth Device Images first,
+    // then the drawing generated for the model KDE Connect reports, then the
+    // generic Android drawing.
+    readonly property string customImageSource: BluetoothDeviceImages.customImageForPhone(KdeConnectService.activeDeviceDisplayName)
+    readonly property string deviceImageSource: BluetoothDeviceImages.phoneImageFor(KdeConnectService.activeDeviceDisplayName, KdeConnectService.activeDevice?.name ?? "")
+    // A drawing shares the app tiles' 64-grid and takes the full button; a photo
+    // and the generic drawing keep the old, tighter box.
+    readonly property bool generatedIcon: customImageSource === ""
+
     readonly property bool isRunning: PhoneScrcpyService.mirrorRunning || KdeConnectService.scrcpyRunning
     readonly property bool isLaunching: PhoneScrcpyService.mirrorLaunching || KdeConnectService.scrcpyLaunching
 
@@ -71,6 +80,19 @@ Item {
     implicitWidth: width
     implicitHeight: height
 
+    transform: [attention.shift, attention.grow, attention.turn]
+
+    DockAttentionAnimation {
+        id: attention
+        host: root
+        dockPos: root.dockContent?.dockPos ?? "bottom"
+    }
+
+    onIsRunningChanged: {
+        if (isRunning)
+            attention.settle();
+    }
+
     function openMirror(): void {
         if (!root.hasDevice)
             return;
@@ -81,6 +103,8 @@ Item {
         }
 
         if (!isLaunching) {
+            PhoneMirrorService._probeDeviceSize();
+            attention.playLaunch(Config.options?.dock?.launchAnimation ?? "bounce");
             PhoneScrcpyService.launchMirror();
         }
     }
@@ -128,6 +152,14 @@ Item {
                 root.dockContent?.endItemDrag();
                 return;
             }
+            if (event.button === Qt.RightButton) {
+                if (root.dockContent) {
+                    root.dockContent.buttonHovered = false;
+                    root.dockContent.lastHoveredButton = null;
+                }
+                phoneContextMenu.open();
+                return;
+            }
             if (event.button === Qt.LeftButton)
                 root.openMirror();
         }
@@ -140,8 +172,10 @@ Item {
     }
 
     Item {
-        width: root.buttonSize * 0.86
-        height: root.buttonSize * 0.92
+        // Generated icons share the app tiles' 64-grid, so they take the full button;
+        // a custom Bluetooth photo keeps the old, tighter box
+        width: root.generatedIcon ? root.buttonSize : root.buttonSize * 0.86
+        height: root.generatedIcon ? root.buttonSize : root.buttonSize * 0.92
         anchors.centerIn: parent
         scale: 1.0 + (root.magnification - 1.0) * 0.62
         transformOrigin: root.magnificationTransformOrigin
@@ -150,10 +184,10 @@ Item {
         Image {
             id: phoneIcon
             anchors.fill: parent
-            anchors.leftMargin: root.buttonSize * 0.06
-            anchors.rightMargin: root.buttonSize * 0.06
-            anchors.topMargin: root.buttonSize * 0.05
-            anchors.bottomMargin: root.buttonSize * 0.05
+            anchors.leftMargin: root.generatedIcon ? 0 : root.buttonSize * 0.06
+            anchors.rightMargin: root.generatedIcon ? 0 : root.buttonSize * 0.06
+            anchors.topMargin: root.generatedIcon ? 0 : root.buttonSize * 0.05
+            anchors.bottomMargin: root.generatedIcon ? 0 : root.buttonSize * 0.05
             source: root.deviceImageSource
             sourceSize: Qt.size(root.buttonSize * 2, root.buttonSize * 2)
             fillMode: Image.PreserveAspectFit
@@ -195,13 +229,40 @@ Item {
         color: Appearance.colors.colPrimary
     }
 
+    DockPhoneContextMenu {
+        id: phoneContextMenu
+        anchorItem: root
+        // The icon carries the magnification; the widget itself never scales.
+        geometryItem: phoneIcon
+    }
+
+    Connections {
+        target: phoneContextMenu
+        function onActiveChanged() {
+            if (!root.dockContent)
+                return;
+            if (phoneContextMenu.active)
+                root.dockContent.registerContextMenuOpen();
+            else
+                root.dockContent.registerContextMenuClose();
+        }
+    }
+
+    // Safety: if this widget is destroyed while its menu is open, clean up the counter
+    Component.onDestruction: {
+        if (root.dockContent && phoneContextMenu.active)
+            root.dockContent.registerContextMenuClose();
+    }
+
     DockTooltip {
         id: phoneTooltip
         // Anchor to the transformed icon bounds so magnification is included
         // when calculating the gap between the icon and the tooltip.
         parentItem: phoneIcon
         text: root.tooltipText
-        showTooltip: root.phoneHovered
+        // Follow the dock's "Hover content" setting like app buttons do.
+        showTooltip: ((Config.options?.dock?.enableAppTooltip ?? false) || GlobalStates.editMode)
+            && root.phoneHovered && !phoneContextMenu.active
         tooltipOffset: -root.dotMargin
     }
 }

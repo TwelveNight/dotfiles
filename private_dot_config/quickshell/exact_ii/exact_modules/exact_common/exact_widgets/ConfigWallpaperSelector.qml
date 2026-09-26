@@ -15,33 +15,46 @@ Item {
     implicitWidth: 360
     implicitHeight: 220
 
+    Component.onCompleted: Wallpapers.acquireSkwdWallpaperState()
+    Component.onDestruction: Wallpapers.relinquishSkwdWallpaperState()
+
     readonly property string effectivePath: {
         if (targetMode === "lockscreen") {
             const lockPath = Config.options.background.lockscreenWallpaperPath;
-            return (lockPath && lockPath !== "") ? lockPath : Config.options.background.wallpaperPath;
+            return (lockPath && lockPath !== "") ? lockPath : Wallpapers.activeWallpaperPath;
         }
         if (targetMode === "lightmode") {
             const lightPath = Config.options.background.lightModeWallpaperPath;
-            return (lightPath && lightPath !== "") ? lightPath : Config.options.background.wallpaperPath;
+            return (lightPath && lightPath !== "") ? lightPath : Wallpapers.activeWallpaperPath;
         }
-        return Config.options.background.wallpaperPath;
+        return Wallpapers.activeWallpaperPath;
     }
 
-    readonly property bool usesWallpaperEnginePreview: targetMode === "desktop" && Config.options.background.useWallpaperEngine
+    readonly property bool usesWallpaperEnginePreview: targetMode === "desktop" && Wallpapers.activeUseWallpaperEngine
     readonly property bool usesVideoPreview: !usesWallpaperEnginePreview && Wallpapers.isVideoFile(effectivePath.toLowerCase())
+    readonly property string bridgeThumbnailPath: targetMode === "desktop" ? Wallpapers.activeThumbnailPath : ""
+    readonly property bool usesBridgeVideoPreview: usesVideoPreview && bridgeThumbnailPath !== ""
     readonly property string defaultPreviewPath: `${Directories.assetsPath}/images/default_wallpaper.png`
+
+    function fileUrl(path) {
+        const value = String(path || "");
+        return value.startsWith("file://") ? value : "file://" + value;
+    }
 
     StyledImage {
         id: wallpaperPreview
         anchors.fill: parent
         fillMode: Image.PreserveAspectCrop
-        visible: !wallpaperSelectorRoot.usesVideoPreview
+        visible: !wallpaperSelectorRoot.usesVideoPreview || wallpaperSelectorRoot.usesBridgeVideoPreview
         source: {
             if (wallpaperSelectorRoot.usesVideoPreview) {
-                return "";
+                return wallpaperSelectorRoot.usesBridgeVideoPreview
+                    ? wallpaperSelectorRoot.fileUrl(wallpaperSelectorRoot.bridgeThumbnailPath) + "?t=" + wallpaperSelectorRoot.effectivePath
+                    : "";
             }
             if (wallpaperSelectorRoot.usesWallpaperEnginePreview) {
-                return "file:///tmp/wpe_screenshot.png?t=" + Config.options.background.wallpaperEngineId;
+                const thumbnail = Wallpapers.activeThumbnailPath;
+                return thumbnail !== "" ? wallpaperSelectorRoot.fileUrl(thumbnail) + "?t=" + Wallpapers.activeWallpaperEngineId : "";
             }
             return wallpaperSelectorRoot.effectivePath !== "" ? wallpaperSelectorRoot.effectivePath : wallpaperSelectorRoot.defaultPreviewPath
         }
@@ -76,7 +89,7 @@ Item {
     ThumbnailImage {
         id: videoPreview
         anchors.fill: parent
-        visible: wallpaperSelectorRoot.usesVideoPreview
+        visible: wallpaperSelectorRoot.usesVideoPreview && !wallpaperSelectorRoot.usesBridgeVideoPreview
         sourcePath: wallpaperSelectorRoot.effectivePath
         thumbnailService: Wallpapers
         generateThumbnail: wallpaperSelectorRoot.usesVideoPreview
@@ -96,7 +109,7 @@ Item {
     StyledImage {
         id: videoPreviewFallback
         anchors.fill: parent
-        visible: wallpaperSelectorRoot.usesVideoPreview && videoPreview.status !== Image.Ready
+        visible: wallpaperSelectorRoot.usesVideoPreview && !wallpaperSelectorRoot.usesBridgeVideoPreview && videoPreview.status !== Image.Ready
         source: wallpaperSelectorRoot.defaultPreviewPath
         fillMode: Image.PreserveAspectCrop
         cache: true
@@ -152,8 +165,8 @@ Item {
             id: fileNameLabel
             anchors.centerIn: parent
             property string fileName: {
-                if (wallpaperSelectorRoot.targetMode === "desktop" && Config.options.background.useWallpaperEngine) {
-                    const id = Config.options.background.wallpaperEngineId;
+                if (wallpaperSelectorRoot.targetMode === "desktop" && Wallpapers.activeUseWallpaperEngine) {
+                    const id = Wallpapers.activeWallpaperEngineId;
                     const parts = id.split("/");
                     return "Wallpaper Engine: " + parts[parts.length - 1];
                 }

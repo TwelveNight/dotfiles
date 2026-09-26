@@ -20,7 +20,7 @@ AbstractBackgroundWidget {
 
     configEntryName: "circular_media"
 
-    visibleWhenLocked: root.lockBehavior === "keep" || root.lockBehavior === "center" || root.lockBehavior === "lockOnly" || (Config.options.lock.centerWidget === "media")
+    visibleWhenLocked: root.lockBehavior === "keep" || root.lockBehavior === "custom" || root.lockBehavior === "center" || root.lockBehavior === "lockOnly" || (Config.options.lock.centerWidget === "media")
 
     // Default size is 240x240 for 1:1 widgets as per AGENTS.md guidelines.
     // The size factor is folded into the implicit size rather than left to an
@@ -125,11 +125,7 @@ AbstractBackgroundWidget {
         }
     }
 
-    readonly property real progressValue: {
-        if (!root.player || root.player.length <= 0)
-            return 0.0;
-        return Math.max(0.0, Math.min(1.0, root.player.position / root.player.length));
-    }
+    readonly property real progressValue: MprisController.trackProgressOf(root.player)
 
     // This widget shares the desktop canvas' compositor surface with other widgets,
     // so it cannot override Hyprland's ignore_alpha rule by itself. When the user
@@ -488,12 +484,7 @@ AbstractBackgroundWidget {
                             return "volume_up";
                         }
 
-                        onClicked: {
-                            GlobalStates.openRightSidebar();
-                            Qt.callLater(() => {
-                                GlobalStates.requestVolumeDialog = true;
-                            });
-                        }
+                        onClicked: GlobalStates.openAudioOutputSettings()
 
                         contentItem: Item {
                             implicitWidth: deviceRowLayout.implicitWidth

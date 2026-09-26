@@ -208,7 +208,8 @@ Item {
             if (periodBar.granularities[i].key === root.initialGranularity)
                 root.granularityIndex = i;
         }
-        root.refresh();
+        // The window asks the sampler for a fresh flush once its entrance ends.
+        AppStats.ensureDates(root.dates);
     }
 
     component Card: Rectangle {
@@ -693,9 +694,7 @@ Item {
                         icon: "terminal"
                         title: Translation.tr("No battery history yet")
                         text: Translation.tr("The sampler records the pack alongside the apps, but only if it was built with that in it. Rebuild it, then reopen this panel.")
-                        codeSnippet: `cd ${Directories.scriptPath.replace(FileUtils.trimFileProtocol(Directories.home), "~")}/appStats/app_stats_src
-cargo build --release
-cp target/release/app_stats ../`
+                        codeSnippet: `${Directories.rustHelpersScriptPath.replace(FileUtils.trimFileProtocol(Directories.home), "~")} build app_stats`
                         snippetWrapMode: Text.Wrap
                     }
 

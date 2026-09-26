@@ -227,6 +227,8 @@ Singleton {
             id: persistentStatesJsonAdapter
 
             property string hyprlandInstanceSignature: ""
+            // Per-output desktop shortcuts; independent of tablet home pages and presets.
+            property string desktopShortcutsJson: "{}"
 
             property JsonObject migrations: JsonObject {
                 property int presetUserDataVersion: 0
@@ -338,6 +340,11 @@ Singleton {
             property JsonObject background: JsonObject {
                 property bool widgetsMigrated: false
                 property bool lockBehaviorMigrated: false
+                // The last wallpapers applied, newest first (see
+                // Wallpapers.recordRecent). The desktop menu's strip.
+                property list<string> recentWallpapers: []
+                // Preset names, most recently applied first (PresetStore.applyPreset).
+                property list<string> recentPresets: []
                 property JsonObject mediaMode: JsonObject {
                     property real userScrollOffset: 0
                     property real localMediaVolume: 0.8
@@ -646,6 +653,13 @@ Singleton {
                 property int seconds: 0
                 property bool loading: false
                 property bool paused: false
+            }
+
+            property JsonObject bar: JsonObject {
+                // The centre layout stashed when "Dynamic Island in bar center"
+                // took the group over. Restored on the way out if the user has
+                // not rebuilt the centre meanwhile; see DynamicIslandConfig.
+                property list<var> centerStash: []
             }
 
             property JsonObject settings: JsonObject {

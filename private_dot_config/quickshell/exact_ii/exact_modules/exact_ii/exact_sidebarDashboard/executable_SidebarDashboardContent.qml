@@ -31,6 +31,7 @@ import qs.modules.common.quickToggleDialogs.dnsOverTls
 import qs.modules.common.quickToggleDialogs.idleInhibitor
 import qs.modules.common.quickToggleDialogs.screenShader
 import qs.modules.ii.sidebarDashboard.modes
+import qs.modules.tablet.sidebarDashboard
 import "../../common/functions/SpaceArbitration.js" as SpaceArbitration
 import "SidebarPerformancePolicy.js" as PerformancePolicy
 
@@ -55,12 +56,21 @@ Item {
     property bool showIdleInhibitorDialog: false
     property bool showScreenShaderDialog: false
     property bool showModesDialog: false
+    property bool showTrayDialog: false
     property bool wifiDialogStatePublished: false
     property bool bluetoothDialogStatePublished: false
+    property bool wallpaperStateConsumerHeld: false
 
     readonly property bool keyboardContextOpen: root.visible
         && (root.isLoadedOnLeft ? GlobalStates.sidebarLeftOpen : GlobalStates.sidebarRightOpen)
     onKeyboardContextOpenChanged: {
+        if (root.keyboardContextOpen && !root.wallpaperStateConsumerHeld) {
+            Wallpapers.acquireSkwdWallpaperState();
+            root.wallpaperStateConsumerHeld = true;
+        } else if (!root.keyboardContextOpen && root.wallpaperStateConsumerHeld) {
+            Wallpapers.relinquishSkwdWallpaperState();
+            root.wallpaperStateConsumerHeld = false;
+        }
         if (root.keyboardContextOpen) Qt.callLater(root.focusDashboardOnOpen);
     }
     function focusDashboardOnOpen() {
@@ -173,7 +183,7 @@ Item {
 
     onShowWifiDialogChanged: root.publishWifiDialogState(root.showWifiDialog)
     onShowBluetoothDialogChanged: root.publishBluetoothDialogState(root.showBluetoothDialog)
-    readonly property bool anyDialogVisible: showAudioOutputDialog || showAudioInputDialog || showBluetoothDialog || showNightLightDialog || showWifiDialog || showDarkModeDialog || showLocalSendDialog || showVpnDialog || showTailscaleDialog || showKdeConnectDialog || showDnsOverTlsDialog || showIdleInhibitorDialog || showScreenShaderDialog || showModesDialog
+    readonly property bool anyDialogVisible: showAudioOutputDialog || showAudioInputDialog || showBluetoothDialog || showNightLightDialog || showWifiDialog || showDarkModeDialog || showLocalSendDialog || showVpnDialog || showTailscaleDialog || showKdeConnectDialog || showDnsOverTlsDialog || showIdleInhibitorDialog || showScreenShaderDialog || showModesDialog || showTrayDialog
     property bool editMode: false
     property bool isLoadedOnLeft: false
     readonly property bool dashboardSidebarAnimating: isLoadedOnLeft
@@ -227,7 +237,7 @@ Item {
     readonly property bool compactModeRequired: SpaceArbitration.requiresCompactMode(
         expandedNotificationsHeightBudget,
         minimumExpandedNotificationsHeight,
-        !editMode && centerGroup.visible && bottomGroup.visible
+        !editMode && centerGroup.visible && bottomGroup.visible && adaptiveGroups.availableHeight > 0
     )
     readonly property var compactSpaceResolution: SpaceArbitration.resolve(
         compactModeRequired,
@@ -263,6 +273,10 @@ Item {
     readonly property bool isDynamicIslandBottom: !BarPlacement.vertical && BarPlacement.bottom && BarInteraction.cornerStyle === 3
 
     Component.onCompleted: {
+        if (root.keyboardContextOpen && !root.wallpaperStateConsumerHeld) {
+            Wallpapers.acquireSkwdWallpaperState();
+            root.wallpaperStateConsumerHeld = true;
+        }
         Qt.callLater(root.focusDashboardOnOpen);
         if (GlobalStates.requestVolumeDialog) {
             root.showAudioOutputDialog = true;
@@ -275,6 +289,8 @@ Item {
     }
 
     Component.onDestruction: {
+        if (root.wallpaperStateConsumerHeld)
+            Wallpapers.relinquishSkwdWallpaperState();
         root.publishWifiDialogState(false);
         root.publishBluetoothDialogState(false);
     }
@@ -304,6 +320,7 @@ Item {
                 root.showIdleInhibitorDialog = false;
                 root.showScreenShaderDialog = false;
                 root.showModesDialog = false;
+                root.showTrayDialog = false;
                 pomodoroTimePicker.close();
                 // In connect mode the SidebarDashboardContent lives inside the always-present
                 // topPanel, so the Loader is never torn down automatically when the sidebar
@@ -412,31 +429,36 @@ Item {
             }
 
             // SIDEBAR BANNER
-            SidebarBanner {
+            // Banner and header are exclusive; only the configured one is built.
+            Loader {
                 id: sidebarBanner
                 Layout.fillWidth: true
                 Layout.preferredHeight: 220
-                visible: Config.options.sidebar.enableBanner
-                enabled: visible
-                editMode: root.editMode
-                systemHintsVisible: root.systemHintsActive
-                onEditModeToggled: (newEditMode) => root.editMode = newEditMode
+                active: Config.options.sidebar.enableBanner
+                visible: active
+                sourceComponent: SidebarBanner {
+                    editMode: root.editMode
+                    systemHintsVisible: root.systemHintsActive
+                    onEditModeToggled: (newEditMode) => root.editMode = newEditMode
+                }
             }
 
             // DEFAULT
-            SystemButtonRow {
+            Loader {
                 id: headerRow
                 Layout.fillHeight: false
                 Layout.fillWidth: true
                 // Layout.margins: 10
                 Layout.topMargin: 5
                 Layout.bottomMargin: 0
-                visible: !Config.options.sidebar.enableBanner
-                enabled: visible
-                entranceTrigger: root.entranceTrigger
-                editMode: root.editMode
-                systemHintsVisible: root.systemHintsActive
-                onEditModeToggled: (newEditMode) => root.editMode = newEditMode
+                active: !Config.options.sidebar.enableBanner
+                visible: active
+                sourceComponent: SystemButtonRow {
+                    entranceTrigger: root.entranceTrigger
+                    editMode: root.editMode
+                    systemHintsVisible: root.systemHintsActive
+                    onEditModeToggled: (newEditMode) => root.editMode = newEditMode
+                }
             }
 
             LoaderedQuickPanelImplementation {
@@ -469,7 +491,14 @@ Item {
                 id: adaptiveGroups
                 Layout.fillHeight: true
                 Layout.fillWidth: true
-                Layout.minimumHeight: containmentHeight
+                property real takeoverProgress: root.notificationsCollapsed ? 1.0 : 0.0
+
+                Behavior on takeoverProgress {
+                    SidebarGroupAnimation {
+                        animationSpec: Appearance.animation.elementMove
+                    }
+                }
+
                 // This boundary lies inside the dashboard's rounded silhouette
                 // and contains Bottom overshoot without clipping unrelated
                 // header/quick-toggle shadows or allocating an FBO.
@@ -480,10 +509,8 @@ Item {
                         centerGroup.collapsedHeight,
                         targetSpacing
                     )
-                readonly property real targetContainmentHeight: root.notificationsCollapsed
-                    ? packedTakeoverHeight
-                    : availableHeight
-                property real containmentHeight: targetContainmentHeight
+                readonly property real takeoverExtraHeight: Math.max(0, packedTakeoverHeight - availableHeight) * takeoverProgress
+                Layout.minimumHeight: takeoverExtraHeight > 0 ? (availableHeight + takeoverExtraHeight) : 0
                 readonly property real targetSpacing: SpaceArbitration.dashboardSpacing(
                     root.notificationsCollapsed,
                     root.sidebarPadding
@@ -500,16 +527,10 @@ Item {
                         : bottomGroup.expandedHeight
                 readonly property real expandedCenterTargetHeight: Math.max(
                     0,
-                    availableHeight - targetBottomHeight - targetSpacing
+                    availableHeight - animatedBottomHeight - targetSpacing
                 )
                 property real groupSpacing: targetSpacing
                 property real animatedBottomHeight: targetBottomHeight
-
-                Behavior on containmentHeight {
-                    SidebarGroupAnimation {
-                        animationSpec: Appearance.animation.elementMove
-                    }
-                }
 
                 Behavior on groupSpacing {
                     SidebarGroupAnimation {
@@ -535,17 +556,8 @@ Item {
                         entranceTrigger: root.entranceTrigger
                     }
                     readonly property real collapsedHeight: item?.collapsedHeight ?? 0
-                    property real animatedHeight: SpaceArbitration.notificationMaximumHeight(
-                        root.notificationsCollapsed,
-                        collapsedHeight,
-                        adaptiveGroups.expandedCenterTargetHeight
-                    )
-
-                    Behavior on animatedHeight {
-                        SidebarGroupAnimation {
-                            animationSpec: Appearance.animation.elementMove
-                        }
-                    }
+                    property real animatedHeight: (collapsedHeight * adaptiveGroups.takeoverProgress)
+                        + (adaptiveGroups.expandedCenterTargetHeight * (1.0 - adaptiveGroups.takeoverProgress))
 
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -673,13 +685,52 @@ Item {
         dialog: ModesDialog {}
     }
 
-    TimePickerPopup {
+    // The tray tile (trayWidget) asks for this: the island shows the same dialog as a
+    // page over its grid, the tablet's shade hosts it over its dashboard, and here it is
+    // one more sidebar dialog. Activating an app closes it and leaves the sidebar.
+    DialogHostLoader {
+        owner: root
+        shownPropertyString: "showTrayDialog"
+        dialogRadius: sidebarRightBackground.defaultRadius
+        dialog: TabletTrayDialog {
+            onItemActivated: root.showTrayDialog = false
+        }
+    }
+
+    // The picker is only ever opened by the pomodoro tab: it is built on request and
+    // dropped once its close animation has finished, instead of living in every
+    // retained dashboard.
+    Loader {
         id: pomodoroTimePicker
         anchors.fill: parent
         z: 999
-        keyboardShortcutsEnabled: true
-        onAccepted: (pickedHour, pickedMinute) => {
-            TimerService.setPomodoroTime(pickedHour, pickedMinute);
+        active: false
+        readonly property bool opened: item?.opened ?? false
+        function open(startHour, startMinute, titleText) {
+            active = true;
+            item.open(startHour, startMinute, titleText);
+        }
+        function close() {
+            item?.close();
+        }
+        function handleKey(event) {
+            return item ? item.handleKey(event) : false;
+        }
+        function releaseKey(event) {
+            item?.releaseKey(event);
+        }
+        sourceComponent: TimePickerPopup {
+            keyboardShortcutsEnabled: true
+            onAccepted: (pickedHour, pickedMinute) => {
+                TimerService.setPomodoroTime(pickedHour, pickedMinute);
+            }
+            onVisibleChanged: {
+                if (!visible && !opened)
+                    Qt.callLater(() => {
+                        if (pomodoroTimePicker.item && !pomodoroTimePicker.item.visible)
+                            pomodoroTimePicker.active = false;
+                    });
+            }
         }
     }
 
@@ -718,7 +769,12 @@ Item {
                     if (Config.options.sidebar.useCustomBanner) {
                         return Config.options.sidebar.bannerImage || `${Directories.assetsPath}/images/default_wallpaper.png`;
                     }
-                    return Config.options.background.wallpaperPath || "";
+                    const activePath = Wallpapers.activeWallpaperPath;
+                    if (Wallpapers.activeThumbnailPath !== ""
+                            && (Wallpapers.activeUseWallpaperEngine || Wallpapers.isVideoFile(activePath))) {
+                        return Wallpapers.activeThumbnailPath;
+                    }
+                    return activePath;
                 }
 
                 readonly property string cleanBannerSource: {
@@ -1142,6 +1198,9 @@ Item {
             }
             function onOpenModesDialog() {
                 root.showModesDialog = true;
+            }
+            function onOpenTrayDialog() {
+                root.showTrayDialog = true;
             }
         }
     }

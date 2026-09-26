@@ -7,6 +7,8 @@ XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 CONFIG_DIR="$XDG_CONFIG_HOME/quickshell/$QUICKSHELL_CONFIG_NAME"
 CACHE_DIR="$XDG_CACHE_HOME/quickshell"
 STATE_DIR="$XDG_STATE_HOME/quickshell"
+TERMINAL_THEME_DIR="$STATE_DIR/user/generated/terminal"
+TERMINAL_MATERIAL_FILE="$TERMINAL_THEME_DIR/material_colors.scss"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 term_alpha=100 #Set this to < 100 make all your terminals transparent
@@ -21,8 +23,8 @@ colorstrings=''
 colorlist=()
 colorvalues=()
 
-colornames=$(cat $STATE_DIR/user/generated/material_colors.scss | cut -d: -f1)
-colorstrings=$(cat $STATE_DIR/user/generated/material_colors.scss | cut -d: -f2 | cut -d ' ' -f2 | cut -d ";" -f1)
+colornames=$(cat "$TERMINAL_MATERIAL_FILE" | cut -d: -f1)
+colorstrings=$(cat "$TERMINAL_MATERIAL_FILE" | cut -d: -f2 | cut -d ' ' -f2 | cut -d ";" -f1)
 IFS=$'\n'
 colorlist=($colornames)     # Array of color names
 colorvalues=($colorstrings) # Array of color values
@@ -73,7 +75,7 @@ tmp_path = output_path + ".tmp"
 with open(tmp_path, "w") as f:
     f.write(content)
 os.rename(tmp_path, output_path)
-' "$STATE_DIR/user/generated/material_colors.scss" "$SCRIPT_DIR/terminal/kitty-theme.conf" "$STATE_DIR/user/generated/terminal/kitty-theme.conf"
+' "$TERMINAL_MATERIAL_FILE" "$SCRIPT_DIR/terminal/kitty-theme.conf" "$STATE_DIR/user/generated/terminal/kitty-theme.conf"
 
   # Ensure current-theme.conf is a symlink to our generated kitty-theme.conf
   local kitty_theme_dir="$XDG_CONFIG_HOME/kitty"
@@ -88,10 +90,9 @@ os.rename(tmp_path, output_path)
   fi
 
   # Reload
-  if ! pgrep -f kitty >/dev/null; then
-    return
-  fi
-  kill -SIGUSR1 $(pidof kitty)
+  # `pgrep -f kitty` can match unrelated command lines while `pidof` returns
+  # several PIDs as one word under a modified IFS.  Target Kitty itself.
+  pkill -USR1 -x kitty 2>/dev/null || true
 }
 
 apply_anyterm() {
@@ -142,7 +143,7 @@ tmp_path = output_path + ".tmp"
 with open(tmp_path, "w") as f:
     f.write(content)
 os.rename(tmp_path, output_path)
-' "$STATE_DIR/user/generated/material_colors.scss" "$SCRIPT_DIR/terminal/sequences.txt" "$STATE_DIR/user/generated/terminal/sequences.txt" "$term_alpha"
+' "$TERMINAL_MATERIAL_FILE" "$SCRIPT_DIR/terminal/sequences.txt" "$STATE_DIR/user/generated/terminal/sequences.txt" "$term_alpha"
 
   for file in /dev/pts/*; do
     if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then

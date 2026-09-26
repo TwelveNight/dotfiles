@@ -80,6 +80,7 @@ Singleton {
                 "presets/PublishSubPage.qml",
                 "presets/PresetDetailSubPage.qml",
                 "presets/PushUpdateSubPage.qml",
+                "presets/PresetScreenshotsSubPage.qml",
                 "presets/PresetDiffSubPage.qml"
             ],
             "aliases": []
@@ -150,10 +151,9 @@ Singleton {
             "icon": "water_drop",
             "component": "modules/settings/configs/DynamicIslandConfig.qml",
             "subPages": [
-                "widgets/DynamicIslandStatusConfig.qml",
                 "widgets/DynamicIslandActivitiesConfig.qml"
             ],
-            "aliases": ["Notch", "Floating notch", "Status notches", "Activity notches", "Dynamic Island in bar center"]
+            "aliases": ["Notch", "Floating notch", "Activity notches", "Island activities", "Earbuds battery", "Weather", "Dynamic Island in bar center"]
         },
         {
             "id": "overlays",

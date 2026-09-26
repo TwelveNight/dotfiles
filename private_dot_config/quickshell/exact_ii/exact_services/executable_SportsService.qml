@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.modules.common
+import "SportsServiceHelpers.js" as SportsCache
 
 Item {
     id: root
@@ -16,7 +17,8 @@ Item {
     // active. The old config-only gate fetched ESPN continuously on idle.
     readonly property bool lockEnabled: (Config.options?.lock?.sports ?? true)
         && (GlobalStates?.lockLookActive ?? false)
-    readonly property bool enabled: barEnabled || dockEnabled || lockEnabled
+    property int widgetSubscribers: 0
+    readonly property bool enabled: barEnabled || dockEnabled || lockEnabled || widgetSubscribers > 0
     // AI consumers are counted separately from the visual widgets. They may
     // query a league that is not monitored by the bar, but must never cause a
     // visual selection or a Config write as a side effect.
@@ -158,24 +160,43 @@ Item {
             timetableProjectionSeen = ({});
             timetableProjecting = false;
             timetableGames = [];
+            // The index and the input signature describe the dropped
+            // projection; keeping either would let the next open skip the
+            // rebuild it needs.
+            timetableGamesByDay = ({});
+            timetableProjectionSignature = "";
             timetableRangeStart = "";
             timetableRangeEnd = "";
             pendingRangeRequest = false;
             pendingRangeForce = false;
             focusedGameId = "";
-            // The bar/dock never read the weekly schedule cache. Do not retain
-            // either the schedule graph or raw details after the last timetable
-            // consumer leaves; both are reloaded on the next open.
-            root.scheduleCache = ({});
-            root.scheduleCacheLoaded = false;
-            root.detailsCache = ({});
-            root.detailsCacheLoaded = false;
+            // The bar/dock never read the weekly schedule cache. Drop the
+            // timetable projection and stop holding the raw file, but keep the
+            // two *parsed* projections: they are bounded by construction
+            // (`compactScheduleCache` / `prunedDetailsCache` cap entries and
+            // bytes), and re-parsing the multi-megabyte file cost a measured
+            // 95 ms of the next open's click burst — on the main thread, in
+            // QV4 — for a graph that was already in memory.
             root.detailsErrors = ({});
             root.detailsRevision += 1;
-            // FileView.text() is a full in-memory copy of sports.json. Clear
-            // its path too, so the compact bar/dock do not pay for the weekly
-            // cache merely because the singleton exists.
             root.cacheReady = false;
+        }
+    }
+
+    function acquireWidgetSubscriber() {
+        const wasInactive = !root.enabled;
+        widgetSubscribers += 1;
+        if (wasInactive && !root.timetableActive)
+            root.fetchGames();
+    }
+
+    function releaseWidgetSubscriber() {
+        widgetSubscribers = Math.max(0, widgetSubscribers - 1);
+        if (!root.enabled) {
+            root.cancelCompactRequests();
+            allGames = [];
+            currentGameIndex = 0;
+            currentGame = null;
         }
     }
 
@@ -870,9 +891,18 @@ Item {
         root.timetableLoading = Object.keys(next).length > 0;
     }
 
+    // ESPN's scoreboard answers a whole month (`dates=202609`) but rejects a
+    // `from-to` range with HTTP 400, so a range is fetched month by month and
+    // merged into the same cache entry — the range key, the TTL and the
+    // projection stay exactly as they were. See SportsServiceHelpers.js.
+    function scheduleRequestMonth(request) {
+        return SportsCache.monthForIndex(request?.months, request?.monthIndex)
+            || root.espnDate(request?.fromKey);
+    }
+
     function startScheduleRequest(key, request) {
         const host = root.apiHosts[request.hostIndex] || root.apiHosts[0];
-        const url = `https://${host}/apis/site/v2/sports/${encodeURIComponent(request.entry.sport)}/${encodeURIComponent(request.entry.league)}/scoreboard?dates=${root.espnDate(request.fromKey)}-${root.espnDate(request.toKey)}`;
+        const url = `https://${host}/apis/site/v2/sports/${encodeURIComponent(request.entry.sport)}/${encodeURIComponent(request.entry.league)}/scoreboard?dates=${root.scheduleRequestMonth(request)}`;
         const xhr = new XMLHttpRequest();
         request.xhr = xhr;
         const next = Object.assign({}, root.scheduleRequests);
@@ -882,12 +912,56 @@ Item {
         xhr.timeout = 12000;
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE)
-                root.finishScheduleRequest(String(key), xhr.status, xhr.responseText);
+                root.handleScheduleResponse(String(key), xhr.status, xhr.responseText);
         };
-        xhr.onerror = function() { root.finishScheduleRequest(String(key), 0, ""); };
-        xhr.ontimeout = function() { root.finishScheduleRequest(String(key), 0, ""); };
+        xhr.onerror = function() { root.handleScheduleResponse(String(key), 0, ""); };
+        xhr.ontimeout = function() { root.handleScheduleResponse(String(key), 0, ""); };
         xhr.open("GET", url);
         xhr.send();
+    }
+
+    function handleScheduleResponse(key, httpStatus, responseText) {
+        const request = root.scheduleRequests[String(key)] ?? null;
+        if (!request)
+            return;
+        if (httpStatus === 403 && request.hostIndex + 1 < root.apiHosts.length) {
+            request.hostIndex += 1;
+            root.startScheduleRequest(String(key), request);
+            return;
+        }
+        if (httpStatus !== 200) {
+            root.failScheduleRequest(String(key), request, `HTTP ${String(httpStatus)}`);
+            return;
+        }
+        let parsed = null;
+        try {
+            parsed = JSON.parse(String(responseText ?? "{}"));
+        } catch (error) {
+            parsed = null;
+        }
+        if (!parsed || !Array.isArray(parsed.events)) {
+            root.failScheduleRequest(String(key), request, "unreadable schedule data");
+            return;
+        }
+        request.leagues = Array.isArray(request.leagues) && request.leagues.length > 0
+            ? request.leagues
+            : (Array.isArray(parsed.leagues) ? parsed.leagues : []);
+        request.events = (request.events ?? []).concat(parsed.events);
+        const months = Array.isArray(request.months) ? request.months : [];
+        const nextMonth = Number(request.monthIndex ?? 0) + 1;
+        if (nextMonth < months.length) {
+            request.monthIndex = nextMonth;
+            root.startScheduleRequest(String(key), request);
+            return;
+        }
+        root.finishScheduleRequest(String(key), { events: request.events, leagues: request.leagues });
+    }
+
+    function failScheduleRequest(key, request, reason) {
+        root.removeScheduleRequest(key);
+        root.timetableError = `ESPN ${reason} · ${request.entry.name}`;
+        console.warn(`[SportsService] Timetable fetch failed for ${request.entry.sport}/${request.entry.league} (${reason})`);
+        root.rebuildTimetableGames();
     }
 
     function fetchScheduleEntry(entry, fromKey, toKey) {
@@ -899,32 +973,23 @@ Item {
             hostIndex: 0,
             entry: entry,
             fromKey: fromKey,
-            toKey: toKey
+            toKey: toKey,
+            months: SportsCache.espnMonths(fromKey, toKey),
+            monthIndex: 0,
+            events: [],
+            leagues: []
         });
     }
 
-    function finishScheduleRequest(key, httpStatus, responseText) {
+    function finishScheduleRequest(key, response) {
         const request = root.scheduleRequests[String(key)] ?? null;
         if (!request)
             return;
-        if (httpStatus === 403 && request.hostIndex + 1 < root.apiHosts.length) {
-            request.hostIndex += 1;
-            root.startScheduleRequest(String(key), request);
-            return;
-        }
-
         root.removeScheduleRequest(key);
-        if (httpStatus !== 200) {
-            root.timetableError = `ESPN HTTP ${String(httpStatus)} · ${request.entry.name}`;
-            console.warn(`[SportsService] Timetable fetch failed for ${request.entry.sport}/${request.entry.league} (HTTP ${String(httpStatus)})`);
-            root.rebuildTimetableGames();
-            return;
-        }
 
         try {
-            const response = JSON.parse(String(responseText ?? "{}"));
-            const events = Array.isArray(response.events) ? response.events : [];
-            const responseLeague = Array.isArray(response.leagues) && response.leagues.length > 0 ? response.leagues[0] : ({});
+            const events = Array.isArray(response?.events) ? response.events : [];
+            const responseLeague = Array.isArray(response?.leagues) && response.leagues.length > 0 ? response.leagues[0] : ({});
             const logos = Array.isArray(responseLeague?.logos) ? responseLeague.logos : [];
             const nextCache = Object.assign({}, root.scheduleCache);
             nextCache[String(key)] = {
@@ -965,6 +1030,8 @@ Item {
         const leagues = root.monitoredLeagueEntries();
         if (leagues.length === 0) {
             root.timetableGames = [];
+            root.timetableGamesByDay = ({});
+            root.timetableProjectionSignature = "";
             root.timetableLoading = false;
             return;
         }
@@ -1013,11 +1080,28 @@ Item {
         return true;
     }
 
+    // The projection is a pure function of the cache contents, the visible range
+    // and the team filter. Rebuilds arrive from events that change none of those
+    // — a failed ESPN fetch, a repeated range request — and every rebuild
+    // republishes `timetableGames`, which invalidates each month cell's sport
+    // list and the week view's day model, so their delegates are rebuilt. A
+    // signature of the inputs keeps a fruitless fetch from rebuilding the grid.
+    property string timetableProjectionSignature: ""
+
+    function timetableSourceSignature() {
+        return SportsCache.sourceSignature(root.timetableRangeStart, root.timetableRangeEnd,
+            root.teamFilter, root.cachedRangeSources());
+    }
+
     function rebuildTimetableGames() {
         if (!root.timetableActive)
             return;
         if (root.timetableRangeStart.length === 0 || root.timetableRangeEnd.length === 0)
             return;
+        const signature = root.timetableSourceSignature();
+        if (signature === root.timetableProjectionSignature)
+            return;
+        root.timetableProjectionSignature = signature;
         timetableProjectionTimer.stop();
         root.timetableProjectionSource = root.cachedRangeSources();
         root.timetableProjectionCompactEvents = [];
@@ -1112,7 +1196,14 @@ Item {
         const compactEvents = root.timetableProjectionCompactEvents;
         const games = root.timetableProjectionGames;
         games.sort((left, right) => left.startDate.getTime() - right.startDate.getTime());
-        root.timetableGames = games;
+        // A republish that changes nothing still invalidates every month cell's
+        // sport list and the week view's day model, which rebuilds their
+        // delegates — and a failing fetch or a refresh tick used to repeat that
+        // every minute. Only a real change reaches the views now.
+        if (!SportsCache.sameGames(root.timetableGames, games)) {
+            root.timetableGames = games;
+            root.timetableGamesByDay = root.stableGamesByDay(games);
+        }
         root.timetableProjectionSource = [];
         root.timetableProjectionCompactEvents = [];
         root.timetableProjectionGames = [];
@@ -1137,25 +1228,27 @@ Item {
     // on every republication, which is why a busy month felt slow to fill in.
     // The arrays are shared and read-only, same contract as
     // CalendarService.eventsByDay.
-    readonly property var timetableGamesByDay: {
-        const map = {};
-        const games = root.timetableGames ?? [];
-        for (let i = 0; i < games.length; i++) {
-            const key = root.dayKey(games[i]?.startDate);
-            if (key.length === 0)
-                continue;
-            if (!map[key])
-                map[key] = [];
-            map[key].push(games[i]);
-        }
-        return map;
+    //
+    // Published imperatively rather than as a binding on `timetableGames`,
+    // because a day whose games did not change must keep the *same* array
+    // instance: `MonthDayCell` derives its whole entry list from it, and a new
+    // identity there rebuilds every chip delegate of that cell. With many
+    // sports events in the visible range a single refreshed game used to
+    // rebuild the whole month; now only the affected days do.
+    property var timetableGamesByDay: ({})
+
+    /** Shared empty array so a day without games never changes identity. */
+    readonly property var noTimetableGames: []
+
+    function stableGamesByDay(games) {
+        return SportsCache.gamesByDay(games, value => root.dayKey(value), root.timetableGamesByDay);
     }
 
     function gamesForDate(date) {
         const key = root.dayKey(date);
         if (key.length === 0)
-            return [];
-        return root.timetableGamesByDay[key] ?? [];
+            return root.noTimetableGames;
+        return root.timetableGamesByDay[key] ?? root.noTimetableGames;
     }
 
     function gameById(gameId) {
@@ -1382,6 +1475,14 @@ Item {
             root.detailsCache = ({});
             root.detailsCacheLoaded = false;
             root.detailsRevision += 1;
+            root.finishCacheLoad();
+            return;
+        }
+
+        // The FileView re-reads the file on every open, but its parsed,
+        // compacted projection survives the close. Parsing it again would put
+        // the whole document back through QV4 for nothing.
+        if (root.scheduleCacheLoaded && root.detailsCacheLoaded) {
             root.finishCacheLoad();
             return;
         }

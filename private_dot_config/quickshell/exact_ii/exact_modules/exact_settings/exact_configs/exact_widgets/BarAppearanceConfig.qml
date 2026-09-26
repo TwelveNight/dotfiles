@@ -68,6 +68,21 @@ Item {
                         text: Translation.tr(ShellModePolicy.floatStyleBlockedReasonKey)
                     }
 
+                    NoticeBox {
+                        Layout.fillWidth: true
+                        visible: ShellModePolicy.barStyleBlockedByCenterInBarReasonKey.length > 0
+                        materialIcon: "lock"
+                        text: Translation.tr(ShellModePolicy.barStyleBlockedByCenterInBarReasonKey)
+
+                        ShortcutBox {
+                            targetPageId: "dynamicIsland"
+                            targetSectionTitle: Translation.tr("Dynamic Island in Bar Center")
+                            materialIcon: "arrow_forward"
+                            text: Translation.tr("Go to Dynamic Island settings")
+                            linkText: Translation.tr("Go there")
+                        }
+                    }
+
                     ConfigSelectionArray {
                         id: cornerStyleSelector
                         currentValue: Config.options.bar.cornerStyle
@@ -99,6 +114,16 @@ Item {
                             if (Config.options.bar.barBackgroundStyle === 3) {
                                 opts[2].enabled = false;
                                 opts[3].enabled = false;
+                            }
+                            // Which styles the centred island fits in depends on its
+                            // shell, so the allow-list is ShellModePolicy's to state:
+                            // an edge-attached notch needs Hug or Dynamic Island, an
+                            // island-shaped one drops into Float and Rect as well. The
+                            // `&&` keeps whatever the rules above already refused.
+                            if (ShellModePolicy.centerInBarActive) {
+                                const centred = ShellModePolicy.centerInBarStyles;
+                                opts[1].enabled = opts[1].enabled !== false && centred.indexOf(1) !== -1;
+                                opts[2].enabled = opts[2].enabled !== false && centred.indexOf(2) !== -1;
                             }
                             // The tablet family renders no dynamic island at all, so the
                             // style is not merely disabled here — it is not on offer.
