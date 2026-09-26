@@ -333,6 +333,9 @@ hl.bind("ALT + Space", hl.dsp.global("quickshell:overviewWorkspacesToggle"))
 -- Vicinae clipboard
 hl.bind("ALT + Space", hl.dsp.exec_cmd("vicinae"), { description = "Vicinae clipboard" })
 
+-- Wallpaper manager
+hl.bind("SUPER + CTRL + W", hl.dsp.exec_cmd("skwd-wall-v2"))
+
 -- Clean submap (passthrough all keys, exit with Super+Shift+Alt+P)
 hl.define_submap("clean", function()
 	hl.bind("SUPER + SHIFT + ALT + P", function()

@@ -29,3 +29,19 @@ hl.gesture({
 		hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }))
 	end,
 })
+
+-- Four-finger horizontal swipes move the focused window within the workspace.
+hl.gesture({
+	fingers = 4,
+	direction = "left",
+	action = function()
+		hl.dispatch(hl.dsp.window.move({ direction = "l" }))
+	end,
+})
+hl.gesture({
+	fingers = 4,
+	direction = "right",
+	action = function()
+		hl.dispatch(hl.dsp.window.move({ direction = "r" }))
+	end,
+})

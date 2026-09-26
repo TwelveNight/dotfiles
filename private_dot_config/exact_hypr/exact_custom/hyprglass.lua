@@ -31,7 +31,8 @@ if hl.plugin and hl.plugin.hyprglass then
 			adaptive_boost = 0.25,
 		},
 
-		-- Deliberately disabled: keep Quickshell/panel text under its own renderer.
+		-- Keep Quickshell's layer-shell surfaces under its own renderer. Applying
+		-- Hyprglass to all layer-shell surfaces destabilizes the active shell.
 		layers = { enabled = false },
 	})
 

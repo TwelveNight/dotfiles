@@ -107,6 +107,9 @@ Singleton {
     // Names of screens currently blacked out by the OLED saver overlay. Independent
     // per monitor: toggling one monitor doesn't affect the others.
     property var oledSaverMonitors: []
+    // The island's window, published so the OLED saver's focus grab can let the pointer
+    // reach it; a grab refuses pointer focus to every surface it does not list.
+    property var islandWindow: null
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
     property bool oskOpen: false
@@ -176,11 +179,13 @@ Singleton {
             return false;
         return monitors.some(mon => mon.specialWorkspace && mon.specialWorkspace.name !== "");
     }
+    property bool scratchpadEmptyOverlayActive: false
     readonly property bool overviewBackgroundActive: {
         const background = Config.options && Config.options.background;
         const allowOverviewBg = Config.options && Config.options.overview && Config.options.overview.animationStyle !== "none";
-        return Boolean(background && background.zoomOutEnabled
-            && ((root.classicOverviewOpen && allowOverviewBg) || root.cheatsheetOpen || root.scratchpadOpen || root.usageOpen || root.modesOpen));
+        return Boolean(background && (background.useBackgroundOverviewAlways
+            || (background.zoomOutEnabled
+                && ((root.classicOverviewOpen && allowOverviewBg) || root.cheatsheetOpen || root.scratchpadOpen || root.usageOpen || root.modesOpen))));
     }
 
     // BackgroundRoot owns one controller per monitor. Other background surfaces
@@ -498,6 +503,10 @@ Singleton {
     // The desktop's right-click menu: which screen, where on it. Session
     // state like the widget menu's; exists in and out of Edit Mode.
     property bool desktopMenuOpen: false
+    // The exit runs inside the live surface (DesktopMenuCard's reveal), so
+    // `open` stays true while the card plays out; only the card's
+    // exitFinished may clear it, through finishDesktopMenuClose.
+    property bool desktopMenuClosing: false
     property string desktopMenuScreenName: ""
     property real desktopMenuX: 0
     property real desktopMenuY: 0
@@ -518,10 +527,18 @@ Singleton {
         root.desktopMenuScreenName = screenName;
         root.desktopMenuX = x;
         root.desktopMenuY = y;
+        root.desktopMenuClosing = false;
         root.desktopMenuOpen = true;
     }
 
     function closeDesktopMenu() {
+        if (!root.desktopMenuOpen || root.desktopMenuClosing)
+            return;
+        root.desktopMenuClosing = true;
+    }
+
+    function finishDesktopMenuClose() {
+        root.desktopMenuClosing = false;
         root.desktopMenuOpen = false;
     }
 
@@ -1188,6 +1205,10 @@ Singleton {
     property real osdDropBottomRadius: 0
 
     property string osdCurrentIndicator: "volume"
+    // What the "toggle" OSD indicator draws: { icon, label, state: "on" | "off" | "" }.
+    property var osdPill: ({ icon: "", label: "", state: "" })
+    // A pill asked for over IPC (`osd pill`); OnScreenDisplay decides whether it shows.
+    signal osdPillRequested(string icon, string label, string state)
     property string osdProtectionMessage: ""
     signal osdInteraction
     property bool policiesExtended: false
@@ -1399,6 +1420,92 @@ Singleton {
         name: "videoEditorToggle"
         description: "Toggles the video editor"
         onPressed: root.toggleVideoEditor()
+    }
+
+    // Floating Recording Toolbar
+    property bool recordingToolbarOpen: false
+    property bool recordingToolbarOptionsOpen: false
+
+    function openRecordingToolbar() {
+        root.recordingToolbarOpen = true;
+    }
+
+    function closeRecordingToolbar() {
+        root.recordingToolbarOpen = false;
+        root.recordingToolbarOptionsOpen = false;
+    }
+
+    function toggleRecordingToolbar() {
+        root.recordingToolbarOpen = !root.recordingToolbarOpen;
+        if (!root.recordingToolbarOpen) {
+            root.recordingToolbarOptionsOpen = false;
+        }
+    }
+
+    function toggleRecordingToolbarOptions() {
+        root.recordingToolbarOpen = true;
+        root.recordingToolbarOptionsOpen = !root.recordingToolbarOptionsOpen;
+    }
+
+    function openRecordingToolbarOptions() {
+        root.recordingToolbarOpen = true;
+        root.recordingToolbarOptionsOpen = true;
+    }
+
+    property string recordingToolbarSection: ""
+
+    function setRecordingToolbarSection(section: string) {
+        root.recordingToolbarOpen = true;
+        root.recordingToolbarSection = (root.recordingToolbarSection === section) ? "" : section;
+    }
+
+    signal recordRegionRequested(sound: bool)
+
+    function startRegionRecording(sound) {
+        root.recordRegionRequested(!!sound);
+    }
+
+    IpcHandler {
+        target: "recordingToolbar"
+
+        function toggle(): void {
+            root.toggleRecordingToolbar();
+        }
+
+        function open(): void {
+            root.openRecordingToolbar();
+        }
+
+        function close(): void {
+            root.closeRecordingToolbar();
+        }
+
+        function toggleOptions(): void {
+            root.toggleRecordingToolbarOptions();
+        }
+
+        function openOptions(): void {
+            root.openRecordingToolbarOptions();
+        }
+
+        function toggleSection(section: string): void {
+            root.setRecordingToolbarSection(section);
+        }
+
+        function openSection(section: string): void {
+            root.recordingToolbarOpen = true;
+            root.recordingToolbarSection = section;
+        }
+
+        function recordRegion(sound: string): void {
+            root.startRegionRecording(sound === "true" || sound === "1");
+        }
+    }
+
+    GlobalShortcut {
+        name: "recordingToolbarToggle"
+        description: "Toggles the floating recording toolbar"
+        onPressed: root.toggleRecordingToolbar()
     }
 
     function toggleSettings() {
@@ -1655,6 +1762,14 @@ Singleton {
             root.osdVolumeOpen = true;
             root.osdInteraction();
         }
+
+        // An on/off pill for things the shell cannot see by itself (a touchpad toggle
+        // script, a vendor hotkey daemon). `state` is "on", "off" or "" for a plain notice;
+        // `icon` is a Material Symbols name.
+        //   qs -c ii ipc call osd pill touch_app "Touchpad enabled" on
+        function pill(icon: string, label: string, state: string): void {
+            root.osdPillRequested(icon, label, state);
+        }
     }
 
     GlobalShortcut {
@@ -1691,21 +1806,83 @@ Singleton {
         return true;
     }
 
-    // The floating Dynamic Island is the sole owner of the search surface
-    // while it is enabled. Its PanelWindow chooses the configured target
-    // monitor, so ownership must not depend on the monitor that opened it.
-    readonly property bool floatingNotchOwnsSearch: {
-        if (!Config.ready || !root.classicOverviewOpen)
-            return false;
-        if (root.searchCenterMode)
-            return false;
+    /**
+     * Whether the Dynamic Island is drawing search right now.
+     *
+     * Written by IslandPolicy, which is the one place that decides what the island owns;
+     * this is a plain property rather than a binding because IslandPolicy reads
+     * GlobalStates, and a singleton that reads back would be a cycle - which fails
+     * silently and would leave the island unloaded.
+     *
+     * The island is the search surface whenever it is enabled. It used to bow out in
+     * bar-centre mode, which meant the same keybind opened two visually different
+     * launchers depending on a setting that has nothing to do with search.
+     */
+    property bool islandOwnsSearch: false
 
-        const notch = Config.options.bar.floatingNotch;
-        if (!notch || !notch.enable || notch.centerInBar)
-            return false;
+    /**
+     * Whether the island draws the wallpaper picker instead of the standalone selector.
+     * Written by IslandPolicy, for the same reason as `islandOwnsSearch` above.
+     */
+    property bool islandOwnsWallpaper: false
 
-        return true;
-    }
+    /**
+     * Whether the island lays out the workspace overview itself, instead of showing the
+     * desktop overview at its own size with its own animations. Written by IslandPolicy.
+     */
+    property bool islandOwnsOverview: false
+
+    /**
+     * Whether the island draws the session menu instead of the full-screen session
+     * screen. Written by IslandPolicy, like the flags above.
+     */
+    property bool islandOwnsSession: false
+
+    /**
+     * The island is on and draws password prompts for the routes the user opted into;
+     * see AskpassService. Written by IslandPolicy, like the flags above.
+     */
+    property bool islandOwnsAskpass: false
+
+    /**
+     * Whether the island shows a picked colour, and an incoming file transfer, in place
+     * of their floating popups. Written by IslandPolicy, like the flags above.
+     */
+    property bool islandOwnsColorPicker: false
+    property bool islandOwnsLocalSendRequest: false
+    /** A ringing alarm is the island's, not the fullscreen popup's or a notification's. */
+    property bool islandOwnsAlarm: false
+    /** Music recognition reports on the island instead of in notifications. */
+    property bool islandOwnsSongRec: false
+    /**
+     * The island shows background jobs, so the shell's own long jobs (a media download,
+     * a speed test) report there. Read before touching ProgressService, which would
+     * otherwise start its job monitor for someone who never sees it.
+     */
+    property bool islandOwnsProgress: false
+    /**
+     * The shell itself holds the fingerprint reader (enrolling or testing a finger in
+     * Settings), which draws its own prompt. Written by the Fingerprint service.
+     */
+    property bool fingerprintClaimedByShell: false
+    /**
+     * A Discord client (Discord, Vesktop, Equibop, ...) has had a window this session.
+     *
+     * DiscordVoice is a Python bridge retrying Discord's RPC socket every few seconds, so
+     * anything that merely reads it starts that for good. The island and the dashboard
+     * tile only touch it once this is set. A latch: a client closed to the tray is still
+     * running, and once seen the check below stops walking the window list.
+     */
+    property bool discordClientSeen: false
+    readonly property var _discordClasses: ["discord", "discord-canary", "discordcanary", "discord-ptb",
+        "discordptb", "vesktop", "equibop", "webcord", "legcord", "armcord"]
+    readonly property bool _discordWindowOpen: !root.discordClientSeen
+        && (HyprlandData.windowList ?? []).some(client =>
+            root._discordClasses.indexOf(String(client?.class ?? "").toLowerCase()) !== -1)
+    on_DiscordWindowOpenChanged: if (root._discordWindowOpen) root.discordClientSeen = true
+
+    // Kept for the surfaces that still read the old name.
+    readonly property bool floatingNotchOwnsSearch: root.islandOwnsSearch
 
     readonly property bool osdConnectActive: {
         if (!connectModeActive)
@@ -1835,8 +2012,7 @@ Singleton {
 
     // ── Sidebar slide ───────────────────────────────────────────────────────
     // 0 = off screen, 1 = seated. A Behavior rather than a handler (the open flags already
-    // have theirs below), and it picks the curve from the direction: opening settles softly,
-    // closing accelerates away. The Default-style sidebar windows stay mapped until their
+    // have theirs below). The Default-style sidebar windows stay mapped until their
     // progress is back at 0.
     property real dashboardSlideProgress: dashboardPanelOpen ? 1 : 0
     property real policiesSlideProgress: policiesPanelOpen ? 1 : 0
@@ -1846,9 +2022,9 @@ Singleton {
         enabled: !Appearance.reducedMotion
         NumberAnimation {
             id: dashboardSlideAnimation
-            duration: dashboardSlideBehavior.targetValue > 0.5 ? Appearance.animation.sidebarSlide.enterDuration : Appearance.animation.sidebarSlide.exitDuration
+            duration: Appearance.animation.sidebarSlide.enterDuration
             easing.type: Easing.BezierSpline
-            easing.bezierCurve: dashboardSlideBehavior.targetValue > 0.5 ? Appearance.animation.sidebarSlide.enterCurve : Appearance.animation.sidebarSlide.exitCurve
+            easing.bezierCurve: Appearance.animation.sidebarSlide.enterCurve
         }
     }
 
@@ -1857,9 +2033,9 @@ Singleton {
         enabled: !Appearance.reducedMotion
         NumberAnimation {
             id: policiesSlideAnimation
-            duration: policiesSlideBehavior.targetValue > 0.5 ? Appearance.animation.sidebarSlide.enterDuration : Appearance.animation.sidebarSlide.exitDuration
+            duration: Appearance.animation.sidebarSlide.enterDuration
             easing.type: Easing.BezierSpline
-            easing.bezierCurve: policiesSlideBehavior.targetValue > 0.5 ? Appearance.animation.sidebarSlide.enterCurve : Appearance.animation.sidebarSlide.exitCurve
+            easing.bezierCurve: Appearance.animation.sidebarSlide.enterCurve
         }
     }
 
@@ -2005,7 +2181,88 @@ Singleton {
      */
     property int policiesHoldOpen: 0
 
+    /**
+     * A rectangle the left sidebar cuts out of its own input region, in the
+     * panel surface's own coordinates. The embedded phone mirror is the only
+     * user: a real scrcpy window sits exactly there, under a picture the panel
+     * paints over it, and the cut-out is what lets a click reach the phone
+     * instead of stopping at the panel. Empty means no cut-out.
+     */
+    property rect policiesPointerHole: Qt.rect(0, 0, 0, 0)
+    readonly property bool policiesPointerHoleActive: policiesPointerHole.width > 0 && policiesPointerHole.height > 0
+
+    /** The left sidebar's live layer surface, for whatever asked for the
+     *  cut-out to resolve its position against. Empty while it is unmapped. */
+    property string policiesSurfaceNamespace: ""
+    property string policiesSurfaceScreen: ""
+
+    /**
+     * One-shot navigation requests for the left sidebar: a tab to show, named
+     * by its icon, and a sub-page for the Phone tab to open once it is there.
+     * Whichever tab acts on one clears it, so a request that arrives before
+     * the sidebar's content exists still lands when it does.
+     */
+    property string policiesRequestTabIcon: ""
+    property url phoneRequestSubPage: ""
+
+    /** Opens the phone's screen inside the left sidebar — or, when the sidebar
+     *  mirror is switched off in Settings, as the scrcpy window it used to be. */
+    function openPhoneMirror(): void {
+        if (!(Config.options?.phone?.scrcpy?.embed?.enabled ?? true)) {
+            PhoneScrcpyService.launchMirror();
+            return;
+        }
+        root.phoneRequestSubPage = Qt.resolvedUrl("modules/ii/sidebarPolicies/phone/PhoneMirrorPage.qml");
+        root.policiesRequestTabIcon = "smartphone";
+        root.openLeftSidebar();
+    }
+
+    IpcHandler {
+        target: "phone"
+
+        function mirror(): void {
+            root.openPhoneMirror();
+        }
+
+        function closeMirror(): void {
+            root.phoneRequestSubPage = "";
+            root.sidebarLeftOpen = false;
+        }
+    }
+
     property bool requestVolumeDialog: false
+
+    /**
+     * A quick-toggle details page the island should open, by id.
+     *
+     * Surfaces that need a setting the island itself holds - the media card's audio
+     * output pill - ask for the page here and the island's surface consumes it. They
+     * used to send the user to the right sidebar instead, which is the wrong place
+     * entirely when the island is the thing on screen.
+     */
+    property string islandDashboardPage: ""
+
+    /** Whether the island, rather than the right sidebar, holds the quick settings. */
+    property bool islandOwnsDashboard: false
+
+    function openIslandPage(pageId) {
+        root.islandDashboardPage = pageId;
+    }
+
+    /**
+     * Open the audio output picker wherever the shell currently keeps it: a page inside
+     * the island when it is on, the right sidebar's dialog otherwise.
+     */
+    function openAudioOutputSettings() {
+        if (root.islandOwnsDashboard) {
+            root.openIslandPage("audioOutput");
+            return;
+        }
+        root.openRightSidebar();
+        Qt.callLater(() => {
+            root.requestVolumeDialog = true;
+        });
+    }
 
     readonly property bool effectiveLeftOpen: {
         if (PanelFamily.nativeAppWindows)
