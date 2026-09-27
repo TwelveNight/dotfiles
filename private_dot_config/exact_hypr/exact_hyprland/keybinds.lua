@@ -71,7 +71,7 @@ hl.bind("CTRL + SUPER + T", hl.dsp.exec_cmd(qsIsAlive .. " || " .. qsScripts .. 
 -- down with it, and it returns once the instance is really gone; killall is
 -- kept for an instance too wedged to answer over IPC.
 hl.bind("CTRL + SUPER + R",
-    hl.dsp.exec_cmd("killall ydotool; qs kill -c $qsConfig || killall qs quickshell 2>/dev/null; qs -c $qsConfig &"),
+    hl.dsp.exec_cmd("killall ydotool; qs kill -c $qsConfig || killall qs quickshell 2>/dev/null; qs -c $qsConfig -d"),
     { description = "Shell: Restart widgets" })
 hl.bind("CTRL + SUPER + P", hl.dsp.global("quickshell:panelFamilyCycle"), { description = "Shell: Cycle panel family" })
 
