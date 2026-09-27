@@ -1,6 +1,11 @@
 //@ pragma UseQApplication
 //@ pragma Env QS_NO_RELOAD_POPUP=1
 //@ pragma Env QT_QUICK_CONTROLS_STYLE=Basic
+// Quickshell's layer-shell text fields intermittently lose the native Wayland
+// text-input bridge after their host surface is rebuilt. Force Qt's Fcitx 5
+// platform input context for this process only; the plugin name is `fcitx`.
+// Keeping this here also covers every restart path, not only Hyprland startup.
+//@ pragma Env QT_IM_MODULE=fcitx
 //@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
 // Qt allocates a depth-stencil renderbuffer per window (and per layer) for 2D opaque batching. The rendered
 // output is identical without it; it only trades a little GPU time on heavy overdraw for ~20 MB per
