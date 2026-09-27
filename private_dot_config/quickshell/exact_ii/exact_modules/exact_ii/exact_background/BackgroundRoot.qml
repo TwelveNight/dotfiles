@@ -365,11 +365,28 @@ PanelWindow {
     // Media Mode has its own short-lived Overlay window. Promoting this
     // permanent fullscreen surface as well creates two competing input regions
     // and can leave the wallpaper above the interactive media controls.
-    WlrLayershell.layer: WlrLayer.Background
+    // skwd-wall owns the desktop Background layer. While locked, raise II's
+    // lock wallpaper to Bottom so it remains above skwd-wall after resume;
+    // Bottom still stays beneath normal windows and the lock surface.
+    WlrLayershell.layer: GlobalStates.screenLocked ? WlrLayer.Bottom : WlrLayer.Background
     // Media Mode owns focus in a short-lived dedicated PanelWindow. Keeping the
     // persistent wallpaper window focusable would make both surfaces compete.
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     WlrLayershell.namespace: "quickshell:background"
+    Timer {
+        id: lockLayerRestackTimer
+        interval: 60
+        repeat: false
+        onTriggered: GlobalStates.widgetReStackTrigger++
+    }
+    Connections {
+        target: GlobalStates
+        function onScreenLockedChanged() {
+            // Changing layer re-maps this surface at the top of Bottom. Keep
+            // the separate widgets surface above it after lock/unlock.
+            lockLayerRestackTimer.restart();
+        }
+    }
     anchors {
         top: true
         bottom: true

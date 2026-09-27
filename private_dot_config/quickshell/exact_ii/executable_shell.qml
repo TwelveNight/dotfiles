@@ -36,13 +36,10 @@ ShellRoot {
     ReloadPopup {}
     AltTabSwitcher {}
     IdleDim {} // hypridle's 120 s dim, see hypr/hypridle.conf
+    BarPopupService {}
 
-    // Boot split: only what the FIRST PAINT needs runs during engine load.
-    // Everything else starts from a 3 s timer — panel incubation is main-thread
-    // work, and ~40 singleton initializations (each spawning one-shot probes,
-    // FileView reads or daemons) compete with it and delay the bar's first
-    // mapped frame. Services still start exactly once per engine generation:
-    // the timer re-arms on every hot reload just like Component.onCompleted did.
+    // Boot split keeps service initialization off the first-paint path; upstream
+    // advances each service on its own event-loop slice after the initial delay.
     Component.onCompleted: {
         if (Qt.application) {
             Qt.application.applicationName = "quickshell";
@@ -86,6 +83,9 @@ ShellRoot {
             () => { if (Config.options?.waterReminder?.enable) WaterReminderService.enabled; },
             () => { if (Config.options?.calendar?.timetable?.notifications?.enable) CalendarNotifier.enabled; },
             () => { Todo.list; },
+            () => { AlarmService.alarms; },
+            () => { BedtimeService.enabled; },
+            () => { if (Config.options?.clockApp?.phoneAlarm?.enable ?? true) PhoneAlarmService.enabled; },
             () => { if (hasCalendarSubscriptions) CalendarSubscriptions.enabled; },
             () => { if (timetable?.imports?.enable && timetable?.imports?.gmailIcs?.enable) GmailCalendarImport.enabled; },
             () => { if (timetable?.imports?.enable && timetable?.imports?.outlook?.enable) OutlookCalendarImport.enabled; },
@@ -258,7 +258,7 @@ ShellRoot {
     Timer {
         id: settingsWarmup
         property var components: []
-        interval: 25000
+        interval: 15000
         running: Config.ready && components.length === 0
         onTriggered: {
             const urls = ["SettingsWindow.qml"].concat(SettingsPageRegistry.pages.map(page => page.component));

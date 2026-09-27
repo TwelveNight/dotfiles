@@ -2,7 +2,7 @@
 -- HyprGlass renders behind transparent window surfaces. Keep the alpha change
 -- subtle so text remains crisp while the glass layer becomes visible.
 -- 90% exposes the liquid-glass layer without washing out text.
-hl.window_rule({ match = { class = ".*" }, opacity = "0.75 0.75" })
+-- hl.window_rule({ match = { class = ".*" }, opacity = "0.75 0.75" })
 
 hl.window_rule({ match = { class = "^(com.onepassword.OnePassword)$" }, float = true })
 hl.window_rule({ match = { class = "^(yesplaymusic)$" }, float = true })
