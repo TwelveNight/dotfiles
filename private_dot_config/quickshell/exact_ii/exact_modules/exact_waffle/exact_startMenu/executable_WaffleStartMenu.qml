@@ -109,8 +109,8 @@ Scope {
         }
     }
     GlobalShortcut {
-        name: "searchToggleRelease"
-        description: "Toggles search on release"
+        name: "waffleSearchToggleRelease"
+        description: "Toggles Waffle search on Super release"
 
         property int _lastToggleTime: 0
 

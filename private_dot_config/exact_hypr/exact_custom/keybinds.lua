@@ -63,12 +63,16 @@ hl.unbind("SUPER + Space", hl.dsp.exec_cmd("hyprctl switchxkblayout all next"))
 hl.bind("SUPER + Space", hl.dsp.global("quickshell:overviewWorkspacesToggle"), {
 	description = "Shell: Toggle overview",
 })
--- Keep bare Super inert. The upstream layer binds it to the launcher, so
--- remove both its panel-family action and its fallback launcher command.
+-- Bare Super opens search only while the Waffle family owns its dedicated
+-- global shortcut. Other panel families do not register this action.
 hl.unbind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"))
 hl.unbind("SUPER + SUPER_R", hl.dsp.global("quickshell:searchToggleRelease"))
 hl.unbind("SUPER + SUPER_L", hl.dsp.exec_cmd("qs -c $qsConfig ipc call TEST_ALIVE ping || pkill fuzzel || fuzzel"))
 hl.unbind("SUPER + SUPER_R", hl.dsp.exec_cmd("qs -c $qsConfig ipc call TEST_ALIVE ping || pkill fuzzel || fuzzel"))
+hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:waffleSearchToggleRelease"), {
+	description = "Waffle: Toggle search",
+})
+hl.bind("SUPER + SUPER_R", hl.dsp.global("quickshell:waffleSearchToggleRelease"))
 -- Free N for workspace navigation (unbind sidebarRightToggle)
 hl.unbind("SUPER + N", hl.dsp.global("quickshell:sidebarRightToggle"))
 -- Free P for workspace navigation
