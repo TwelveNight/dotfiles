@@ -52,6 +52,13 @@ nvim.log
 .config/lazygit/state.yml
 .config/quickshell/ii/modules/common/Config.qml
 
+# Locally compiled Quickshell helpers and their build stamps. The source trees
+# are managed; these host-specific build outputs must stay live-only.
+.config/quickshell/ii/scripts/hyprland/.workspace_profile_manager.stamp
+.config/quickshell/ii/scripts/hyprland/workspace_profile_manager
+.config/quickshell/ii/scripts/touchGestures/.touch_gestures.stamp
+.config/quickshell/ii/scripts/touchGestures/touch_gestures
+
 # Personal OAuth/API credentials are intentionally unmanaged.
 .config/quickshell/ii/.env
 .config/hypr/custom/variables.lua
