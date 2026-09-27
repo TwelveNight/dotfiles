@@ -16,7 +16,8 @@ hl.window_rule({ match = { class = "^(wemeetapp)$" }, float = true })
 hl.window_rule({ match = { class = "^(xdg-desktop-portal-gtk)$" }, float = true })
 hl.window_rule({ match = { class = "^(pavucontrol-qt)$" }, float = true })
 hl.window_rule({ match = { class = "^(cc-switch)$" }, float = true })
-
+-- scrcpy uses the same class for Android App Mode and mirror windows.
+hl.window_rule({ match = { class = "^scrcpy$" }, float = true })
 -- Clash Verge
 hl.window_rule({ match = { class = "^(clash-verge)$" }, float = true })
 hl.window_rule({ match = { class = "^(clash-verge)$" }, size = { "(monitor_w*0.40)", "(monitor_h*0.60)" } })
