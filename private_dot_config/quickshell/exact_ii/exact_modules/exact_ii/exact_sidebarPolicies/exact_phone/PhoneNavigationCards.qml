@@ -12,6 +12,7 @@ Item {
     height: implicitHeight
 
     signal requestOpenSubPage(url subPageUrl)
+    property bool showContacts: true
 
     RowLayout {
         id: navigationRow
@@ -22,6 +23,7 @@ Item {
         // Contacts Card
         RippleButton {
             id: contactsBtn
+            visible: root.showContacts
             Layout.fillWidth: true
             Layout.preferredHeight: 58
             buttonRadius: Appearance.rounding.normal

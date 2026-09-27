@@ -49,7 +49,9 @@ Item {
     property int sendingIndex: 0
 
 
-    readonly property bool emptyStateVisible: !KdeConnectService.available
+    // KDE Connect availability gates its own features, but Android Apps uses
+    // ADB/scrcpy and remains useful while KDE Connect is offline.
+    readonly property bool kdeConnectOffline: !KdeConnectService.available
                                                || (KdeConnectService.hasDevices
                                                    && KdeConnectService.devices
                                                           .filter(d => d.reachable && d.paired)
@@ -700,7 +702,7 @@ Item {
             PhoneHeader {
                 id: phoneHeader
                 Layout.fillWidth: true
-                visible: !root.emptyStateVisible
+                visible: !root.kdeConnectOffline
             }
 
             // ───────── PAIRING REQUEST BANNERS ─────────
@@ -714,7 +716,7 @@ Item {
                     color: Appearance.colors.colPrimaryContainer
                     opacity: 0
                     scale: 0.98
-                    visible: !root.emptyStateVisible
+                    visible: !root.kdeConnectOffline
                     Component.onCompleted: {
                         opacity = 1
                         scale = 1
@@ -813,14 +815,17 @@ Item {
             PhoneActionsRow {
                 id: actionsRow
                 Layout.fillWidth: true
-                visible: !root.emptyStateVisible
+                visible: !root.kdeConnectOffline
             }
 
             // ───────── NAVIGATION CARDS (Contacts / Android Apps) ─────
             PhoneNavigationCards {
                 id: navCards
                 Layout.fillWidth: true
-                visible: !root.emptyStateVisible
+                // Keep the ADB/scrcpy app launcher available independently
+                // of KDE Connect. The Contacts card is a KDE Connect feature.
+                visible: true
+                showContacts: !root.kdeConnectOffline
                 onRequestOpenSubPage: (url) => root.openSubPage(url)
             }
 
@@ -837,7 +842,7 @@ Item {
                 id: notifArea
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                visible: !root.emptyStateVisible
+                visible: !root.kdeConnectOffline
 
                 // ─── Phone media widget (dashboard 4x2 tile) ───
                 // Sits at the top of the notifications list and only exists while
@@ -1032,7 +1037,10 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.margins: 14
-                visible: root.emptyStateVisible
+                // The Android Apps card remains actionable without KDE
+                // Connect; do not let the offline overlay cover it when
+                // scrcpy App Mode is installed.
+                visible: root.kdeConnectOffline && !PhoneScrcpyService.appModeSupported
                 // When invisible, this ColumnLayout's children include a
                 // RippleButton ("Install KDE Connect") whose MouseArea could
                 // still be enabled if the parent reports visibility async.
@@ -1046,7 +1054,7 @@ Item {
                 Connections {
                     target: root
                     function onEntranceTriggerChanged() {
-                        if (root.entranceTrigger >= 0 && root.emptyStateVisible) {
+                        if (root.entranceTrigger >= 0 && root.kdeConnectOffline) {
                             emptyIcon.scale = 0.2
                             emptyIconRotation.angle = -35
                             emptyTitleTranslate.y = 25
@@ -1188,7 +1196,7 @@ Item {
         DropArea {
             id: phoneDropArea
             anchors.fill: parent
-            enabled: KdeConnectService.available && KdeConnectService.activeReachable && root.activeSubPage.toString() === ""
+            enabled: !root.kdeConnectOffline && KdeConnectService.activeReachable && root.activeSubPage.toString() === ""
 
             onEntered: drag => {
                 if (drag.hasUrls) {
@@ -1534,4 +1542,3 @@ Item {
         }
     }
 }
-

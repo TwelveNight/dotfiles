@@ -316,10 +316,11 @@ Singleton {
         const ops = root._luaFindWindow()
             + root._luaFindPanel()
             + root._luaAttachToPanelScreen()
+            + `if not w.floating then hl.dispatch(hl.dsp.window.float({action="set",window=w})) end `
             + `hl.dispatch(hl.dsp.window.resize({window=w,x=${rw},y=${rh},exact=true})) `
             + `hl.dispatch(hl.dsp.window.move({window=w,x=lx+${rx},y=ly+${ry},exact=true})) `
             + `if not w.pinned then hl.dispatch(hl.dsp.window.pin({window=w})) end `
-            + `hl.dispatch(hl.dsp.window.set_prop({window=w,rounding=${Math.max(0, root.cornerRadius)}})) `;
+            + `hl.dispatch(hl.dsp.window.set_prop({window=w,prop="rounding",value=${Math.max(0, root.cornerRadius)}})) `;
         Hyprland.dispatch(root._luaWrap(ops));
 
         root._placedRect = Qt.rect(rx, ry, rw, rh);
@@ -370,8 +371,9 @@ Singleton {
      *  coordinates are relative to, and a surface that is not mapped has no
      *  cut-out to sit under. */
     function _luaFindPanel(): string {
-        return `local ns="${root.layerNamespace}" local lx,ly,mon `
-            + `for _,l in ipairs(hl.get_layers()) do if l.namespace==ns then lx=l.x ly=l.y mon=l.monitor end end `
+        const wantedScreen = String(root.screenName || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
+        return `local ns="${root.layerNamespace}" local wanted="${wantedScreen}" local lx,ly,mon `
+            + `for _,l in ipairs(hl.get_layers()) do if l.namespace==ns and (wanted=="" or (l.monitor and l.monitor.name==wanted)) then lx=l.x ly=l.y mon=l.monitor end end `
             + `if not lx then return hl.dsp.no_op() end `;
     }
 

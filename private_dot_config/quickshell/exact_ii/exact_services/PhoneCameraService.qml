@@ -457,8 +457,10 @@ Singleton {
      */
     function startCamera(): void {
         if (!root.available || root.running || root.connecting) return
-        if (!KdeConnectService.activeReachable) {
-            root.lastError = "No reachable KDE Connect device — pair a device first"
+        const conf = Config.options.phone.webcam
+        if (conf.connection !== "usb" && !(conf.wifiIp || "").trim()
+                && !KdeConnectService.activeReachable && !KdeConnectService.adbReachable) {
+            root.lastError = "No phone connection target. Connect through USB ADB or configure the phone Wi-Fi IP."
             root.errorOccurred(root.lastError)
             return
         }

@@ -59,6 +59,39 @@ PanelWindow {
     }
     readonly property bool policiesActiveOnMonitor: policiesOnLeft ? topPanel.leftSidebarActiveOnMonitor : topPanel.rightSidebarActiveOnMonitor
 
+    // In integrated Connect mode the Phone page lives inside this full-screen
+    // layer surface, not SidebarPolicies' separate PanelWindow. Publish the
+    // surface that actually owns the page so the embedded scrcpy window can
+    // be placed beneath its mirror frame.
+    readonly property bool ownsPoliciesSurface: GlobalStates.connectModeActive
+        && !GlobalStates.connectSidebarsSeparate
+        && !GlobalStates.policiesDetached
+        && topPanel.policiesOpenOnMonitor
+
+    function publishPoliciesSurface(): void {
+        const name = topPanel.screen?.name ?? "";
+        if (topPanel.ownsPoliciesSurface) {
+            GlobalStates.policiesSurfaceNamespace = "quickshell:topLayer";
+            GlobalStates.policiesSurfaceScreen = name;
+        } else if (GlobalStates.policiesSurfaceNamespace === "quickshell:topLayer"
+                   && GlobalStates.policiesSurfaceScreen === name) {
+            GlobalStates.policiesSurfaceNamespace = "";
+            GlobalStates.policiesSurfaceScreen = "";
+        }
+    }
+
+    onScreenChanged: topPanel.publishPoliciesSurface()
+
+    Connections {
+        target: GlobalStates
+        function onPoliciesPanelOpenChanged(): void { topPanel.publishPoliciesSurface(); }
+        function onPoliciesDetachedChanged(): void { topPanel.publishPoliciesSurface(); }
+        function onConnectModeActiveChanged(): void { topPanel.publishPoliciesSurface(); }
+        function onConnectSidebarsSeparateChanged(): void { topPanel.publishPoliciesSurface(); }
+        function onEffectiveLeftMonitorChanged(): void { topPanel.publishPoliciesSurface(); }
+        function onEffectiveRightMonitorChanged(): void { topPanel.publishPoliciesSurface(); }
+    }
+
     function togglePoliciesExtended() {
         GlobalStates.policiesExtended = !GlobalStates.policiesExtended;
     }
@@ -132,6 +165,7 @@ PanelWindow {
             topPanel.rightSidebarMaskWidth = GlobalStates.rightSidebarTargetWidth;
         }
         topPanel.updateFocusGrab();
+        topPanel.publishPoliciesSurface();
     }
 
     readonly property bool leftSidebarOpenOnMonitor: GlobalStates.sidebarLeftOpen && screen.name === GlobalStates.effectiveLeftMonitor
@@ -746,6 +780,11 @@ PanelWindow {
         WlrLayershell.namespace: "quickshell:pinReserver"
         exclusionMode: ExclusionMode.Normal
         color: "transparent"
+        // This surface exists only to reserve the pinned sidebar's screen
+        // space. Without an empty input mask it intercepts pointer events
+        // across the whole reserved strip, leaving the sidebar visible but
+        // unclickable.
+        mask: Region {}
         visible: GlobalStates.connectModeActive && !GlobalStates.connectSidebarsSeparate && GlobalStates.policiesPinned && !GlobalStates.policiesDetached && topPanel.policiesActiveOnMonitor
         anchors {
             top: true
@@ -1371,6 +1410,15 @@ PanelWindow {
             // OSD drop
             item: osdDropMaskItem
         }
+        Region {
+            // Let clicks inside the embedded phone frame reach the scrcpy
+            // window placed underneath this top-layer surface.
+            x: GlobalStates.policiesPointerHole.x
+            y: GlobalStates.policiesPointerHole.y
+            width: GlobalStates.policiesPointerHoleActive ? GlobalStates.policiesPointerHole.width : 0
+            height: GlobalStates.policiesPointerHoleActive ? GlobalStates.policiesPointerHole.height : 0
+            intersection: Intersection.Subtract
+        }
     }
 
     function updateFocusGrab() {
@@ -1410,7 +1458,14 @@ PanelWindow {
         }
     }
 
-    Component.onDestruction: GlobalFocusGrab.removeDismissable(topPanel)
+    Component.onDestruction: {
+        GlobalFocusGrab.removeDismissable(topPanel);
+        if (GlobalStates.policiesSurfaceNamespace === "quickshell:topLayer"
+            && GlobalStates.policiesSurfaceScreen === (topPanel.screen?.name ?? "")) {
+            GlobalStates.policiesSurfaceNamespace = "";
+            GlobalStates.policiesSurfaceScreen = "";
+        }
+    }
 
     Connections {
         target: GlobalStates

@@ -49,7 +49,14 @@ Item {
     readonly property bool _droidcamPresent: PhoneCameraService.available
     readonly property bool _micPresent: PhoneMicService.available
 
+    // Peripheral transports can work over USB ADB or a manually configured
+    // phone IP even when KDE Connect is offline.
     readonly property bool _deviceOnline: KdeConnectService.activeReachable
+        || KdeConnectService.adbReachable
+        || Config.options.phone.webcam.connection === "usb"
+        || (Config.options.phone.webcam.wifiIp || "").trim() !== ""
+        || Config.options.phone.microphone.connection === "usb"
+        || (Config.options.phone.microphone.wifiIp || "").trim() !== ""
 
     // ─── Install guide popup state ─────────────────────────
     // When visible, shows a floating overlay listing missing dependencies
@@ -226,7 +233,7 @@ Item {
                 if (!root._scrcpyPresent)
                     return Translation.tr("Click to see missing dependencies and install guide");
                 if (!root._deviceOnline)
-                    return Translation.tr("Pair a reachable device to mirror its screen");
+                    return "Connect the phone through ADB to mirror its screen";
                 if (launchErr.length > 0)
                     return launchErr.split("\n")[0];
                 if (isEmbedded)
@@ -245,7 +252,7 @@ Item {
             }
             state: !root._scrcpyPresent ? "unavailable" : !root._deviceOnline ? "offline" : launchErr.length > 0 ? "offline" : (isEmbedded || isRunning) ? "active" : isLaunching ? "connecting" : "ready"
             detailLine: isRunning ? Translation.tr("Active for %1").arg(root._fmtElapsed(PhoneScrcpyService.mirrorElapsedMs || KdeConnectService.scrcpyElapsedMs)) : ""
-            dropEnabled: isRunning && root._deviceOnline
+            dropEnabled: isRunning && KdeConnectService.activeReachable
             onFilesDropped: urls => {
                 urls.forEach(url => {
                     const file = String(url).replace(/^file:\/\//, "");
@@ -321,7 +328,7 @@ Item {
                 if (!root._droidcamPresent)
                     return Translation.tr("Click to see missing dependencies and install guide");
                 if (!root._deviceOnline)
-                    return Translation.tr("Pair a reachable device to use its camera");
+                    return "Connect by USB or set the phone Wi-Fi IP in settings";
                 if (PhoneCameraService.connecting)
                     return Translation.tr("Connecting to %1:%2…").arg(PhoneCameraService.activeIp || "?").arg(String(PhoneCameraService.activePort));
                 if (PhoneCameraService.running)
@@ -379,7 +386,7 @@ Item {
                 if (!root._micPresent)
                     return Translation.tr("Click to see missing dependencies and install guide");
                 if (!root._deviceOnline)
-                    return Translation.tr("Pair a reachable device to use its microphone");
+                    return "Connect by USB or set the phone Wi-Fi IP in settings";
                 if (PhoneMicService.connecting)
                     return Translation.tr("Set up audio routing…");
                 if (PhoneMicService.running)
