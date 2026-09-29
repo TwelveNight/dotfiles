@@ -548,14 +548,6 @@ Singleton {
      */
     function startMic(): void {
         if (!root.available || root.running || root.connecting) return
-        const target = Config.options.phone.microphone
-        if (target.connection !== "usb" && !(target.wifiIp || "").trim()
-                && !KdeConnectService.activeReachable && !KdeConnectService.adbReachable) {
-            root.lastError = "No phone connection target. Connect through USB ADB or configure the phone Wi-Fi IP."
-            root.errorOccurred(root.lastError)
-            return
-        }
-
         // Clean up any leftover module-loopback from a previous session.
         // If the shell crashed/reloaded while "Hear yourself" (monitoring)
         // was enabled, the loopback module persists in the PipeWire daemon

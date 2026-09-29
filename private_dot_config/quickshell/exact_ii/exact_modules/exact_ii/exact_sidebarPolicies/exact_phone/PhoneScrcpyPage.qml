@@ -27,7 +27,7 @@ ContentPage {
     signal goBack()
 
     readonly property bool _ready: KdeConnectService.scrcpyAvailable
-        && KdeConnectService.activeReachable
+        && (KdeConnectService.adbReachable || KdeConnectService.resolvedWirelessHost !== "")
 
     // Slide-up entrance when the sub-page overlay loads.
     opacity: 0
@@ -122,7 +122,7 @@ ContentPage {
                     text: KdeConnectService.scrcpyRunning
                         ? Translation.tr("Running")
                         : (KdeConnectService.scrcpyAvailable
-                            ? (KdeConnectService.activeReachable
+                            ? (root._ready
                                 ? Translation.tr("Ready")
                                 : Translation.tr("Offline"))
                             : Translation.tr("Unavailable"))
@@ -140,12 +140,12 @@ ContentPage {
     // ─── Error / offline banner ────────────────────────────
     WarningBox {
         Layout.fillWidth: true
-        visible: !KdeConnectService.scrcpyAvailable || !KdeConnectService.activeReachable
+        visible: !root._ready
         materialIcon: !KdeConnectService.scrcpyAvailable ? "download"
                     : "phonelink_off"
         text: !KdeConnectService.scrcpyAvailable
             ? Translation.tr("scrcpy is not installed. Install scrcpy and android-tools to mirror your phone screen.")
-            : Translation.tr("No reachable KDE Connect device. Pair a device first.")
+            : Translation.tr("No ADB device found. Connect via USB or enable Wireless debugging on the phone.")
 
         RippleButton {
             visible: !KdeConnectService.scrcpyAvailable
@@ -229,10 +229,9 @@ ContentPage {
 
             onClicked: {
                 if (KdeConnectService.scrcpyRunning || PhoneScrcpyService.mirrorRunning) {
-                    PhoneScrcpyService.stopMirror()
-                    KdeConnectService.killScrcpy()
+                    PhoneScrcpyService.stopMirroring()
                 } else {
-                    PhoneScrcpyService.launchMirror()
+                    PhoneScrcpyService.openMirrorWindow()
                 }
             }
         }
@@ -278,7 +277,7 @@ ContentPage {
                 buttonRadius: Appearance.rounding.normal
                 colBackground: Appearance.colors.colLayer2
                 colBackgroundHover: Appearance.colors.colLayer2Hover
-                enabled: KdeConnectService.activeReachable
+                enabled: KdeConnectService.scrcpyAvailable
                 opacity: enabled ? 1.0 : 0.5
                 contentItem: RowLayout {
                     spacing: 6
@@ -299,7 +298,7 @@ ContentPage {
                 onClicked: KdeConnectService.promptWirelessConnect(KdeConnectService.activeDeviceId)
                 StyledToolTip {
                     text: Config.options.phone.scrcpy.autoWirelessIp
-                        ? Translation.tr("Connect wirelessly using the auto-detected IP")
+                        ? Translation.tr("Connect wirelessly using the current ADB address and port")
                         : Translation.tr("Prompt for IP:port and switch to wireless mode")
                 }
             }
@@ -310,7 +309,7 @@ ContentPage {
                 buttonRadius: Appearance.rounding.normal
                 colBackground: Appearance.colors.colLayer2
                 colBackgroundHover: Appearance.colors.colLayer2Hover
-                enabled: KdeConnectService.activeReachable
+                enabled: KdeConnectService.adbReachable
                 opacity: enabled ? 1.0 : 0.5
                 contentItem: RowLayout {
                     spacing: 6
@@ -333,6 +332,98 @@ ContentPage {
                     text: Translation.tr("Screenshot the phone via ADB")
                 }
             }
+        }
+    }
+
+    // Waydroid is a separate local Android target. Keep its ADB serial and
+    // Codec2 settings out of the physical phone's saved scrcpy options.
+    ContentSection {
+        icon: "android"
+        title: Translation.tr("Waydroid")
+
+        RippleButton {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 40
+            buttonRadius: Appearance.rounding.normal
+            colBackground: Appearance.colors.colSecondaryContainer
+            colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+            contentItem: StyledText {
+                anchors.centerIn: parent
+                text: Translation.tr("Start Waydroid container")
+                color: Appearance.colors.colOnSecondaryContainer
+            }
+            onClicked: Quickshell.execDetached(["bash", Quickshell.shellPath("scripts/phone/waydroid_power.sh"), "start"])
+        }
+
+        RippleButton {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 40
+            buttonRadius: Appearance.rounding.normal
+            colBackground: Appearance.colors.colSecondaryContainer
+            colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+            contentItem: StyledText {
+                anchors.centerIn: parent
+                text: Translation.tr("Power off Waydroid service")
+                color: Appearance.colors.colOnSecondaryContainer
+            }
+            onClicked: Quickshell.execDetached(["bash", Quickshell.shellPath("scripts/phone/waydroid_power.sh"), "stop"])
+        }
+
+        RippleButton {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 40
+            buttonRadius: Appearance.rounding.normal
+            colBackground: Appearance.colors.colSecondaryContainer
+            colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+            enabled: KdeConnectService.waydroidDevice !== null
+            contentItem: StyledText {
+                anchors.centerIn: parent
+                text: KdeConnectService.activeIsWaydroid
+                    ? Translation.tr("Waydroid selected in Phone")
+                    : Translation.tr("Use Waydroid in Phone")
+                color: Appearance.colors.colOnSecondaryContainer
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.DemiBold
+            }
+            onClicked: KdeConnectService.selectWaydroid()
+        }
+
+        RippleButton {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 48
+            buttonRadius: Appearance.rounding.normal
+            colBackground: Appearance.colors.colSecondaryContainer
+            colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+            enabled: KdeConnectService.scrcpyAvailable
+            opacity: enabled ? 1.0 : 0.5
+            contentItem: RowLayout {
+                spacing: 8
+                MaterialSymbol {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: "open_in_new"
+                    iconSize: 20
+                    color: Appearance.colors.colOnSecondaryContainer
+                }
+                StyledText {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: Translation.tr("Open Waydroid Flex")
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.weight: Font.DemiBold
+                    color: Appearance.colors.colOnSecondaryContainer
+                }
+            }
+            onClicked: Quickshell.execDetached(["python3", Quickshell.shellPath("scripts/phone/waydroid_flex.py"), Config.options.phone.waydroidFlex.bitRate])
+            StyledToolTip {
+                text: Translation.tr("Start Waydroid and open a resizable Android window")
+            }
+        }
+
+        ConfigTextField {
+            text: Translation.tr("Waydroid Flex bitrate")
+            icon: "network_check"
+            placeholderText: "4M"
+            inputText: Config.options.phone.waydroidFlex.bitRate
+            textField.onEditingFinished: Config.options.phone.waydroidFlex.bitRate = textField.text.trim()
         }
     }
 
@@ -367,9 +458,7 @@ ContentPage {
             icon: "network_check"
             placeholderText: "8M"
             inputText: Config.options.phone.scrcpy.bitRate
-            onEditingFinished: {
-                Config.options.phone.scrcpy.bitRate = inputText.trim()
-            }
+            textField.onEditingFinished: Config.options.phone.scrcpy.bitRate = textField.text.trim()
         }
 
         ConfigSlider {
@@ -379,6 +468,17 @@ ContentPage {
             to: 200
             value: Config.options.phone.scrcpy.videoBuffer
             onValueChanged: Config.options.phone.scrcpy.videoBuffer = value
+            usePercentTooltip: false
+        }
+
+        ConfigSlider {
+            text: Translation.tr("Audio buffer (ms)")
+            buttonIcon: "graphic_eq"
+            from: 50
+            to: 500
+            stepSize: 25
+            value: Config.options.phone.scrcpy.audioBuffer
+            onValueChanged: Config.options.phone.scrcpy.audioBuffer = value
             usePercentTooltip: false
         }
     }
@@ -469,7 +569,7 @@ ContentPage {
                 buttonRadius: Appearance.rounding.normal
                 colBackground: Appearance.colors.colLayer2
                 colBackgroundHover: Appearance.colors.colLayer2Hover
-                enabled: KdeConnectService.activeReachable && KdeConnectService.adbReachable
+                enabled: KdeConnectService.adbReachable
                 opacity: enabled ? 1.0 : 0.5
                 contentItem: RowLayout {
                     spacing: 6
@@ -545,7 +645,7 @@ ContentPage {
         ConfigSwitch {
             visible: Config.options.phone.scrcpy.useWireless
             buttonIcon: "sync_alt"
-            text: Translation.tr("Auto-detect IP (KDE Connect)")
+            text: Translation.tr("Auto-detect ADB address and port")
             checked: Config.options.phone.scrcpy.autoWirelessIp
             onCheckedChanged: Config.options.phone.scrcpy.autoWirelessIp = checked
         }
@@ -581,7 +681,7 @@ ContentPage {
                     Layout.fillWidth: true
                     text: KdeConnectService.resolvedWirelessHost !== ""
                         ? Translation.tr("Will connect to %1").arg(KdeConnectService.resolvedWirelessHost)
-                        : Translation.tr("Waiting for KDE Connect to report the phone's IP…")
+                        : Translation.tr("Waiting for the wireless debugging service or an ADB connection…")
                     font.pixelSize: Appearance.font.pixelSize.small
                     font.weight: Font.DemiBold
                     color: KdeConnectService.resolvedWirelessHost !== ""
@@ -599,9 +699,7 @@ ContentPage {
             icon: "ip"
             placeholderText: "192.168.1.42"
             inputText: Config.options.phone.scrcpy.wirelessIp
-            onEditingFinished: {
-                Config.options.phone.scrcpy.wirelessIp = inputText.trim()
-            }
+            textField.onEditingFinished: Config.options.phone.scrcpy.wirelessIp = textField.text.trim()
         }
 
         ConfigSpinBox {
@@ -614,7 +712,10 @@ ContentPage {
                     : 5555
             from: 1024
             to: 65535
-            onValueChanged: Config.options.phone.scrcpy.wirelessPort = String(value)
+            onValueChanged: {
+                if (!Config.options.phone.scrcpy.autoWirelessIp)
+                    Config.options.phone.scrcpy.wirelessPort = String(value)
+            }
         }
     }
 

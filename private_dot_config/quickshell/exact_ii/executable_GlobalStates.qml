@@ -29,6 +29,7 @@ Singleton {
     readonly property bool mediaModeActive: mediaModeCount > 0
     property var mediaModeMonitors: []
     property int mediaModeCloseAllTrigger: 0
+    property bool mediaModeActivatedKeepAwake: false
     // A serial keeps repeated requests observable, including two quick-toggle
     // presses while the same Media Mode window is already open. BackgroundRoot
     // remains the per-screen lifecycle owner; this singleton only carries the
@@ -114,8 +115,10 @@ Singleton {
 
     property bool mediaControlsOpen: false
     property bool mediaControlsPinned: false
-    // Names of screens currently blacked out by the OLED saver overlay. Independent
-    // per monitor: toggling one monitor doesn't affect the others.
+    // Names of screens showing the Always On Display (the OLED saver). Independent
+    // per monitor: toggling one monitor doesn't affect the others. Read by the desktop
+    // overlay (OledSaver) and, while locked, by LockSurface, BackgroundRoot and the
+    // widgets window.
     property var oledSaverMonitors: []
     // The island's window, published so the OLED saver's focus grab can let the pointer
     // reach it; a grab refuses pointer focus to every surface it does not list.
@@ -1003,8 +1006,13 @@ Singleton {
         }
 
         function onMediaModeActiveChanged() {
-            if (root.mediaModeActive)
+            if (root.mediaModeActive) {
                 root.editMode = false;
+            } else if (root.mediaModeActivatedKeepAwake) {
+                root.mediaModeActivatedKeepAwake = false;
+                if (Idle.inhibit && !Idle.timed)
+                    Idle.toggleInhibit(false);
+            }
         }
 
         function onConnectModeActiveChanged() {
@@ -1186,6 +1194,21 @@ Singleton {
     property real activeSearchHeight: 0
     property real activeSearchWidth: 0
     property string activeSearchQuery: ""
+    // The scrolling overview on the focused monitor, while it is on screen. An
+    // empty search hands it the arrow keys and Enter (handleNavigationKey).
+    property var scrollingOverviewNavigator: null
+    // Screen name -> the active row's frame (screen coordinates) in the scrolling
+    // overview; the background controller zooms the wallpaper onto it. Replaced,
+    // never mutated, so bindings see every change.
+    property var scrollingOverviewTargets: ({})
+    function setScrollingOverviewTarget(screenName, rect) {
+        const current = root.scrollingOverviewTargets[screenName];
+        if (current && current.x === rect.x && current.y === rect.y && current.width === rect.width && current.height === rect.height)
+            return;
+        const next = Object.assign({}, root.scrollingOverviewTargets);
+        next[screenName] = rect;
+        root.scrollingOverviewTargets = next;
+    }
     // Search panels are lazy and may be hosted on any monitor. Keep a small
     // transient intent here so callers do not need to know which SearchWidget
     // instance will render it.
@@ -1302,6 +1325,10 @@ Singleton {
     function launchColorPicker() {
         Quickshell.execDetached(["qs", "-c", "ii", "ipc", "call", "colorPickerLaunch", "trigger"]);
     }
+
+    /// The mirror session the dock widget drives: scrcpy running either as a
+    /// normal window or launched through KDE Connect's lifecycle.
+    readonly property bool phoneMirrorRunning: PhoneScrcpyService.mirrorRunning || KdeConnectService.scrcpyRunning
 
     IpcHandler {
         target: "pickColor"
@@ -1889,7 +1916,9 @@ Singleton {
     readonly property bool _discordWindowOpen: !root.discordClientSeen
         && (HyprlandData.windowList ?? []).some(client =>
             root._discordClasses.indexOf(String(client?.class ?? "").toLowerCase()) !== -1)
-    on_DiscordWindowOpenChanged: if (root._discordWindowOpen) root.discordClientSeen = true
+    // Latched a turn later: setting it here re-evaluated `_discordWindowOpen`, which
+    // reads it, from inside its own change notification (a binding loop).
+    on_DiscordWindowOpenChanged: if (root._discordWindowOpen) Qt.callLater(() => root.discordClientSeen = true)
 
     // Kept for the surfaces that still read the old name.
     readonly property bool floatingNotchOwnsSearch: root.islandOwnsSearch
@@ -1915,8 +1944,38 @@ Singleton {
         function onReadyChanged() {
             if (Config.ready) {
                 root.enforceSidebarStyle();
+                root.enforceScrollingSearchLock();
             }
         }
+    }
+
+    /**
+     * The scrolling overview is the search's idle face with Hyprland's scrolling
+     * layout, so the search options that replace or hide it are locked off
+     * there: centred search, always listing apps and suggestions. Settings shows
+     * them disabled with the reason.
+     */
+    readonly property bool scrollingSearchLock: Persistent.states.hyprland.layout === "scrolling"
+    onScrollingSearchLockChanged: Qt.callLater(root.enforceScrollingSearchLock)
+    function enforceScrollingSearchLock() {
+        if (!Config.ready || !root.scrollingSearchLock)
+            return;
+        const search = Config.options.search;
+        if (search.positionStyle === "center")
+            search.positionStyle = "default";
+        if (search.alwaysListApps)
+            search.alwaysListApps = false;
+        if (search.suggestions.enable)
+            search.suggestions.enable = false;
+    }
+    Connections {
+        target: Config.ready ? Config.options.search : null
+        function onPositionStyleChanged() { Qt.callLater(root.enforceScrollingSearchLock); }
+        function onAlwaysListAppsChanged() { Qt.callLater(root.enforceScrollingSearchLock); }
+    }
+    Connections {
+        target: Config.ready ? Config.options.search.suggestions : null
+        function onEnableChanged() { Qt.callLater(root.enforceScrollingSearchLock); }
     }
 
     Connections {
@@ -2219,7 +2278,7 @@ Singleton {
      *  mirror is switched off in Settings, as the scrcpy window it used to be. */
     function openPhoneMirror(): void {
         if (!(Config.options?.phone?.scrcpy?.embed?.enabled ?? true)) {
-            PhoneScrcpyService.launchMirror();
+            PhoneScrcpyService.openMirrorWindow();
             return;
         }
         root.phoneRequestSubPage = Qt.resolvedUrl("modules/ii/sidebarPolicies/phone/PhoneMirrorPage.qml");
@@ -2227,8 +2286,20 @@ Singleton {
         root.openLeftSidebar();
     }
 
+    /** The Phone tab's "Type on phone" pad: the PC keyboard typing into the phone. */
+    function openPhoneKeyboard(): void {
+        root.phoneRequestSubPage = Qt.resolvedUrl("modules/ii/sidebarPolicies/phone/PhoneKeyboardPage.qml");
+        root.policiesRequestTabIcon = "smartphone";
+        root.openLeftSidebar();
+    }
+
     IpcHandler {
         target: "phone"
+
+        /** Opens the pad that types on the phone from the PC keyboard. */
+        function keyboard(): void {
+            root.openPhoneKeyboard();
+        }
 
         function mirror(): void {
             root.openPhoneMirror();
@@ -2237,6 +2308,21 @@ Singleton {
         function closeMirror(): void {
             root.phoneRequestSubPage = "";
             root.sidebarLeftOpen = false;
+        }
+
+        /** The mirror in its own floating window, toolbar and all. */
+        function mirrorWindow(): void {
+            PhoneScrcpyService.openMirrorWindow();
+        }
+
+        /** Ends every mirror of the phone screen, windowed or in the sidebar. */
+        function stopMirroring(): void {
+            PhoneScrcpyService.stopMirroring();
+        }
+
+        /** Starts or stops recording the phone screen to ~/Videos. */
+        function toggleRecording(): void {
+            PhoneScrcpyService.toggleRecording();
         }
     }
 

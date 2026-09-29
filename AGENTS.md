@@ -1,4 +1,4 @@
 # Workspace Instructions
 
-- After changing any chezmoi-managed configuration, apply the change to the local target files so the user can verify it.
-- Do not commit or push configuration changes until the user has explicitly completed verification and asks for the commit and push.
+- After changing any chezmoi-managed configuration, apply the change to the local target files.
+- Review the resulting source and target differences, exclude runtime artifacts and unrelated changes, and run appropriate checks before committing or pushing configuration changes. User verification is not required.

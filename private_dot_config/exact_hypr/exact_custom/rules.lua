@@ -18,6 +18,10 @@ hl.window_rule({ match = { class = "^(pavucontrol-qt)$" }, float = true })
 hl.window_rule({ match = { class = "^(cc-switch)$" }, float = true })
 -- scrcpy uses the same class for Android App Mode and mirror windows.
 hl.window_rule({ match = { class = "^scrcpy$" }, float = true })
+-- Waydroid's Android display uses a fixed phone-sized resolution per session.
+hl.window_rule({ match = { class = "^Waydroid$" }, float = true })
+hl.window_rule({ match = { class = "^Waydroid$" }, size = { "540", "960" } })
+hl.window_rule({ match = { class = "^Waydroid$" }, center = true })
 -- Clash Verge
 hl.window_rule({ match = { class = "^(clash-verge)$" }, float = true })
 hl.window_rule({ match = { class = "^(clash-verge)$" }, size = { "(monitor_w*0.40)", "(monitor_h*0.60)" } })

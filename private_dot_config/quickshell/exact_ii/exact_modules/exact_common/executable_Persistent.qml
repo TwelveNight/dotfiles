@@ -494,6 +494,11 @@ Singleton {
                             property JsonObject scrcpy: JsonObject {
                                 property list<string> recentPackages: []
                             }
+                            // Mirror / Webcam / Microphone group at the bottom of the tab
+                            property JsonObject peripherals: JsonObject {
+                                property bool collapsed: false
+                                property int tab: 0
+                            }
                         }
                 }
                 property JsonObject bottomGroup: JsonObject {
@@ -720,6 +725,12 @@ Singleton {
                 property string windDownNotified: ""
                 property string bedtimeNotified: ""
                 property real lastNudge: 0
+            }
+            // Screen-time limits: today's ignores, extra time and sent warnings, as
+            // one JSON document so the day can be reset in a single write.
+            property JsonObject screenTime: JsonObject {
+                property string date: ""
+                property string dayJson: "{}"
             }
             property JsonObject water: JsonObject {
                 property int glassesDrunk: 0

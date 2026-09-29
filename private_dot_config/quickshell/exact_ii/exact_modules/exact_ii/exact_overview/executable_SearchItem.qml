@@ -635,11 +635,10 @@ RippleButton {
                                 anchors.centerIn: parent
                                 implicitSize: Math.round(parent.width * 0.84)
                                 smooth: true
-                                // Rasterizing an app icon (usually an SVG) on the
-                                // UI thread cost about a millisecond per row every
-                                // time typing brought a new app into view. An icon
-                                // already in the pixmap cache still shows at once.
-                                asynchronous: true
+                                // Qt's asynchronous icon provider can leave theme
+                                // icons blank in search results. Load these small
+                                // application icons synchronously.
+                                asynchronous: false
                             }
                         }
 

@@ -9,6 +9,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import "timetable"
+import "settings"
 
 Scope {
     id: root
@@ -204,6 +205,27 @@ Scope {
             property int selectedTab: 0
             property int protectedTab: -1
             property int previousTab: -1
+            // Id of the tab whose own settings cover the page, "" when closed.
+            property string settingsTab: ""
+            readonly property string currentTabId: root.tabButtonList[cheatsheetRoot.selectedTab]?.id ?? ""
+            readonly property var settingsPages: ({
+                "keybinds": "settings/KeybindsSettings.qml",
+                "timetable": "settings/TimetableSettings.qml",
+                "aminoAcids": "settings/AminoAcidsSettings.qml",
+                "commands": "settings/CommandsSettings.qml"
+            })
+            readonly property bool currentTabHasSettings: cheatsheetRoot.settingsPages[cheatsheetRoot.currentTabId] !== undefined
+
+            function toggleSettings() {
+                cheatsheetRoot.settingsTab = cheatsheetRoot.settingsTab.length > 0 || !cheatsheetRoot.currentTabHasSettings
+                    ? "" : cheatsheetRoot.currentTabId;
+            }
+            onSettingsTabChanged: {
+                if (cheatsheetRoot.settingsTab.length > 0)
+                    return;
+                cheatsheetBackground.forceActiveFocus();
+                initialFocusTimer.restart();
+            }
             readonly property bool pageReady: swipeView.selectionReady && swipeView.currentItem?.isCurrent === true && swipeView.currentItem?.status === Loader.Ready && (swipeView.currentItem.item?.lookupReady ?? true)
 
             function clampTab(index) {
@@ -235,7 +257,10 @@ Scope {
                     Persistent.states.cheatsheet.tabIndex = index;
                 swipeView.restoreSelection();
             }
-            onSelectedTabChanged: Qt.callLater(swipeView.restoreSelection)
+            onSelectedTabChanged: {
+                cheatsheetRoot.settingsTab = "";
+                Qt.callLater(swipeView.restoreSelection);
+            }
 
             Component.onCompleted: {
                 cheatsheetRoot.initializeSelection();
@@ -334,6 +359,7 @@ Scope {
                 GlobalFocusGrab.removeDismissable(cheatsheetRoot);
                 cheatsheetRoot.protectedTab = -1;
                 cheatsheetRoot.previousTab = -1;
+                cheatsheetRoot.settingsTab = "";
                 cheatsheetBackground.ctrlPressed = false;
             }
 
@@ -450,6 +476,11 @@ Scope {
                         }
 
                         if (event.key === Qt.Key_Escape) {
+                            if (cheatsheetRoot.settingsTab.length > 0) {
+                                cheatsheetRoot.settingsTab = "";
+                                event.accepted = true;
+                                return;
+                            }
                             if (swipeView.currentItem?.item?.handleEscape?.()) {
                                 event.accepted = true;
                                 return;
@@ -458,6 +489,8 @@ Scope {
                             event.accepted = true;
                             return;
                         } else if (event.key === Qt.Key_Slash) {
+                            if (cheatsheetRoot.settingsTab.length > 0)
+                                return;
                             if (swipeView.currentItem && swipeView.currentItem.item) {
                                 swipeView.currentItem.item.forceActiveFocus();
                             }
@@ -473,7 +506,8 @@ Scope {
                             return;
                         }
 
-                        if (swipeView.currentItem?.item && typeof swipeView.currentItem.item.handleKey === "function") {
+                        // The page under an open settings sheet takes no keys.
+                        if (cheatsheetRoot.settingsTab.length === 0 && swipeView.currentItem?.item && typeof swipeView.currentItem.item.handleKey === "function") {
                             if (swipeView.currentItem.item.handleKey(event)) {
                                 event.accepted = true;
                                 return;
@@ -521,6 +555,21 @@ Scope {
                         }
                     }
 
+                    // The current tab's own settings (Keybinds, Timetable, Amino
+                    // acids, Commands).
+                    AppSettingsButton {
+                        id: settingsButton
+                        open: cheatsheetRoot.settingsTab.length > 0
+                        visible: cheatsheetRoot.currentTabHasSettings
+                        label: Translation.tr("%1 settings").arg(root.tabButtonList[cheatsheetRoot.selectedTab]?.name ?? "")
+                        anchors {
+                            top: closeButton.top
+                            right: closeButton.left
+                            rightMargin: 8
+                        }
+                        onClicked: cheatsheetRoot.toggleSettings()
+                    }
+
                     // Left counterpart of the close button: only the timetable tab
                     // has two shapes to choose between, so it only appears there.
                     TimetableViewSwitch {
@@ -535,7 +584,8 @@ Scope {
                             }
                         }
                         visible: Boolean(root.tabButtonList[swipeView.currentIndex] && root.tabButtonList[swipeView.currentIndex].icon === "calendar_month")
-                        animateIn: timetableViewSwitch.visible
+                        enabled: cheatsheetRoot.settingsTab.length === 0
+                        animateIn: timetableViewSwitch.visible && cheatsheetRoot.settingsTab.length === 0
                         compact: cheatsheetBackground.width < 1100
                         // Anchored to the column (a sibling) rather than the tab
                         // bar itself: an anchor may only target a parent or a
@@ -545,6 +595,22 @@ Scope {
                             leftMargin: 20
                             top: cheatsheetColumnLayout.top
                             topMargin: Math.max(0, (topToolbar.height - timetableViewSwitch.height) / 2)
+                        }
+                    }
+
+                    // The current tab's settings over its page, below the tab bar.
+                    AppSettingsHost {
+                        id: settingsHost
+                        z: 1
+                        open: cheatsheetRoot.settingsTab.length > 0
+                        source: open ? Qt.resolvedUrl(cheatsheetRoot.settingsPages[cheatsheetRoot.settingsTab] ?? "") : ""
+                        onCloseRequested: cheatsheetRoot.settingsTab = ""
+                        anchors {
+                            left: cheatsheetColumnLayout.left
+                            right: cheatsheetColumnLayout.right
+                            bottom: cheatsheetColumnLayout.bottom
+                            top: cheatsheetColumnLayout.top
+                            topMargin: topToolbar.height + cheatsheetColumnLayout.spacing + 5
                         }
                     }
 
@@ -583,6 +649,8 @@ Scope {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             property bool selectionReady: false
+                            opacity: 1 - settingsHost.progress
+                            enabled: cheatsheetRoot.settingsTab.length === 0
 
                             property bool hadRevealedPage: false
 

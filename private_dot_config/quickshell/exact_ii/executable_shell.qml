@@ -109,6 +109,7 @@ ShellRoot {
             () => { if (timetable?.birthdays?.enable) BirthdaysService.enabled; },
             () => { if (Config.options?.googleDrive?.enabled) GoogleDriveService.configured; },
             () => { if (Config.options?.appStats?.enable ?? true) AppStats.stateDir; },
+            () => { if ((Config.options?.appStats?.enable ?? true) && (Config.options?.screenTime?.enable ?? true)) ScreenTimeLimits.enabled; },
             () => { if (Config.options?.notes?.enable ?? true) NotesService.ready; },
             () => { if (Config.options?.modes?.enable ?? true) Modes.ready; },
             () => { if (Config.options?.tiling?.enable) TilingAssistant.enabled; },

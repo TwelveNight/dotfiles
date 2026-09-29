@@ -2,7 +2,56 @@ import Quickshell
 import qs
 import qs.services
 import qs.modules.common
+import qs.modules.common.panels.shellSwitcher
+import qs.modules.ii.background
+import qs.modules.ii.background.desktopMenu
+import qs.modules.ii.bar
+import qs.modules.ii.bluetoothConnectionPopup
+import qs.modules.ii.bluetoothPairing
+import qs.modules.ii.cheatsheet
+import qs.modules.ii.notes
+import qs.modules.ii.clock
+import qs.modules.ii.dock
+import qs.modules.ii.lock
+import qs.modules.ii.mediaControls
+import qs.modules.ii.notificationPopup
+import qs.modules.ii.onScreenDisplay
+import qs.modules.ii.onScreenDisplay.minimalist
+import qs.modules.common.onScreenKeyboard
+import qs.modules.ii.oledSaver
+import qs.modules.ii.overview
+import qs.modules.ii.polkit
+import qs.modules.ii.regionSelector
+import qs.modules.ii.screenCorners
+import qs.modules.ii.screenTranslator
+import qs.modules.ii.sessionScreen
+import qs.modules.ii.sidebarPolicies
+import qs.modules.ii.sidebarDashboard
+import qs.modules.ii.overlay
+import qs.modules.ii.verticalBar
+import qs.modules.ii.wallpaperSelector
+import qs.modules.ii.wrappedFrame
+import qs.modules.ii.colorPickerPopup
+import qs.modules.ii.videoEditor
+import qs.modules.ii.localSendPopup
+import qs.modules.ii.scratchpadOverlay
+import qs.modules.ii.keyboardLayoutTransitionPopup
+import qs.modules.ii.keypressDisplay
+import qs.modules.ii.topLayer
+import qs.modules.ii.tilingAssistant
+import qs.modules.ii.usage
+import qs.modules.ii.modes
+import qs.modules.ii.modeFlashPopup
+import qs.modules.ii.alarmRingingPopup
+import qs.modules.ii.screenTimeOverlay
+import qs.modules.ii.screenshotOverlay
+import qs.modules.ii.dynamicIsland
 import qs.modules.ii.dynamicIsland.core
+import qs.modules.ii.touchGestures
+import qs.modules.ii.editMode
+import qs.modules.tablet.appDrawer
+import qs.modules.ii.phoneControls
+import qs.modules.ii.recordingToolbar
 
 // Secondary panels stay behind URLs so their import graphs are compiled only
 // when PanelSchedule releases their individual creation slot.
@@ -11,6 +60,10 @@ Scope {
     UrlPanelLoader {
         panelUrl: Qt.resolvedUrl("../modules/ii/notes/NotesApp.qml")
         extraCondition: Config.options.notes.enable
+    }
+    UrlPanelLoader {
+        panelUrl: Qt.resolvedUrl("../modules/ii/clock/ClockApp.qml")
+        extraCondition: Config.options.clockApp?.enable ?? true
     }
     UrlPanelLoader {
         panelUrl: Qt.resolvedUrl("../modules/ii/usage/Usage.qml")
@@ -122,6 +175,10 @@ Scope {
     UrlPanelLoader {
         panelUrl: Qt.resolvedUrl("../modules/ii/alarmRingingPopup/AlarmRingingPopup.qml")
         extraCondition: AlarmService.ringingAlarmIndex !== -1 && Config.options.time.alarms.useFullscreenPopup
+    }
+    UrlPanelLoader {
+        panelUrl: Qt.resolvedUrl("../modules/ii/screenTimeOverlay/ScreenTimeOverlay.qml")
+        extraCondition: (Config.options.screenTime?.enable ?? true) && ScreenTimeLimits.activeBlock !== null
     }
     UrlPanelLoader {
         panelUrl: Qt.resolvedUrl("../modules/ii/screenshotOverlay/ScreenshotOverlay.qml")

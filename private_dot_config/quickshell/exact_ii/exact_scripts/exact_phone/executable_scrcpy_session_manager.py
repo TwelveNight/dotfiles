@@ -16,6 +16,13 @@ CACHE_DIR = Path.home() / ".cache" / "illogical-impulse" / "phone" / "apps"
 # real session, and so it can be matched separately.
 UNLOCK_WINDOW_TITLE = "ii-phone-unlock"
 
+def _default_sigint():
+    # The shell starts this process with SIGINT ignored, and an ignored signal
+    # survives exec: scrcpy then never sees the SIGINT that tells it to write
+    # a recording's index, and the file is lost. Children get it back.
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+
 class ScrcpySessionManager:
     def __init__(self):
         self.lock = threading.Lock()
@@ -26,6 +33,8 @@ class ScrcpySessionManager:
         self.deliberate = set()  # session_ids the user asked to stop
         self.listing = False  # an app listing is already under way
         self.keepalives = {}  # session_id -> when the shell last said it still wants it
+        self.wait_failures = {}  # session_id -> why its launch was never delivered
+        self.unfinalized = set()  # recordings that had to be killed before their file was written
         self.emit_lock = threading.Lock()
         self.running = True
 
@@ -72,15 +81,19 @@ class ScrcpySessionManager:
 
             if wanted and (wanted in usb_devices or wanted in ip_devices):
                 return ["-s", wanted]
+            # An explicit device must never fall through to another USB or
+            # network device (for example, the physical phone instead of
+            # Waydroid). Only a changed port on the same host may replace it.
+            if wanted:
+                if ":" in wanted:
+                    host = wanted.rsplit(":", 1)[0] + ":"
+                    same_host = [s for s in ip_devices if s.startswith(host)]
+                    if same_host:
+                        pinned = [s for s in same_host if s.endswith(":5555")]
+                        return ["-s", (pinned or same_host)[0]]
+                return ["-s", wanted]
             if usb_devices:
                 return ["-s", usb_devices[0]]
-            # The port is what goes stale, not the address: with two phones
-            # on the network, falling back must not land on the other one.
-            if ":" in wanted:
-                host = wanted.rsplit(":", 1)[0] + ":"
-                same_host = [s for s in ip_devices if s.startswith(host)]
-                if same_host:
-                    ip_devices = same_host
             pinned = [s for s in ip_devices if s.endswith(":5555")]
             if pinned:
                 return ["-s", pinned[0]]
@@ -97,15 +110,23 @@ class ScrcpySessionManager:
         was typed right behind it."""
         with self.lock:
             if self.listing:
+                self.pending_listing = (target_args, device_id)
                 return
             self.listing = True
 
         def work():
-            try:
-                self.list_apps(target_args=target_args, device_id=device_id)
-            finally:
+            current = (target_args, device_id)
+            while True:
+                try:
+                    self.list_apps(target_args=current[0], device_id=current[1])
+                except Exception as e:
+                    self.emit({"event": "apps_error", "deviceId": current[1], "message": str(e)})
                 with self.lock:
-                    self.listing = False
+                    current = getattr(self, "pending_listing", None)
+                    self.pending_listing = None
+                    if current is None:
+                        self.listing = False
+                        return
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -155,6 +176,7 @@ class ScrcpySessionManager:
             if not apps and not device_ok:
                 self.emit({
                     "event": "apps_error",
+                    "deviceId": device_id,
                     "message": "Phone not reachable over ADB"
                 })
                 return
@@ -191,6 +213,7 @@ class ScrcpySessionManager:
         except Exception as e:
             self.emit({
                 "event": "apps_error",
+                "deviceId": device_id,
                 "message": f"Failed to list apps: {e}"
             })
 
@@ -391,7 +414,8 @@ class ScrcpySessionManager:
         ends, exactly as if it had turned it off itself; only a launch that
         never gets that far has to be undone here.
 
-        Returns the resolved target to launch with, or None on timeout.
+        Returns the resolved target to launch with, or None on timeout; the
+        reason for a None is left in `wait_failures[session_id]`.
         """
         deadline = time.time() + timeout
         unlock_proc = None
@@ -399,10 +423,28 @@ class ScrcpySessionManager:
         tried_trusted = 0
         panel_held = False
         delivered = False
+        swiped = False
+        locked = None
+        self.wait_failures.pop(session_id, None)
         try:
             while True:
                 resolved = self.resolve_adb_target(target_args)
                 locked, secure = self.keyguard_state(resolved)
+                if locked is True and not need_unlocked and auto_unlock and not swiped:
+                    # A mirror of display 0 can start on the lockscreen, but
+                    # nobody opens one to look at it: wake the phone and swipe
+                    # up. That unlocks a swipe-only or trusted keyguard, and
+                    # brings a secure one straight to its PIN pad. Unlocking
+                    # restarts adbd, so the launch waits for it to answer again
+                    # rather than starting a scrcpy that dies a second later.
+                    swiped = True
+                    self._try_trusted_unlock(resolved, legacy=True)
+                    for _ in range(10):
+                        time.sleep(0.25)
+                        resolved = self.resolve_adb_target(target_args)
+                        if self.keyguard_state(resolved)[0] is not None:
+                            break
+                    continue
                 if locked is False or (locked is True and not need_unlocked):
                     # Dismissing the keyguard is not instant on the phone's
                     # side; creating the display in the tail of that
@@ -413,11 +455,13 @@ class ScrcpySessionManager:
                     return resolved
 
                 # Cheap and invisible, so it gets the first go; only when it
-                # fails is a window put on the user's screen.
+                # fails is a window put on the user's screen. A phone that
+                # wants its PIN can't be dismissed, but a lit session still
+                # gets the swipe that brings the PIN pad up in that window.
                 if (locked is True and need_unlocked and auto_unlock
                         and tried_trusted == 0 and secure
                         and self.needs_credential(resolved)):
-                    tried_trusted = 2
+                    tried_trusted = 2 if dark else 1
 
                 if (locked is True and need_unlocked and auto_unlock
                         and tried_trusted < 2):
@@ -474,8 +518,10 @@ class ScrcpySessionManager:
 
                 # Closing the unlock window is how the user says "not now".
                 if unlock_proc is not None and unlock_proc.poll() is not None:
+                    self.wait_failures[session_id] = "unlock_closed"
                     return None
                 if time.time() >= deadline:
+                    self.wait_failures[session_id] = "locked" if locked else "unreachable"
                     return None
                 time.sleep(1.0)
         finally:
@@ -530,17 +576,23 @@ class ScrcpySessionManager:
                 target_args, session_id, needs_display,
                 auto_unlock=auto_unlock, dark=dark)
             if resolved_target is None:
+                reason = self.wait_failures.pop(session_id, "unreachable")
                 self.emit({
                     "event": "error",
                     "id": session_id,
-                    "message": "Phone is locked or unreachable"
+                    "reason": reason,
+                    "message": {
+                        "unlock_closed": "The unlock window was closed before the phone was unlocked",
+                        "locked": "The phone stayed locked",
+                    }.get(reason, "The phone is not reachable over ADB")
                 })
                 return
 
             title = f"ii-phone-{type_str}-{session_id.replace(':', '_')}"
             cmd = ["scrcpy"] + resolved_target + ["--window-title=" + title] + args
 
-            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+                                    preexec_fn=_default_sigint)
             with self.lock:
                 self.processes[session_id] = proc
                 self.session_info[session_id] = {
@@ -576,13 +628,24 @@ class ScrcpySessionManager:
         # Drained as it comes, not read at the end: a pipe nobody reads fills
         # up after 64 KB of warnings, and scrcpy then blocks mid-session on
         # its next log line.
+        # scrcpy follows the line that says what went wrong with ones about
+        # tearing down ("Server connection failed" after "Device
+        # unauthorized"), so the first ERROR is the cause; the last line is
+        # only the fallback for a death that never said ERROR.
         err_msg = ""
+        first_error = ""
         try:
             for line in proc.stderr:
-                if line.strip():
-                    err_msg = line.strip()
+                line = line.strip()
+                if not line:
+                    continue
+                err_msg = line
+                if not first_error and line.startswith("ERROR:"):
+                    first_error = line[len("ERROR:"):].strip()
         except Exception:
             pass
+        if first_error:
+            err_msg = first_error
         code = proc.wait()
 
         with self.lock:
@@ -593,29 +656,60 @@ class ScrcpySessionManager:
             action = self.end_actions.pop(session_id, "")
             deliberate = session_id in self.deliberate
             self.deliberate.discard(session_id)
+            unfinalized = session_id in self.unfinalized
+            self.unfinalized.discard(session_id)
 
         # Only for a session that actually finished. A connection drop is not
         # the user putting the phone down, and the shell is about to reopen it.
         if action and (deliberate or code == 0):
             self._run_end_action(session_id, action)
 
-        self.emit({
+        event = {
             "event": "exited",
             "id": session_id,
             "code": code,
             "error": err_msg
-        })
+        }
+        if unfinalized:
+            event["unfinalized"] = True
+            event["error"] = "The recording could not be finalized"
+        self.emit(event)
 
     def stop_session(self, session_id):
         with self.lock:
             self.deliberate.add(session_id)
             proc = self.processes.get(session_id)
         if proc and proc.poll() is None:
+            with self.lock:
+                recording = (self.session_info.get(session_id) or {}).get("type") == "record"
             try:
+                if recording:
+                    # A recording is only a playable file once scrcpy has
+                    # written the mp4 index, which it does on SIGINT. A kill
+                    # leaves a file no player opens. Waited for off the command
+                    # loop, so a long finalize does not stall other commands.
+                    proc.send_signal(signal.SIGINT)
+                    threading.Thread(target=self._reap_recording, args=(session_id, proc), daemon=True).start()
+                    return
                 proc.terminate()
                 time.sleep(0.1)
                 if proc.poll() is None:
                     proc.kill()
+            except Exception:
+                pass
+
+    # Finishing the file takes well under a second. A scrcpy still running past
+    # this is not going to write it; the session is ended and the shell told.
+    RECORD_FINALIZE_TIMEOUT = 6
+
+    def _reap_recording(self, session_id, proc):
+        try:
+            proc.wait(timeout=self.RECORD_FINALIZE_TIMEOUT)
+        except Exception:
+            with self.lock:
+                self.unfinalized.add(session_id)
+            try:
+                proc.kill()
             except Exception:
                 pass
 
@@ -717,6 +811,21 @@ class ScrcpySessionManager:
         with self.lock:
             owned = [proc for sid, proc in self.processes.items()
                      if sid in self.SHELL_OWNED and proc.poll() is None]
+            recordings = [proc for sid, proc in self.processes.items()
+                          if (self.session_info.get(sid) or {}).get("type") == "record"
+                          and proc.poll() is None]
+        # A recording has no window to close it from either; finish the file
+        # rather than leave the phone recording for nobody.
+        for proc in recordings:
+            try:
+                proc.send_signal(signal.SIGINT)
+            except Exception:
+                pass
+        for proc in recordings:
+            try:
+                proc.wait(timeout=8)
+            except Exception:
+                pass
         for proc in owned:
             try:
                 proc.terminate()

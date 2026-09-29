@@ -8,6 +8,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
 import Quickshell.Wayland
+import qs.modules.ii.usage.limits
 
 /**
  * The usage overlay: per-app screen time and energy, on Super+U.
@@ -26,9 +27,18 @@ Scope {
     // them by name, and a reordered tab row must not silently change what opens.
     property string granularity: "day"
     property string metricKey: "fg"
-    /// Which half of the overlay is on screen: "apps" or "battery". The battery
-    /// view exists only on a machine that has one.
+    /// Which page of the overlay is on screen: "apps", "battery" or "limits". The
+    /// battery view exists only on a machine that has one.
     property string view: "apps"
+    /// The pages the tab row offers, in order.
+    readonly property var views: {
+        const list = [{ key: "apps", label: Translation.tr("App usage") }];
+        if (Battery.available)
+            list.push({ key: "battery", label: Translation.tr("Battery") });
+        if (Config.options.screenTime?.enable ?? true)
+            list.push({ key: "limits", label: Translation.tr("Daily limits") });
+        return list;
+    }
     property int periodOffset: 0
     property string selectedKey: ""
     // What the next opening starts on, written only by `resolveView`. Kept apart
@@ -46,8 +56,8 @@ Scope {
         const remembered = opts?.rememberLastView ?? true;
         root.pendingGranularity = (remembered ? opts?.lastGranularity : opts?.defaultGranularity) ?? "day";
         root.pendingMetric = (remembered ? opts?.lastMetric : opts?.defaultMetric) ?? "fg";
-        root.pendingView = remembered && opts?.lastView === "battery" && Battery.available
-            ? "battery" : "apps";
+        const last = remembered ? (opts?.lastView ?? "apps") : "apps";
+        root.pendingView = root.views.some(v => v.key === last) ? last : "apps";
         root.granularity = root.pendingGranularity;
         root.metricKey = root.pendingMetric;
         root.view = root.pendingView;
@@ -89,6 +99,12 @@ Scope {
     function requestClose() {
         GlobalStates.usageOpen = false;
         if (!usageLoader.item) root.activeState = false;
+    }
+
+    function openView(view: string): void {
+        root.requestOpen();
+        if (root.views.some(v => v.key === view))
+            root.view = view;
     }
 
     function requestToggle() {
@@ -139,6 +155,9 @@ Scope {
                 root.requestClose();
             }
 
+            // The overlay's own settings cover the page under the tab row.
+            property bool settingsOpen: false
+
             // Registering the grab immediately would catch the keypress that opened
             // the overlay and close it again.
             Timer {
@@ -168,6 +187,7 @@ Scope {
                 }
                 registerGrabTimer.stop();
                 GlobalFocusGrab.removeDismissable(usageRoot);
+                usageRoot.settingsOpen = false;
             }
 
             Timer {
@@ -219,11 +239,16 @@ Scope {
                     // without leaving the keyboard the overlay was opened from.
                     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Escape) {
-                            usageRoot.hide();
+                            if (usageRoot.settingsOpen)
+                                usageRoot.settingsOpen = false;
+                            else
+                                usageRoot.hide();
                             event.accepted = true;
                             return;
                         }
-                        const target = usageBatteryLoader.item ?? usageContentLoader.item;
+                        if (usageRoot.settingsOpen)
+                            return;
+                        const target = usageLimitsLoader.item ?? usageBatteryLoader.item ?? usageContentLoader.item;
                         event.accepted = target ? target.handleKey(event.key) : false;
                     }
 
@@ -260,6 +285,34 @@ Scope {
                         }
                     }
 
+                    AppSettingsButton {
+                        id: settingsButton
+                        open: usageRoot.settingsOpen
+                        label: Translation.tr("App usage settings")
+                        anchors {
+                            top: closeButton.top
+                            right: closeButton.left
+                            rightMargin: 8
+                        }
+                        onClicked: usageRoot.settingsOpen = !usageRoot.settingsOpen
+                    }
+
+                    AppSettingsHost {
+                        id: settingsHost
+                        z: 1
+                        open: usageRoot.settingsOpen
+                        source: Qt.resolvedUrl("UsageSettings.qml")
+                        onCloseRequested: usageRoot.settingsOpen = false
+                        onOpenChanged: if (!open) usageBackground.forceActiveFocus()
+                        anchors {
+                            left: usageColumnLayout.left
+                            right: usageColumnLayout.right
+                            bottom: usageColumnLayout.bottom
+                            top: usageColumnLayout.top
+                            topMargin: viewHeader.height + usageColumnLayout.spacing
+                        }
+                    }
+
                     ColumnLayout {
                         id: usageColumnLayout
 
@@ -272,29 +325,31 @@ Scope {
                         // them. Anchored rather than laid out: centred on the
                         // window, not on whatever space the note beside them left.
                         Item {
+                            id: viewHeader
                             Layout.fillWidth: true
                             implicitHeight: viewTabs.visible ? viewTabs.implicitHeight : soleTitle.implicitHeight
 
-                            // Only on a machine with a pack to draw. A desktop has
-                            // one view, and a lone tab is not a choice.
+                            // A lone tab is not a choice, so one view shows its
+                            // name instead.
                             SecondaryTabBar {
                                 id: viewTabs
 
                                 requestOnly: true
-                                visible: Battery.available && AppStats.binaryPresent
-                                width: 360
+                                visible: root.views.length > 1 && AppStats.binaryPresent
+                                width: 180 * root.views.length
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                selectedIndex: root.view === "battery" ? 1 : 0
+                                selectedIndex: Math.max(0, root.views.findIndex(v => v.key === root.view))
 
                                 onIndexSelected: index => {
-                                    const nextView = index === 1 ? "battery" : "apps";
+                                    usageRoot.settingsOpen = false;
+                                    const nextView = root.views[index]?.key ?? "apps";
                                     root.view = nextView;
                                     if (Config.options.appStats?.rememberLastView ?? true)
                                         Config.options.appStats.lastView = nextView;
                                 }
 
                                 Repeater {
-                                    model: [Translation.tr("App usage"), Translation.tr("Battery")]
+                                    model: root.views.map(v => v.label)
 
                                     delegate: SecondaryTabButton {
                                         required property string modelData
@@ -326,7 +381,7 @@ Scope {
                             // counters or a battery-drain guess, so it is stated
                             // rather than left for the user to infer.
                             StyledText {
-                                visible: AppStats.running && root.view === "apps"
+                                visible: AppStats.running && root.view === "apps" && !usageRoot.settingsOpen
                                 text: {
                                     switch (AppStats.source) {
                                     case "rapl":
@@ -342,7 +397,8 @@ Scope {
 
                                 anchors {
                                     right: parent.right
-                                    rightMargin: 52
+                                    // Clears the close button and the settings gear.
+                                    rightMargin: 100
                                     verticalCenter: parent.verticalCenter
                                 }
                             }
@@ -355,6 +411,8 @@ Scope {
                             readonly property real calculatedHeight: usageRoot.screen ? usageRoot.screen.height * 0.62 : 650
 
                             active: !AppStats.binaryPresent
+                            opacity: 1 - settingsHost.progress
+                            enabled: !usageRoot.settingsOpen
                             visible: active
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -374,6 +432,8 @@ Scope {
                             readonly property real calculatedHeight: usageRoot.screen ? usageRoot.screen.height * 0.62 : 650
 
                             active: AppStats.binaryPresent && root.view === "apps"
+                            opacity: 1 - settingsHost.progress
+                            enabled: !usageRoot.settingsOpen
                             visible: active
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -413,6 +473,8 @@ Scope {
                             readonly property real calculatedHeight: usageRoot.screen ? usageRoot.screen.height * 0.62 : 650
 
                             active: AppStats.binaryPresent && Battery.available && root.view === "battery"
+                            opacity: 1 - settingsHost.progress
+                            enabled: !usageRoot.settingsOpen
                             visible: active
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -429,6 +491,26 @@ Scope {
                                     root.rememberView();
                                 }
                             }
+                        }
+
+                        // Daily limits: the rules, today's standing against them, and
+                        // the editors. Built only while its tab is open.
+                        Loader {
+                            id: usageLimitsLoader
+
+                            readonly property real calculatedWidth: usageRoot.screen ? usageRoot.screen.width * 0.92 : 1700
+                            readonly property real calculatedHeight: usageRoot.screen ? usageRoot.screen.height * 0.62 : 650
+
+                            active: AppStats.binaryPresent && root.view === "limits"
+                            opacity: 1 - settingsHost.progress
+                            enabled: !usageRoot.settingsOpen
+                            visible: active
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.preferredWidth: Math.min(1500, Math.max(900, calculatedWidth))
+                            Layout.preferredHeight: Math.min(700, Math.max(460, calculatedHeight))
+
+                            sourceComponent: UsageLimits {}
                         }
                     }
                 }
@@ -449,6 +531,10 @@ Scope {
 
         function close(): void {
             root.requestClose();
+        }
+
+        function limits(): void {
+            root.openView("limits");
         }
     }
 

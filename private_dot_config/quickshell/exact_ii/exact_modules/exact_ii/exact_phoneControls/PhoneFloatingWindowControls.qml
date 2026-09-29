@@ -60,10 +60,14 @@ Scope {
                     for (const client of clients) {
                         if (!client || client.fullscreen)
                             continue;
-                        const isScrcpy = String(client.class ?? "").toLowerCase() === "scrcpy"
-                            || String(client.title ?? "").startsWith("ii-phone-mirror-")
-                            || String(client.title ?? "").toLowerCase().includes("scrcpy");
-                        if (!isScrcpy)
+                        // Only the mirror window. Every scrcpy window has the
+                        // class "scrcpy", including the sidebar's embedded one
+                        // parked off-screen and the throwaway unlock mirror —
+                        // matching on the class dragged those into view.
+                        const title = String(client.title ?? "");
+                        const isMirror = title.startsWith("ii-phone-mirror-")
+                            || title.startsWith("ii scrcpy");
+                        if (!isMirror)
                             continue;
                         const clientMonitor = TabletWindowActions.monitorForClient(client);
                         if (String(clientMonitor?.name ?? "") !== controlsWindow.screenName)
@@ -206,6 +210,17 @@ Scope {
                     if (controlsWindow.targetAddress.length > 0 && controlsWindow.targetAddress !== controlsWindow.lastManagedAddress) {
                         controlsWindow.lastManagedAddress = controlsWindow.targetAddress;
                         controlsWindow.initializeWindowGeometry();
+                    }
+                }
+
+                // The phone's resolution is read over adb when the mirror is
+                // asked for and can land after the window does; the window is
+                // cropped again with it rather than left at the fallback aspect.
+                Connections {
+                    target: PhoneMirrorService
+                    function onDeviceHeightChanged() {
+                        if (!controlsWindow.dragging && controlsWindow.targetAddress.length > 0)
+                            controlsWindow.initializeWindowGeometry();
                     }
                 }
 
@@ -556,6 +571,49 @@ Scope {
                                 }
                             }
 
+                            // Record the phone screen to a file, beside the mirror
+                            TabletWindowControlButton {
+                                id: recordButton
+                                readonly property bool recording: PhoneScrcpyService.recordingRunning || PhoneScrcpyService.recordingLaunching
+                                symbol: recordButton.recording ? "stop_circle" : "radio_button_checked"
+                                controlSize: controlsWindow.stripHeight - 10
+                                colBackground: recordButton.recording
+                                    ? Appearance.colors.colErrorContainer
+                                    : Appearance.colors.colLayer2
+                                colBackgroundHover: recordButton.recording
+                                    ? Appearance.colors.colErrorContainer
+                                    : Appearance.colors.colLayer2Hover
+                                scale: pressed ? 0.90 : (hovered ? 1.08 : 1.0)
+
+                                Behavior on scale {
+                                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(recordButton)
+                                }
+                                Behavior on colBackground {
+                                    animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(recordButton)
+                                }
+
+                                contentItem: MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: recordButton.symbol
+                                    fill: 1
+                                    iconSize: Math.round((controlsWindow.stripHeight - 10) * 0.5)
+                                    color: recordButton.recording
+                                        ? Appearance.colors.colOnErrorContainer
+                                        : Appearance.colors.colError
+                                }
+
+                                StyledToolTip {
+                                    requireOverlay: false
+                                    text: PhoneScrcpyService.recordingRunning
+                                        ? Translation.tr("Stop recording · %1").arg(PhoneScrcpyService._fmtDuration(PhoneScrcpyService.recordingElapsedMs))
+                                        : PhoneScrcpyService.recordingLaunching
+                                            ? Translation.tr("Starting recording…")
+                                            : Translation.tr("Record the phone screen")
+                                }
+
+                                releaseAction: () => PhoneScrcpyService.toggleRecording()
+                            }
+
                             // Stop screensharing button
                             RippleButton {
                                 id: stopButton
@@ -591,7 +649,7 @@ Scope {
                                 }
 
                                 releaseAction: () => {
-                                    PhoneScrcpyService.stopMirror();
+                                    PhoneScrcpyService.stopMirroring();
                                 }
                             }
 
@@ -622,7 +680,7 @@ Scope {
 
                                 releaseAction: () => {
                                     TabletWindowActions.closeWindow(controlsWindow.targetAddress);
-                                    PhoneScrcpyService.stopMirror();
+                                    PhoneScrcpyService.stopMirroring();
                                 }
                             }
                         }

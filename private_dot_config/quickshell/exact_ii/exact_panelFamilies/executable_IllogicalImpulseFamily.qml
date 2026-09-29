@@ -37,17 +37,17 @@ Scope {
 
     // In Connect mode TopLayer owns the visible bar. In Default mode one of the
     // standalone bars owns it. Whichever is wanted takes the first schedule slot.
-    PanelLoader {
+    PanelUrlLoader {
         extraCondition: GlobalStates.connectModeActive
-        component: TopLayer {}
+        panelUrl: Qt.resolvedUrl("../modules/ii/topLayer/TopLayer.qml")
     }
-    PanelLoader {
+    PanelUrlLoader {
         extraCondition: !BarPlacement.vertical && root.barExtraCondition && !GlobalStates.connectModeActive
-        component: Bar {}
+        panelUrl: Qt.resolvedUrl("../modules/ii/bar/Bar.qml")
     }
-    PanelLoader {
+    PanelUrlLoader {
         extraCondition: BarPlacement.vertical && root.barExtraCondition && !GlobalStates.connectModeActive
-        component: VerticalBar {}
+        panelUrl: Qt.resolvedUrl("../modules/ii/verticalBar/VerticalBar.qml")
     }
 
     // A short compositor window lets the first surface map before compiling the

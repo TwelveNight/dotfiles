@@ -230,12 +230,7 @@ Singleton {
             "name": "Cheat Sheet",
             "icon": "help",
             "component": "modules/settings/configs/CheatSheetConfig.qml",
-            "subPages": [
-                "widgets/CheatSheetAppearanceConfig.qml",
-                "widgets/TimetableConfig.qml",
-                "widgets/CheatsheetAminoAcidsConfig.qml",
-                "widgets/CheatsheetCommandsConfig.qml"
-            ],
+            "subPages": [],
             "aliases": ["Shortcuts", "Keybinds", "Timetable", "Gmail", "Amino acids", "Commands reference", "Periodic table"]
         },
         {
@@ -262,7 +257,7 @@ Singleton {
             "icon": "monitor",
             "component": "modules/settings/configs/DisplaysConfig.qml",
             "subPages": [],
-            "aliases": ["Monitors", "hyprmon", "Resolution", "Refresh rate", "Scale", "OLED Saver", "Blackout"]
+            "aliases": ["Monitors", "hyprmon", "Resolution", "Refresh rate", "Scale", "OLED Saver", "Blackout", "Always On Display", "AOD"]
         },
         {
             "id": "hyprland",
@@ -360,10 +355,7 @@ Singleton {
             "name": "App Usage",
             "icon": "bar_chart",
             "component": "modules/settings/configs/UsageStatsConfig.qml",
-            "subPages": [
-                "widgets/UsageStatsOverlayConfig.qml",
-                "widgets/UsageStatsCollectionConfig.qml"
-            ],
+            "subPages": [],
             "aliases": ["Usage stats", "Screen time", "App usage", "Digital wellbeing", "Energy per app", "RAPL", "History retention", "Sampler"]
         },
         {
@@ -381,9 +373,9 @@ Singleton {
             "name": "Devices & Phone",
             "icon": "smartphone",
             "component": "modules/settings/configs/DevicesPhoneConfig.qml",
-            "subPages": ["widgets/KdeConnectConfig.qml"],
+            "subPages": [],
             "searchSources": ["sections/PhoneBluetoothImagesSection.qml"],
-            "aliases": ["Core Services", "scrcpy", "Bluetooth Device Images", "LocalSend", "Wireless debugging", "Phone", "KDE Connect", "File Sharing", "Share files"]
+            "aliases": ["Core Services", "Bluetooth Device Images", "LocalSend", "Phone", "KDE Connect", "File Sharing", "Share files"]
         },
         {
             "id": "privacy",
@@ -398,8 +390,9 @@ Singleton {
             "name": "Lock Screen",
             "icon": "lock",
             "component": "modules/settings/configs/LockScreenConfig.qml",
-            "subPages": ["widgets/LockscreenNotificationsConfig.qml", "widgets/LockscreenEffectsConfig.qml", "widgets/LockscreenWidgetsConfig.qml", "widgets/FingerprintConfig.qml"],
-            "aliases": ["Fingerprint", "Biometrics", "fprintd", "Fingerprint reader"]
+            "subPages": ["widgets/LockscreenNotificationsConfig.qml", "widgets/FingerprintConfig.qml"],
+            "searchSources": ["sections/LockLookSection.qml", "sections/LockGeneralSection.qml"],
+            "aliases": ["Fingerprint", "Biometrics", "fprintd", "Fingerprint reader", "Lock blur", "Vignette", "Color wash", "Desaturate"]
         },
         {
             "id": "about",
