@@ -9,8 +9,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("gnome-keyring-daemon --start --components=secrets")
     hl.exec_cmd("hypridle")
     hl.exec_cmd("dbus-update-activation-environment --all")
-    hl.exec_cmd("sleep 1 && dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE && systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE && systemctl --user start hyprland-session.target")
-
+    hl.exec_cmd("sleep 1 && dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE && systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE")
 
     -- Audio (wait for Quickshell's tray watcher so EasyEffects registers its tray icon successfully)
     hl.exec_cmd(
@@ -31,8 +30,4 @@ hl.on("hyprland.start", function()
 
     -- Cursor
     hl.exec_cmd("hyprctl setcursor Bibata-Modern-Classic 24")
-end)
-
-hl.on("hyprland.shutdown", function()
-    os.execute("systemctl --user stop hyprland-session.target && sleep 0.1")
 end)
