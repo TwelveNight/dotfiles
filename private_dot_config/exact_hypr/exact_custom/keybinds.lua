@@ -277,6 +277,8 @@ hl.unbind("SUPER + mouse:274", hl.dsp.window.drag())
 hl.bind("SUPER + mouse:274", hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }))
 hl.bind("SUPER + SHIFT + mouse:274", hl.dsp.window.fullscreen_state({ internal = 0, client = 3, action = "toggle" }))
 hl.bind("SUPER + ALT + mouse:274", hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }))
+hl.bind("SUPER + SHIFT + O", hl.dsp.window.fullscreen_state({ internal = 0, client = 3, action = "toggle" }),
+	{ description = "Window: Fullscreen spoof" })
 hl.bind("SUPER + ALT + O", hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }))
 hl.unbind("SUPER + SHIFT + mouse_up", hl.dsp.window.move({ workspace = "r+1" }))
 hl.unbind("SUPER + SHIFT + mouse_down", hl.dsp.window.move({ workspace = "r-1" }))

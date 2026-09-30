@@ -39,6 +39,7 @@ QtObject {
             case "shell_update_indicator":
             case "phone_scrcpy_indicator":
             case "mode_indicator":
+            case "easyeffects_indicator":
                 return "expressive";
             default:
                 return "default";
@@ -48,7 +49,6 @@ QtObject {
     // Returns true when the widget's BarGroup should have zero padding.
     function isPaddingless(widgetId, isExpressive) {
         if (isExpressive && widgetId !== "workspaces") return true;
-        if (widgetId === "system_monitor" && Config.options.bar.resources.showDocker) return true;
         if (widgetId === "dashboard_panel_button") return true;
         if (widgetId === "policies_panel_button") return true;
         if (widgetId === "privacy_pill") return true;

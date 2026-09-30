@@ -22,6 +22,34 @@ hl.window_rule({match = {title = "^(Open File)(.*)$" },                      cen
 hl.window_rule({match = {title = "^(ii Notes)$" },                           float = true})
 hl.window_rule({match = {title = "^(ii Notes)$" },                           center = true})
 hl.window_rule({match = {title = "^(ii Notes)$" },                           size = "1500 940"})
+-- The clock app, like the notes app: a real toplevel that floats, centred, at the size
+-- Usage and Modes open at, so the three whole-app windows read as one family.
+hl.window_rule({match = {title = "^(ii Clock)$" },                           float = true})
+hl.window_rule({match = {title = "^(ii Clock)$" },                           center = true})
+hl.window_rule({match = {title = "^(ii EasyEffects)$" },                     float = true})
+hl.window_rule({match = {title = "^(ii EasyEffects)$" },                     center = true})
+-- The throwaway mirror the shell opens only so a phone's lockscreen can be
+-- dismissed from here. It lives for a few seconds, so it must not be tiled
+-- into the current layout.
+hl.window_rule({match = {title = "^(ii-phone-unlock)$" },                    float = true})
+hl.window_rule({match = {title = "^(ii-phone-unlock)$" },                    center = true})
+-- The scrcpy window the Phone sidebar embeds. It is a real window kept exactly
+-- under a cut-out in the panel's input region, which is what makes touches and
+-- the keyboard reach the phone natively; the panel paints the captured picture
+-- over it, so it is never actually seen and every decoration below would be
+-- work thrown away. It opens on a hidden special workspace and the shell moves
+-- it into place, so it never flashes through the tiling layout on the way in.
+-- Off the monitor rather than on a special workspace: `silent` is not read in
+-- any spelling the Lua parser accepts without complaint, so parking it there
+-- pulled an empty scratchpad into view — overlay and all — on every start. The
+-- offset is relative to the monitor and is not clamped, so nothing is ever seen
+-- until the shell moves it under the panel's cut-out.
+hl.window_rule({match = {title = "^(ii-phone-embed-)(.*)$" },               move = "9000 9000"})
+hl.window_rule({match = {title = "^(ii-phone-embed-)(.*)$" },               float = true})
+hl.window_rule({match = {title = "^(ii-phone-embed-)(.*)$" },               no_initial_focus = true})
+hl.window_rule({match = {title = "^(ii-phone-embed-)(.*)$" },               no_anim = true})
+hl.window_rule({match = {title = "^(ii-phone-embed-)(.*)$" },               no_blur = true})
+hl.window_rule({match = {title = "^(ii-phone-embed-)(.*)$" },               no_shadow = true})
 hl.window_rule({match = {title = "^(Open File)(.*)$" },                      float = true})
 hl.window_rule({match = {title = "^(Select a File)(.*)$" },                  center = true})
 hl.window_rule({match = {title = "^(Select a File)(.*)$" },                  float = true})
@@ -171,6 +199,7 @@ hl.layer_rule({ match = { namespace = "quickshell:lockWindowPusher" }, no_anim =
 hl.layer_rule({ match = { namespace = "quickshell:notificationPopup" }, animation = "fade"})
 hl.layer_rule({ match = { namespace = "quickshell:idleDim" }, above_lock = 1, no_anim = true, blur = false})
 hl.layer_rule({ match = { namespace = "quickshell:overlay" }, no_anim = true})
+hl.layer_rule({ match = { namespace = "quickshell:desktopMenu" }, no_anim = true})
 hl.layer_rule({ match = { namespace = "quickshell:overlay" }, ignore_alpha = 0.3})
 hl.layer_rule({ match = { namespace = "quickshell:floatingNotch" }, blur = true})
 hl.layer_rule({ match = { namespace = "quickshell:floatingNotch" }, ignore_alpha = 0.2})

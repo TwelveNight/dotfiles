@@ -113,6 +113,16 @@ Singleton {
         root.clockAppOpen = true;
     }
 
+    /// The EasyEffects app window, built on demand like the clock app.
+    property bool easyEffectsAppOpen: false
+    /// A tab the EasyEffects app should land on when it opens, consumed on arrival.
+    property string easyEffectsAppPendingTab: ""
+
+    function openEasyEffectsApp(tab = ""): void {
+        root.easyEffectsAppPendingTab = String(tab ?? "");
+        root.easyEffectsAppOpen = true;
+    }
+
     property bool mediaControlsOpen: false
     property bool mediaControlsPinned: false
     // Names of screens showing the Always On Display (the OLED saver). Independent
@@ -120,6 +130,45 @@ Singleton {
     // overlay (OledSaver) and, while locked, by LockSurface, BackgroundRoot and the
     // widgets window.
     property var oledSaverMonitors: []
+    // Anti burn-in pixel shift for Always On Display (OLED saver).
+    // Shifts widgets every minute to a nearby position to prevent OLED burn-in.
+    property real aodBurnInShiftX: 0
+    property real aodBurnInShiftY: 0
+    readonly property bool aodBurnInActive: (Config.options?.oledSaver?.enable ?? true)
+        && (Config.options?.oledSaver?.antiBurnIn ?? true)
+        && root.oledSaverMonitors.length > 0
+
+    function stepAodBurnIn(): void {
+        const maxRadius = 24;
+        const minStep = 8;
+        let nx = 0;
+        let ny = 0;
+        for (let i = 0; i < 30; i++) {
+            const angle = Math.random() * 2 * Math.PI;
+            const dist = 6 + Math.random() * (maxRadius - 6);
+            nx = Math.round(Math.cos(angle) * dist);
+            ny = Math.round(Math.sin(angle) * dist);
+            if (Math.hypot(nx - root.aodBurnInShiftX, ny - root.aodBurnInShiftY) >= minStep) {
+                break;
+            }
+        }
+        root.aodBurnInShiftX = nx;
+        root.aodBurnInShiftY = ny;
+    }
+
+    Timer {
+        id: aodBurnInTimer
+        interval: 60000
+        repeat: true
+        running: root.aodBurnInActive
+        onRunningChanged: {
+            if (!running) {
+                root.aodBurnInShiftX = 0;
+                root.aodBurnInShiftY = 0;
+            }
+        }
+        onTriggered: root.stepAodBurnIn()
+    }
     // The island's window, published so the OLED saver's focus grab can let the pointer
     // reach it; a grab refuses pointer focus to every surface it does not list.
     property var islandWindow: null
@@ -1238,10 +1287,12 @@ Singleton {
     property real osdDropBottomRadius: 0
 
     property string osdCurrentIndicator: "volume"
-    // What the "toggle" OSD indicator draws: { icon, label, state: "on" | "off" | "" }.
-    property var osdPill: ({ icon: "", label: "", state: "" })
+    // What the "toggle" OSD indicator draws: { icon, label, state: "on" | "off" | "", caption }.
+    property var osdPill: ({ icon: "", label: "", state: "", caption: "" })
     // A pill asked for over IPC (`osd pill`); OnScreenDisplay decides whether it shows.
     signal osdPillRequested(string icon, string label, string state)
+    // A plain notice that names its sender: the Tuner style prints `caption` above `label`.
+    signal osdNoticeRequested(string icon, string caption, string label)
     property string osdProtectionMessage: ""
     signal osdInteraction
     property bool policiesExtended: false
@@ -2340,6 +2391,7 @@ Singleton {
 
     /** Whether the island, rather than the right sidebar, holds the quick settings. */
     property bool islandOwnsDashboard: false
+    property bool islandDashboardOpen: false
 
     function openIslandPage(pageId) {
         root.islandDashboardPage = pageId;

@@ -33,7 +33,7 @@ autoload -Uz compinit
 compinit -d "$XDG_CACHE_HOME/zsh/zcompdump-$ZSH_VERSION"
 
 export GOPATH="$HOME/.local/share/go"
-[[ -d "$HOME/.go" ]] && export GOROOT="$HOME/.go"
+unset GOROOT  # Use the system Go toolchain.
 path=("$GOPATH/bin" $path)
 (( $+commands[thefuck] )) && eval "$(thefuck --alias)"
 # Explicit success when an optional command is absent.
