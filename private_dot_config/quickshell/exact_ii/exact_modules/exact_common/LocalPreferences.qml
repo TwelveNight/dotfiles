@@ -132,6 +132,9 @@ Singleton {
         "dock.enableWeatherWidget",
         "dock.enableSportsWidget",
         "dock.enableLivePreviewWidget",
+        "dock.enableTasksWidget",
+        "dock.enableWidgetStack",
+        "dock.widgetStackItems",
         "dock.livePreviewSlots",
         "dock.livePreviewPaintCursor",
         "dock.livePreviewCaptureMode",
@@ -140,6 +143,7 @@ Singleton {
         "dock.showTrashButton",
         "dock.showOverviewButton",
         "dock.showPinButton",
+        "dock.switchPresetsOnScroll",
     ]
 
     // SEARCH_APPEARANCE_KEYS in presets_helper.py: the only search keys a

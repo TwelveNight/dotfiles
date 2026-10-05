@@ -26,6 +26,7 @@ import qs.modules.tablet.windows
 // tablet-native replacement or is dropped. Nothing under modules/tablet/ may import
 // qs.modules.ii.* — only this file, so the coupling stays countable in one place.
 import qs.modules.ii.alarmRingingPopup
+import qs.modules.ii.reminderAlertPopup
 import qs.modules.ii.background
 import qs.modules.ii.background.desktopMenu
 import qs.modules.ii.editMode
@@ -186,14 +187,19 @@ Scope {
     // modules/tablet, exactly like the drawer's tool host.
     PanelLoader { component: TabletAppWindows {} }
 
+    // The desktop apps' whole content, rail and all; the tablet window brings the close.
     Component {
         id: usageAppContent
-        UsageContent {}
+        UsageAppContent {
+            embedded: true
+        }
     }
 
     Component {
         id: modesAppContent
-        ModesContent {}
+        ModesAppContent {
+            embedded: true
+        }
     }
 
     // Cheatsheet entries are application pages, not tabs in a legacy overlay. Keeping each
@@ -379,6 +385,10 @@ Scope {
     PanelLoader {
         extraCondition: AlarmService.ringingAlarmIndex !== -1 && Config.options.time.alarms.useFullscreenPopup
         component: AlarmRingingPopup {}
+    }
+    PanelLoader {
+        extraCondition: RemindersService.ringingId.length > 0 && !GlobalStates.islandOwnsReminder
+        component: ReminderAlertPopup {}
     }
 
     // ── Input ───────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ TestCase {
         property bool buttonHovered: false
         property bool anyContextMenuOpen: false
         property bool dragging: false
+        property bool popupIsResizing: false
         property var lastHoveredButton: null
         property point hoveredButtonCenter: Qt.point(450, 660)
         property real maxWindowPreviewWidth: 300
@@ -38,7 +39,10 @@ TestCase {
     }
 
     // Fake window identity with a unique object identity per instance.
-    QtObject { id: toplevelFactory }
+    Component {
+        id: toplevelFactory
+        QtObject { property string appId: "" }
+    }
     function makeToplevel(appId) {
         return toplevelFactory.createObject(testCase, { appId: appId })
     }
@@ -81,47 +85,61 @@ TestCase {
         return app
     }
 
-    function test_popupAppearsInstantlyDuringTraversal() {
+    // A sweep does not open the popup and does not build the row: the open
+    // dwell (70 ms) keeps the surface unmapped while the cursor crosses, and
+    // a closed popup never adopts a target (no row, no capture). Resting on
+    // one icon opens the popup, which then adopts that icon's app; crossing
+    // further swaps the row only after its own dwell confirms the new target.
+    function test_sweepDoesNotOpenRestingHoverDoes() {
         const popup = createTemporaryObject(popupComponent, testCase)
         verify(popup)
-
-        // Fast pass-through: hover two apps for 80 ms each — below the 150 ms
-        // capture arm interval in both cases.
-        popup.appTopLevel = makeApp("browser")
+        const browser = makeApp("browser")
+        popup.appTopLevel = browser
         fakeDock.buttonHovered = true
-        wait(80)
-        // Popup shell is already visible; capture is NOT armed.
-        compare(popup.show, true)
-        compare(popup.captureArmed, false)
+        // 40 ms: inside the open dwell — nothing mapped, nothing built.
+        wait(40)
+        compare(popup.show, false)
+        compare(popup.visible, false)
+        compare(popup.displayedApp, null)
 
-        popup.appTopLevel = makeApp("terminal")
-        wait(80)
+        // Rest long enough and the popup opens with the hovered app.
+        wait(200)
         compare(popup.show, true)
-        compare(popup.captureArmed, false)
-        compare(popup.displayedToplevels.length, 1)
-        compare(popup.displayedToplevels[0].appId, "terminal")
+        compare(popup.visible, true)
+        compare(popup.displayedApp, browser)
+
+        // Crossing to another app holds the row until the dwell confirms.
+        const terminal = makeApp("terminal")
+        popup.appTopLevel = terminal
+        // 60 ms: still inside the 80 ms commit dwell, so the row holds the
+        // previous app — but only for the time it takes to cross, not to rest.
+        wait(60)
+        compare(popup.displayedApp, browser)
+        // Commit lands at ~130 ms (dwell + dip) and the rise is done by 200.
+        wait(400)
+        compare(popup.displayedApp, terminal)
+        compare(popup.swapOpacity, 1)
     }
 
-    function test_captureArmsAfterSettle() {
+    // Crossing further before the open dwell expires restarts it: a pass over
+    // three icons opens once, on the one the cursor rested on.
+    function test_repeatedCrossingRestartsTheDwell() {
         const popup = createTemporaryObject(popupComponent, testCase)
         verify(popup)
-        popup.appTopLevel = makeApp("browser")
+        const browser = makeApp("browser")
+        popup.appTopLevel = browser
         fakeDock.buttonHovered = true
-
-        // Shell visible before the stream exists.
-        wait(50)
-        compare(popup.show, true)
-        compare(popup.captureArmed, false)
-
-        // Dwell past the interval arms the stream.
-        wait(150)
-        compare(popup.captureArmed, true)
-
-        // Crossing to another app disarms until the pointer settles there.
-        popup.appTopLevel = makeApp("terminal")
-        compare(popup.captureArmed, false)
         wait(200)
-        compare(popup.captureArmed, true)
+        compare(popup.displayedApp, browser)
+
+        for (const name of ["terminal", "files"]) {
+            popup.appTopLevel = makeApp(name)
+            // 60 ms between crosses — under the 80 ms dwell each time.
+            wait(60)
+            compare(popup.displayedApp, browser)
+        }
+        wait(400)
+        compare(popup.displayedApp?.appId, "files")
     }
 
     function test_geometryFixedBeforeFirstFrame() {
@@ -129,50 +147,132 @@ TestCase {
         verify(popup)
         popup.appTopLevel = makeApp("browser")
         fakeDock.buttonHovered = true
-        wait(100)
+        // Past the 70 ms open dwell the popup is mapped.
+        wait(250)
         compare(popup.show, true)
 
-        const slot = findChild(popup.popupBackground, item => item.objectName === "previewSlot")
+        const background = findChild(popup, item => item.objectName === "popupBackground")
+        verify(background)
+        const slot = findChild(background, item => item.objectName === "previewSlot")
         verify(slot)
         // Slot exists at the configured size even with no captured frame:
         // popup geometry never chases sourceSize.
         compare(slot.width, 300)
         compare(slot.height, 200)
-        compare(popup.popupBackground.implicitWidth, 300 + 2 * popup.popupBackground.padding)
-        verify(popup.popupBackground.implicitHeight > 200)
+        compare(background.implicitWidth, 300 + 2 * background.padding)
+        verify(background.implicitHeight > 200)
     }
 
-    function test_blurLayerDisablesAtRest() {
+    // The card comes out of the dock edge (slide + grow + fade on one
+    // progress) and goes back into it; no offscreen layer at any point.
+    function test_openAndCloseMotion() {
         const popup = createTemporaryObject(popupComponent, testCase)
         verify(popup)
         popup.appTopLevel = makeApp("browser")
         fakeDock.buttonHovered = true
-        wait(100)
+        wait(150)
         compare(popup.show, true)
-        tryCompare(popup.popupBackground, "blurRadius", 0)
-        compare(popup.popupBackground.layer.enabled, false)
-
-        // Leaving closes; while the hide animation runs the layer is back on.
-        popup.appTopLevel = null
-        fakeDock.buttonHovered = false
-        wait(200)
-        compare(popup.popupBackground.layer.enabled, true)
-        compare(popup.popupBackground.blurRadius, 16)
-    }
-
-    function test_captureUnarmsWhenPopupCloses() {
-        const popup = createTemporaryObject(popupComponent, testCase)
-        verify(popup)
-        popup.appTopLevel = makeApp("browser")
-        fakeDock.buttonHovered = true
-        wait(200)
-        compare(popup.captureArmed, true)
+        const background = findChild(popup, item => item.objectName === "popupBackground")
+        verify(background)
+        verify(popup.showProgress < 1)
+        verify(background.scale < 1)
+        tryCompare(popup, "showProgress", 1, 1000)
+        compare(background.scale, 1)
+        compare(background.opacity, 1)
+        compare(background.layer.enabled, false)
 
         popup.appTopLevel = null
         fakeDock.buttonHovered = false
+        // Past the hide dwell: closing, still mapped while it leaves.
         wait(200)
         compare(popup.show, false)
-        tryCompare(popup, "visible", false)
-        compare(popup.captureArmed, false)
+        verify(popup.visible)
+        compare(background.layer.enabled, false)
+        tryCompare(popup, "visible", false, 1000)
+        compare(popup.showProgress, 0)
+    }
+
+    // A closed popup is inert: it does not adopt the hovered app, so a sweep
+    // across icons while it is hidden builds no row and arms no capture. It
+    // adopts the moment the open dwell finishes (onShowChanged).
+    function test_closedPopupStaysInert() {
+        const popup = createTemporaryObject(popupComponent, testCase)
+        verify(popup)
+        const browser = makeApp("browser")
+        popup.appTopLevel = browser
+        compare(popup.displayedApp, null)
+        compare(popup.show, false)
+        // No crossfade to stop, nothing pending — the swap state is pristine.
+        compare(popup.swapOpacity, 1)
+    }
+
+    function captureFor(popup, toplevel) {
+        const background = findChild(popup, item => item.objectName === "popupBackground")
+        return findChild(background, item => item.captureSource === toplevel && item.constraintSize !== undefined)
+    }
+
+    // The new row is built behind the visible one with its captures running,
+    // and only crosses over once it holds frames: the card never dips to an
+    // empty surface while the compositor exports the first frame.
+    function test_swapWaitsForFramesWithoutDip() {
+        const popup = createTemporaryObject(popupComponent, testCase)
+        verify(popup)
+        const browser = makeApp("browser")
+        popup.appTopLevel = browser
+        fakeDock.buttonHovered = true
+        wait(200)
+        compare(popup.displayedApp, browser)
+
+        const terminal = makeApp("terminal")
+        popup.appTopLevel = terminal
+        // Past the target dwell: the back page holds the new app, the front
+        // still shows the old one at full opacity.
+        wait(100)
+        compare(popup.pendingApp, terminal)
+        compare(popup.displayedApp, browser)
+        const capture = captureFor(popup, terminal.toplevels[0])
+        verify(capture)
+        // The frame lands well before the fallback: the rows swap in that
+        // same frame, with no crossfade.
+        capture.sourceSize = Qt.size(1600, 900)
+        compare(popup.displayedApp, terminal)
+        compare(popup.pendingApp, null)
+    }
+
+    // Moving on while the back page waits for frames re-targets it: the
+    // wait that was running for the previous app never commits that app.
+    function test_movingOnRetargetsTheBackPage() {
+        const popup = createTemporaryObject(popupComponent, testCase)
+        verify(popup)
+        const browser = makeApp("browser")
+        popup.appTopLevel = browser
+        fakeDock.buttonHovered = true
+        wait(200)
+        const terminal = makeApp("terminal")
+        popup.appTopLevel = terminal
+        wait(100)
+        compare(popup.pendingApp, terminal)
+        const files = makeApp("files")
+        popup.appTopLevel = files
+        wait(500)
+        compare(popup.displayedApp, files)
+    }
+
+    // The card slides toward the hovered icon on its own clock while the
+    // row it shows is still the previous app's.
+    function test_cardSlidesWithThePointer() {
+        const popup = createTemporaryObject(popupComponent, testCase)
+        verify(popup)
+        popup.appTopLevel = makeApp("browser")
+        fakeDock.buttonHovered = true
+        wait(300)
+        const background = findChild(popup, item => item.objectName === "popupBackground")
+        tryCompare(background, "sliding", true)
+        const startX = background.followX
+        fakeDock.hoveredButtonCenter = Qt.point(250, 660)
+        wait(30)
+        verify(background.followX < startX && background.followX > 250)
+        tryCompare(background, "followX", 250, 500)
+        fakeDock.hoveredButtonCenter = Qt.point(450, 660)
     }
 }

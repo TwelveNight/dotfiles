@@ -101,6 +101,8 @@ ShellRoot {
             () => { Todo.list; },
             () => { AlarmService.alarms; },
             () => { BedtimeService.enabled; },
+            () => { RemindersService.loaded; },
+            () => { if (Config.options?.clockApp?.reminders?.todoSync?.enable ?? false) RemindersSync.enabled; },
             () => { if (Config.options?.clockApp?.phoneAlarm?.enable ?? true) PhoneAlarmService.enabled; },
             () => { if (hasCalendarSubscriptions) CalendarSubscriptions.enabled; },
             () => { if (timetable?.imports?.enable && timetable?.imports?.gmailIcs?.enable) GmailCalendarImport.enabled; },

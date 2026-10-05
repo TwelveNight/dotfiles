@@ -62,7 +62,8 @@ DockButton {
     onClicked: attention.playLaunch(root.launchAnimation)
 
     scale: (_pressed ? 0.88 : 1.0) * magScale
-    z: Math.round(magScale * 10)
+    // Two tiers (see the delegate wrapper's z): no per-frame render stack reorder.
+    z: magScale > 1.01 ? 2 : 1
 
     Loader {
         anchors.fill: parent
@@ -177,6 +178,11 @@ DockButton {
 
             MaterialSymbol {
                 anchors.centerIn: parent
+                // The lens scales this glyph up to magnificationScale. Native
+                // glyphs are rasterized once at the base size and stretched,
+                // which reads as jagged steps; curves are re-evaluated at
+                // whatever size the transform draws them.
+                renderType: Text.CurveRendering
                 text: root.fileDropActive ? root.fileDropIcon : root.dragActive ? root.dragSymbol : root.symbolName
                 fill: root.symbolFill
                 iconSize: root.isDragging ? Math.round(root.buttonSize * 0.4) : root.symbolSize

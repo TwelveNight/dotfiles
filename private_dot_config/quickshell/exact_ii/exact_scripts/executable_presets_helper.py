@@ -35,6 +35,9 @@ DOCK_BLACKLIST_KEYS = {
     "enableWeatherWidget",
     "enableSportsWidget",
     "enableLivePreviewWidget",
+    "enableTasksWidget",
+    "enableWidgetStack",
+    "widgetStackItems",
     "livePreviewSlots",
     "livePreviewPaintCursor",
     "livePreviewCaptureMode",
@@ -43,6 +46,7 @@ DOCK_BLACKLIST_KEYS = {
     "showTrashButton",
     "showOverviewButton",
     "showPinButton",
+    "switchPresetsOnScroll",
 }
 
 SEARCH_APPEARANCE_KEYS = {

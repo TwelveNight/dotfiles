@@ -98,6 +98,12 @@ Item {
     implicitWidth: width
     implicitHeight: height
     clip: true
+    // Magnified with the icons, at the muted share the dock keeps for a widget
+    // body: the delegate wrapper grows the slot by exactly the room this scale
+    // needs, so the neighbours slide instead of being drawn over.
+    readonly property real contentMagnification: root.dockContent ? root.dockContent._getSlotMagScale(root) : 1.0
+    scale: root.contentMagnification
+    transformOrigin: root.dockContent?.magnificationTransformOrigin ?? Item.Bottom
 
     function releaseCaptureNow() {
         captureTeardownTimer.stop();
@@ -338,6 +344,7 @@ Item {
             colBackgroundHover: Appearance.colors.colLayer1Hover
             colBackgroundActive: Appearance.colors.colLayer1Active
             contentItem: MaterialSymbol {
+                renderType: Text.CurveRendering
                 anchors.centerIn: parent
                 text: "keyboard_arrow_down"
                 iconSize: Math.max(Appearance.font.pixelSize.smallest, parent.height * 0.68)
@@ -366,6 +373,7 @@ Item {
         }
 
         MaterialSymbol {
+            renderType: Text.CurveRendering
             visible: !root.hasSelectedApp
             anchors.right: parent.right
             anchors.bottom: parent.bottom
@@ -409,6 +417,7 @@ Item {
         }
 
         MaterialSymbol {
+            renderType: Text.CurveRendering
             visible: !root.hasSelectedApp
             anchors.centerIn: parent
             text: "live_tv"

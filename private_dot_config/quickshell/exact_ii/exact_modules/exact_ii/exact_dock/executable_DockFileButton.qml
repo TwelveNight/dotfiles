@@ -125,7 +125,8 @@ DockButton {
             easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
         }
     }
-    z: Math.round(magScale * 10)
+    // Two tiers (see the delegate wrapper's z): no per-frame render stack reorder.
+    z: magScale > 1.01 ? 2 : 1
 
     property bool _pressed: false
     property bool fileHovered: false
@@ -295,6 +296,11 @@ DockButton {
             }
 
             layer.enabled: Config.options.appearance.icons.enableShapeMask
+            // Rendered at the largest size the lens draws it, or the mask's
+            // texture is stretched into visible steps while magnified.
+            layer.textureSize: Qt.size(Math.ceil(width * (root.dockContent?.magnificationRenderScale ?? 1)),
+                Math.ceil(height * (root.dockContent?.magnificationRenderScale ?? 1)))
+            layer.smooth: true
             layer.effect: OpacityMask {
                 maskSource: iconMask
             }
@@ -323,6 +329,7 @@ DockButton {
                 anchors.centerIn: parent
                 visible: root.isImage && thumbnailImage.status !== Image.Ready
                 text: "image"
+                renderType: Text.CurveRendering
                 iconSize: root.buttonSize
                 color: Appearance.colors.colOnLayer0
             }
@@ -346,6 +353,7 @@ DockButton {
                 anchors.centerIn: parent
                 visible: !root.isImage && root.resolvedXdgIcon === "" && root.isDirectory
                 text: "folder"
+                renderType: Text.CurveRendering
                 iconSize: root.buttonSize
                 color: Appearance.colors.colOnLayer0
             }

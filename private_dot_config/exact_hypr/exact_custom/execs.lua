@@ -28,9 +28,9 @@ hl.on("hyprland.start", function()
 	-- )
 	hl.exec_cmd("pgrep -x 1password >/dev/null || 1password --silent --no-sandbox")
 	hl.exec_cmd("pgrep -x cc-switch >/dev/null || cc-switch")
-	hl.exec_cmd(
-		"pgrep -x clash-verge >/dev/null || $HOME/.local/scripts/clash-verge-safe run --silent --no-sandbox --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime"
-	)
+	-- hl.exec_cmd(
+	-- 	"pgrep -x clash-verge >/dev/null || $HOME/.local/scripts/clash-verge-safe run --silent --no-sandbox --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime"
+	-- )
 end)
 
 -- Disabled for testing: Hyprland's built-in XWayland may provide better

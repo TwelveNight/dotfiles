@@ -108,6 +108,9 @@ Singleton {
     /// A tab the clock app should land on when it opens, consumed on arrival.
     property string clockAppPendingTab: ""
 
+    /// A reminder the Reminders tab should open in its editor, consumed on arrival.
+    property string reminderToOpen: ""
+
     function openClockApp(tab = ""): void {
         root.clockAppPendingTab = String(tab ?? "");
         root.clockAppOpen = true;
@@ -121,6 +124,26 @@ Singleton {
     function openEasyEffectsApp(tab = ""): void {
         root.easyEffectsAppPendingTab = String(tab ?? "");
         root.easyEffectsAppOpen = true;
+    }
+
+    /// The App usage window (Super+U), built on demand like the clock app.
+    property bool usageOpen: false
+    /// A tab the usage app should land on when it opens, consumed on arrival.
+    property string usageAppPendingTab: ""
+
+    function openUsageApp(tab = ""): void {
+        root.usageAppPendingTab = String(tab ?? "");
+        root.usageOpen = true;
+    }
+
+    /// The Modes & Routines window (Super+Y), built on demand like the clock app.
+    property bool modesOpen: false
+    /// A tab the modes app should land on when it opens, consumed on arrival.
+    property string modesAppPendingTab: ""
+
+    function openModesApp(tab = ""): void {
+        root.modesAppPendingTab = String(tab ?? "");
+        root.modesOpen = true;
     }
 
     property bool mediaControlsOpen: false
@@ -177,6 +200,8 @@ Singleton {
     property bool oskOpen: false
     property bool overlayOpen: false
     property bool overviewOpen: false
+    /** A clipboard entry's text is being dragged toward the island's drop area. */
+    property bool islandTextDragActive: false
     // The ii family can route its Overview entry points to the Tablet Family's
     // existing app drawer. overviewOpen remains the canonical public intent so
     // legacy close/toggle assignments still affect whichever surface is active;
@@ -247,7 +272,7 @@ Singleton {
         const allowOverviewBg = Config.options && Config.options.overview && Config.options.overview.animationStyle !== "none";
         return Boolean(background && (background.useBackgroundOverviewAlways
             || (background.zoomOutEnabled
-                && ((root.classicOverviewOpen && allowOverviewBg) || root.cheatsheetOpen || root.scratchpadOpen || root.usageOpen || root.modesOpen))));
+                && ((root.classicOverviewOpen && allowOverviewBg) || root.cheatsheetOpen || root.scratchpadOpen))));
     }
 
     // BackgroundRoot owns one controller per monitor. Other background surfaces
@@ -427,8 +452,6 @@ Singleton {
     // between them were an IPC call and a keybind, neither of which is discoverable.
     property bool shellSwitcherOpen: false
     property bool superDown: false
-    property bool usageOpen: false
-    property bool modesOpen: false
     // Transient "Work mode on" banner: set by the Modes engine for ~3 s.
     // Payload: { kind: "mode"|"routine", id, icon, color, title, subtitle }
     property bool modeFlashActive: false
@@ -1940,6 +1963,8 @@ Singleton {
     property bool islandOwnsLocalSendRequest: false
     /** A ringing alarm is the island's, not the fullscreen popup's or a notification's. */
     property bool islandOwnsAlarm: false
+    /** A reminder's full-screen alert shows on the island instead. */
+    property bool islandOwnsReminder: false
     /** Music recognition reports on the island instead of in notifications. */
     property bool islandOwnsSongRec: false
     /**

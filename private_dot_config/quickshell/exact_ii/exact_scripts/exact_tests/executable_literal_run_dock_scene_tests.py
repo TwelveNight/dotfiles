@@ -35,17 +35,20 @@ def main():
         colors = {key: '#807090' for key in set(re.findall(r'(?:colors|m3colors)\.([A-Za-z0-9_]+)', '\n'.join(p.read_text() for p in (ROOT / 'modules/ii/dock').rglob('*.qml'))))}
         anim = 'property int duration: 120; property int type: Easing.InOutQuad; property var bezierCurve: [0,0,1,1,1,1]; property Component colorAnimation: ColorAnimation { duration: 120 }; property Component numberAnimation: NumberAnimation { duration: 120 }'
         module('qs.modules.common', {
-            'Appearance': singleton('property var colors: ' + json.dumps(colors) + '\nproperty var m3colors: colors\nproperty var rounding: ({small:8,normal:17,full:9999})\nproperty var sizes: ({dockButtonSize:48,elevationMargin:8})\nproperty var font: ({pixelSize:{small:15,smaller:13,large:22}})\nproperty QtObject animation: QtObject {' + '\n'.join('property QtObject '+n+': QtObject {'+anim+'}' for n in ['elementMoveEnter','elementMoveFast','elementResize','dockMagnification']) + '}'),
+            'Appearance': singleton('property var colors: ' + json.dumps(colors) + '\nproperty var m3colors: colors\nproperty bool reducedMotion: false\nproperty var rounding: ({verysmall:6,small:8,normal:17,windowRounding:18,full:9999})\nproperty var sizes: ({dockButtonSize:48,elevationMargin:8})\nproperty var font: ({pixelSize:{small:15,smaller:13,normal:16,large:22}})\nproperty QtObject animation: QtObject {' + '\n'.join('property QtObject '+n+': QtObject {'+anim+'}' for n in ['elementMoveEnter','elementMoveFast','elementMoveSmall','elementResize','dockMagnification']) + '}'),
             'Config': singleton('property var options: ({dock:{enablePreview:false},appearance:{transparency:{popups:true}}})')})
         module('qs', {'GlobalStates': singleton('property bool editMode: false; property real editProgress: 0')})
         module('qs.services', {
-            'TaskbarApps': singleton('function getCachedDesktopEntry(id) { return null; }'),
+            'TaskbarApps': singleton('function getCachedDesktopEntry(id) { return null; }\nfunction isPinned(id) { return false; }'),
             'HyprlandData': singleton('function toplevelOnScreen(window) { return true; }'),
             'Notifications': singleton('signal notify(var notification)'),
             'Translation': singleton('function tr(text) { return text; }')})
         module('qs.modules.common.functions', {'ColorUtils': singleton('function transparentize(color, alpha) { return color; }')})
-        module('qs.modules.ii.editMode', {'EditRemoveBadge': 'import QtQuick\nItem { signal clicked() }', 'EditAddBadge': 'import QtQuick\nItem { signal clicked() }'})
-        module('qs.modules.common.dock', {'DockIcon': 'import QtQuick\nItem { property string appId; property var desktopEntry; property bool isRunning }'})
+        module('qs.modules.ii.editMode', {
+            'EditRemoveBadge': 'import QtQuick\nItem { signal clicked() }',
+            'EditAddBadge': 'import QtQuick\nItem { signal clicked() }',
+            'EditPanelRow': 'import QtQuick\nItem { property string symbol; property string iconSource; property string title; property string subtitle; property bool destructive; property bool rowEnabled: true; property string trailingKind; property bool switchChecked; property bool first; property bool last; property real hostRadius; property real hostPadding; signal activated() }'})
+        module('qs.modules.common.dock', {'DockIcon': 'import QtQuick\nItem { property string appId; property var desktopEntry; property bool isRunning; property real renderScale: 1 }'})
         module('qs.modules.common.widgets', {
             'DashedBorder': 'import QtQuick\nRectangle { property real borderWidth; property real dashLength; property real gapLength }',
             'StyledText': 'import QtQuick\nText {}',
@@ -84,9 +87,23 @@ Button {
         base.write_text(source)
         (dock / 'widgets/DockPreviewPopup.qml').write_text('import QtQuick\nItem { property var dockRoot; property var dockWindow; property var anchorItem; property bool compactMode; property var appTopLevel }')
         (dock / 'widgets/DockTooltip.qml').write_text('import QtQuick\nItem { property var parentItem; property string text; property bool showTooltip; property real tooltipOffset }')
-        for name in ['DockAppIcon.qml', 'DockAppIndicator.qml']:
-            (dock / name).write_text('import QtQuick\nItem {}')
+        # DockAppIcon (in widgets/) renders at magnified sizes: production
+        # callers pass renderScale (see DockAppButton/DockAppGroupButton), so
+        # the stub needs the property too.
+        (dock / 'widgets/DockAppIcon.qml').write_text('import QtQuick\nItem { property real renderScale: 1 }')
+        (dock / 'DockAppIndicator.qml').write_text('import QtQuick\nItem {}')
+        # DockWidgetStack pages: the real widgets reach for services this
+        # harness does not provide; the stack only needs something to load.
+        for name in ['DockMediaWidget', 'DockWeatherWidget', 'DockSportsWidget', 'DockTasksWidget']:
+            (dock / (name + '.qml')).write_text('import QtQuick\nItem { objectName: "' + name + '"; property bool isVertical; property var dockContent; property int delegateIndex; implicitWidth: 120; implicitHeight: 48 }')
+        (dock / 'DockLivePreviewWidget.qml').write_text('import QtQuick\nItem { objectName: "DockLivePreviewWidget"; property bool isVertical; property var dockContent; property int delegateIndex; property bool dockRevealed; property bool dockWindowVisible }')
         for test in (ROOT / 'tests/dockScene').glob('tst_*.qml'):
+            # tst_DockTooltipAnchor and tst_DockPreviewPopup test widgets this
+            # harness stubs (DockTooltip, DockPreviewPopup), so they run in
+            # run_dock_preview_popup_tests.py (which keeps the real files)
+            # instead of here.
+            if test.name == 'tst_DockTooltipAnchor.qml' or test.name == 'tst_DockPreviewPopup.qml':
+                continue
             shutil.copy(test, tmp / test.name)
         env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='software')
         binary = str(QT / 'qmltestrunner') if (QT / 'qmltestrunner').exists() else shutil.which('qmltestrunner')

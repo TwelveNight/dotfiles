@@ -31,6 +31,8 @@ import qs.modules.ii.easyEffects
 import qs.modules.ii.modeFlashPopup
 import qs.modules.ii.wallpaperSelector
 import qs.modules.ii.recordingToolbar
+import qs.modules.ii.reminderAlertPopup
+import qs.services
 
 Scope {
     PanelLoader { component: RecordingToolbar {} }
@@ -59,11 +61,11 @@ Scope {
     PanelLoader { component: ScreenTranslator {} }
     PanelLoader {
         extraCondition: Config.options.appStats.overlayEnabled
-        component: Usage {}
+        component: UsageApp {}
     }
     PanelLoader {
         extraCondition: Config.options.modes.overlayEnabled
-        component: ModesOverlay {}
+        component: ModesApp {}
     }
     PanelLoader { component: EasyEffectsApp {} }
     PanelLoader {
@@ -71,4 +73,8 @@ Scope {
         component: ModeFlashPopup {}
     }
     PanelLoader { component: WallpaperSelector {} }
+    PanelLoader {
+        extraCondition: RemindersService.ringingId.length > 0
+        component: ReminderAlertPopup {}
+    }
 }

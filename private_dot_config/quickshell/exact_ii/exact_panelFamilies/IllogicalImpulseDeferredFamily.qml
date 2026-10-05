@@ -12,6 +12,7 @@ import qs.modules.ii.cheatsheet
 import qs.modules.ii.notes
 import qs.modules.ii.clock
 import qs.modules.ii.dock
+import qs.modules.ii.easyEffects
 import qs.modules.ii.lock
 import qs.modules.ii.mediaControls
 import qs.modules.ii.notificationPopup
@@ -43,6 +44,7 @@ import qs.modules.ii.usage
 import qs.modules.ii.modes
 import qs.modules.ii.modeFlashPopup
 import qs.modules.ii.alarmRingingPopup
+import qs.modules.ii.reminderAlertPopup
 import qs.modules.ii.screenTimeOverlay
 import qs.modules.ii.screenshotOverlay
 import qs.modules.ii.dynamicIsland
@@ -65,12 +67,13 @@ Scope {
         panelUrl: Qt.resolvedUrl("../modules/ii/clock/ClockApp.qml")
         extraCondition: Config.options.clockApp?.enable ?? true
     }
+    UrlPanelLoader { panelUrl: Qt.resolvedUrl("../modules/ii/easyEffects/EasyEffectsApp.qml") }
     UrlPanelLoader {
-        panelUrl: Qt.resolvedUrl("../modules/ii/usage/Usage.qml")
+        panelUrl: Qt.resolvedUrl("../modules/ii/usage/UsageApp.qml")
         extraCondition: Config.options.appStats.overlayEnabled
     }
     UrlPanelLoader {
-        panelUrl: Qt.resolvedUrl("../modules/ii/modes/ModesOverlay.qml")
+        panelUrl: Qt.resolvedUrl("../modules/ii/modes/ModesApp.qml")
         extraCondition: Config.options.modes.overlayEnabled
     }
     UrlPanelLoader {
@@ -175,6 +178,11 @@ Scope {
     UrlPanelLoader {
         panelUrl: Qt.resolvedUrl("../modules/ii/alarmRingingPopup/AlarmRingingPopup.qml")
         extraCondition: AlarmService.ringingAlarmIndex !== -1 && Config.options.time.alarms.useFullscreenPopup
+    }
+    UrlPanelLoader {
+        // A Medium or Strong reminder taking the screen; built only while one does.
+        extraCondition: RemindersService.ringingId.length > 0 && !GlobalStates.islandOwnsReminder
+        panelUrl: Qt.resolvedUrl("../modules/ii/reminderAlertPopup/ReminderAlertPopup.qml")
     }
     UrlPanelLoader {
         panelUrl: Qt.resolvedUrl("../modules/ii/screenTimeOverlay/ScreenTimeOverlay.qml")
