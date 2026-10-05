@@ -139,10 +139,40 @@ Singleton {
         repeat: false
         running: false
         onTriggered: {
-            // The bar is hidden during a preset's palette change. Animating
-            // dozens of global color roles here invalidates the whole shell
-            // every frame and stalls the transition; publish them together.
+            // While a preset holds motion, snap. The crossfade re-evaluates
+            // every coloured binding in every window once per palette role per
+            // frame (20–30 ms a frame), and the hold is the one moment nothing
+            // is moving — the wallpaper change waits for its release too — so
+            // the new palette lands in a single frame nobody sees stutter.
+            if (GlobalStates.presetHoldMotion) {
+                // A cached palette can land before the bar has left; it waits
+                // for that slide like the config does.
+                if (GlobalStates.presetWorkDeferred) {
+                    root._paletteWaitsForBar = true;
+                    return;
+                }
+                root.applyCurrentPalette(false);
+                root.paletteSerial++;
+                return;
+            }
+            // Publish the palette together to avoid rebinding every colored
+            // item on each frame of a global color animation.
             root.applyCurrentPalette(false)
+        }
+    }
+
+    // Bumped when a palette lands during a preset's hold.
+    property int paletteSerial: 0
+    property bool _paletteWaitsForBar: false
+
+    Connections {
+        target: GlobalStates
+        function onPresetWorkDeferredChanged() {
+            if (GlobalStates.presetWorkDeferred || !root._paletteWaitsForBar)
+                return;
+            root._paletteWaitsForBar = false;
+            root.applyCurrentPalette(!GlobalStates.presetHoldMotion);
+            root.paletteSerial++;
         }
     }
 

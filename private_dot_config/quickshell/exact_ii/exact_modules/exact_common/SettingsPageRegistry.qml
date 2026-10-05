@@ -154,6 +154,7 @@ Singleton {
                 "widgets/DynamicIslandActivitiesConfig.qml",
                 "features/TeleprompterConfig.qml"
             ],
+            "searchSources": ["sections/DynamicIslandModeSection.qml", "sections/DynamicIslandActivitiesSection.qml"],
             "aliases": ["Notch", "Floating notch", "Activity notches", "Island activities", "Earbuds battery", "Weather", "Dynamic Island in bar center"]
         },
         {
@@ -163,10 +164,11 @@ Singleton {
             "component": "modules/settings/configs/OverlaysConfig.qml",
             "subPages": [
                 "widgets/GameOverlayConfig.qml",
+                "widgets/PerfMonitorConfig.qml",
                 "widgets/OnScreenKeyboardConfig.qml",
                 "widgets/OsdIndicatorsConfig.qml"
             ],
-            "aliases": ["System Overlays", "Media overlay", "Game overlay"]
+            "aliases": ["System Overlays", "Media overlay", "Game overlay", "Performance HUD", "FPS counter", "MangoHud", "RivaTuner"]
         },
         {
             "id": "modes",
@@ -239,8 +241,8 @@ Singleton {
             "name": "Windows",
             "icon": "rule",
             "component": "modules/settings/configs/WindowsConfig.qml",
-            "subPages": [],
-            "aliases": ["Hyprland Rules", "Transparency", "Blur", "Gaps", "Borders"]
+            "subPages": ["widgets/WindowsBlurConfig.qml"],
+            "aliases": ["Hyprland Rules", "Transparency", "Blur", "Advanced blur", "Gaps", "Borders", "Animations", "Alt+Tab", "Window switcher", "Task switcher"]
         },
         {
             "id": "tiling",
@@ -275,10 +277,11 @@ Singleton {
             "icon": "touch_app",
             "component": "modules/settings/configs/TouchGesturesConfig.qml",
             "subPages": [
+                "widgets/TouchpadGesturesConfig.qml",
                 "widgets/TouchEdgeGesturesConfig.qml",
                 "widgets/TouchSensitivityConfig.qml"
             ],
-            "aliases": ["Touchscreen", "Touch", "Swipe", "Gestures", "Edge gestures", "Tablet", "Calibration", "Touchpad"]
+            "aliases": ["Touchscreen", "Touch", "Swipe", "Gestures", "Edge gestures", "Tablet", "Calibration", "Touchpad", "Touchpad gestures", "Pinch", "Three finger swipe", "Four finger swipe"]
         },
         {
             "id": "mediaMusic",

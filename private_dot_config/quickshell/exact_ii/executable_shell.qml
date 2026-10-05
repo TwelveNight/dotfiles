@@ -65,6 +65,7 @@ ShellRoot {
         MaterialThemeLoader.reapplyTheme();
         Wallpapers.load();
         ConflictKiller.load(); // Startup hygiene: conflicting notification daemons must die early
+        FullGameMode.recover(); // Undo a full game mode session this shell replaces (Hyprland overrides, wallpaper)
         deferredServicesTimer.restart();
     }
 
@@ -118,6 +119,7 @@ ShellRoot {
             () => { if (Config.options?.launcher?.typeToSearch?.enable ?? false) TypeToSearch.armed; },
             () => { StaleFocusRelease.active; },
             () => { if (Config.options?.interactions?.touchGestures?.enable ?? true) TouchGestureService.enabled; },
+            () => { TouchpadGestures.enabled; },
             () => { if (Config.options?.bar?.workspaces?.autoCompact ?? false) WorkspaceCompactor.enabled; },
             () => { if (Config.options?.dictation?.enabled) DictationService.installed; },
             () => { if (Config.options?.budsLink?.enabled) BudsLinkService.serviceAvailable; },

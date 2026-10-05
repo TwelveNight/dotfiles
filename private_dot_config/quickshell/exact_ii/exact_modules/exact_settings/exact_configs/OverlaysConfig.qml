@@ -45,6 +45,13 @@ Item {
                     description: Translation.tr("Crosshair, Media overlay, Notes, Discord voice & Floating image")
                     onClicked: overlaysConfigRoot.activeSubPage = Qt.resolvedUrl("widgets/GameOverlayConfig.qml")
                 }
+
+                ConfigSubpageRow {
+                    buttonIcon: "speed"
+                    title: Translation.tr("Performance HUD")
+                    description: Translation.tr("FPS, 1% low, CPU, GPU, RAM, VRAM and battery over your games")
+                    onClicked: overlaysConfigRoot.activeSubPage = Qt.resolvedUrl("widgets/PerfMonitorConfig.qml")
+                }
             }
         }
 
@@ -333,6 +340,9 @@ Item {
                 text: Translation.tr("Minimal variant")
                 checked: Config.options.osd.material.minimal
                 onCheckedChanged: {
+                    // Only a real change shows the OSD: the switch also fires while the page builds
+                    if (Config.options.osd.material.minimal === checked)
+                        return;
                     Config.options.osd.material.minimal = checked;
                     overlaysConfigRoot.triggerRealOsd();
                 }
@@ -349,6 +359,9 @@ Item {
                 text: Translation.tr("Shaped value labels")
                 checked: Config.options.osd.material.shapedValues
                 onCheckedChanged: {
+                    // Only a real change shows the OSD: the switch also fires while the page builds
+                    if (Config.options.osd.material.shapedValues === checked)
+                        return;
                     Config.options.osd.material.shapedValues = checked;
                     overlaysConfigRoot.triggerRealOsd();
                 }
@@ -365,6 +378,9 @@ Item {
                 text: Translation.tr("Circled shapes")
                 checked: Config.options.osd.material.circledShapes
                 onCheckedChanged: {
+                    // Only a real change shows the OSD: the switch also fires while the page builds
+                    if (Config.options.osd.material.circledShapes === checked)
+                        return;
                     Config.options.osd.material.circledShapes = checked;
                     overlaysConfigRoot.triggerRealOsd();
                 }
@@ -381,6 +397,9 @@ Item {
                 text: Translation.tr("Rotate shapes when changing values")
                 checked: Config.options.osd.material.rotateShape
                 onCheckedChanged: {
+                    // Only a real change shows the OSD: the switch also fires while the page builds
+                    if (Config.options.osd.material.rotateShape === checked)
+                        return;
                     Config.options.osd.material.rotateShape = checked;
                     overlaysConfigRoot.triggerRealOsd();
                 }

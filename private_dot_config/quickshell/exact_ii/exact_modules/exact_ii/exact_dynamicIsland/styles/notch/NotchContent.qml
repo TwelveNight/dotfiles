@@ -13,6 +13,7 @@ import qs.modules.ii.wallpaperSelector
 import qs.modules.ii.dynamicIsland.widgets
 import qs.modules.ii.localSendPopup
 import qs.modules.ii.colorPickerPopup
+import qs.modules.ii.displayModesPopup
 import qs.services
 
 /**
@@ -52,6 +53,8 @@ Item {
     property var sideIds: []
     /** The island's resting height; the resting face sizes itself from it. */
     property real restingHeight: 42
+    /** The width of the island's screen, in logical pixels; Alt+Tab scales with it. */
+    property real screenWidth: 1920
     /** The width the resting face asks for: the clock and its side widgets. */
     readonly property real restingWidth: restingFace.targetWidth
 
@@ -145,6 +148,7 @@ Item {
     readonly property bool isWallpaper: content.displayedId === "wallpaper"
     readonly property bool isSession: content.displayedId === "session"
     readonly property bool isColorPicker: content.displayedId === "colorPicker"
+    readonly property bool isDisplayModes: content.displayedId === "displayModes"
     readonly property bool isAskpass: content.displayedId === "askpass"
     /**
      * An incoming transfer, as opposed to files being sent.
@@ -336,6 +340,8 @@ Item {
     /** Both popup cards measure themselves; the island animates to what they ask. */
     readonly property real colorPickerTargetWidth: colorPickerLoader.item ? colorPickerLoader.item.implicitWidth : 0
     readonly property real colorPickerTargetHeight: colorPickerLoader.item ? colorPickerLoader.item.implicitHeight : 0
+    readonly property real displayModesTargetWidth: displayModesLoader.item ? displayModesLoader.item.implicitWidth : 0
+    readonly property real displayModesTargetHeight: displayModesLoader.item ? displayModesLoader.item.implicitHeight : 0
     readonly property real localSendRequestTargetWidth: localSendRequestLoader.item ? localSendRequestLoader.item.implicitWidth : 0
     readonly property real localSendRequestTargetHeight: localSendRequestLoader.item ? localSendRequestLoader.item.implicitHeight : 0
 
@@ -346,6 +352,60 @@ Item {
     /** The size the session menu wants; declared, like search's. */
     readonly property real sessionTargetWidth: sessionLoader.item ? sessionLoader.item.contentTargetWidth : 0
     readonly property real sessionTargetHeight: sessionLoader.item ? sessionLoader.item.contentTargetHeight : 0
+
+    // ── Alt+Tab ──────────────────────────────────────────────────────────────
+    /**
+     * Alt+Tab crossfades over whatever face is showing, the way the dashboard does: the
+     * face underneath is never swapped out, so when Alt comes up the island morphs back to
+     * exactly what it was showing. Keyed on `activityId`, not `displayedId`, for that reason.
+     */
+    readonly property bool isWindowSwitcher: content.activityId === "windowSwitcher"
+    property real switcherReveal: content.isWindowSwitcher ? 1 : 0
+    Behavior on switcherReveal {
+        // Not the elementMoveFast component: that one runs to its end, and an Alt+Tab
+        // released mid-reveal would wait for the reveal before fading out.
+        //
+        // In with the island's growth, most of its length, so the covers arrive as the shape
+        // does instead of popping into a pill that is still opening; out quicker, so they are
+        // gone before the shape has shrunk around them. Keyed on the service's `active`, which
+        // turns before the face does (see NotchIsland.switcherMorph).
+        NumberAnimation {
+            duration: WindowSwitcher.active ? Math.round(Appearance.animationCurves.expressiveFastSpatialDuration * Appearance.animMultiplier)
+                : Appearance.animation.elementMoveFast.duration
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: Appearance.animationCurves.standard
+        }
+    }
+
+    /**
+     * The switcher's size, from the screen and the window count alone: the island starts
+     * growing the moment the switcher takes it, before its face has been built. The middle
+     * cover is a fifth of the screen wide; the island is as wide as the covers either side
+     * of it need - one neighbour each side for three windows, the whole fan from five.
+     */
+    readonly property QtObject switcherMetrics: QtObject {
+        readonly property real coverWidth: Math.round(Math.max(240, Math.min(560, content.screenWidth * 0.2)))
+        readonly property real coverHeight: Math.round(coverWidth * 0.625)
+        readonly property real topPadding: 16
+        readonly property real titleGap: 10
+        readonly property real titleHeight: 22
+        readonly property real bottomPadding: 14
+        /// The search line, added on top while there is a query (or Alt+` keeps to one app).
+        readonly property real searchHeight: 30
+        /// The hints line under the title: the keys, and "4 / 17" once the flow runs off the edges.
+        readonly property real hintsHeight: (WindowSwitcher.showKeyHints || WindowSwitcher.count > 4) ? 18 : 0
+    }
+    readonly property real windowSwitcherTargetWidth: {
+        const m = content.switcherMetrics;
+        const n = WindowSwitcher.count;
+        const spread = n <= 1 ? 1.25 : n === 2 ? 1.6 : n === 3 ? 2.0 : n === 4 ? 2.4 : 2.8;
+        return Math.round(m.coverWidth * spread);
+    }
+    readonly property real windowSwitcherTargetHeight: {
+        const m = content.switcherMetrics;
+        return m.topPadding + m.coverHeight + m.titleGap + m.titleHeight + m.hintsHeight + m.bottomPadding
+            + (WindowSwitcher.query.length > 0 || WindowSwitcher.appFilter !== "" ? m.searchHeight : 0);
+    }
 
     function focusSearch() {
         if (searchLoader.item)
@@ -391,7 +451,7 @@ Item {
      * field the user is about to type into must not arrive out of focus, and the surface
      * behind it is travelling far enough that the blur added nothing but cost.
      */
-    readonly property var sharpFaces: ["media", "search", "dashboard", "wallpaper", "session", "colorPicker", "askpass"]
+    readonly property var sharpFaces: ["media", "search", "dashboard", "wallpaper", "session", "colorPicker", "displayModes", "askpass"]
     readonly property bool blurAllowed: content.sharpFaces.indexOf(content.activityId) === -1
         && content.sharpFaces.indexOf(content.displayedId) === -1
 
@@ -399,6 +459,9 @@ Item {
         // The dashboard crossfades over whatever face is showing, which stays put
         // underneath it; nothing to swap.
         if (content.activityId === "dashboard" || content.activityId === content.displayedId)
+            return;
+        // Alt+Tab covers the face the same way; see `isWindowSwitcher`.
+        if (content.activityId === "windowSwitcher")
             return;
         // Straight to it on the first paint, and whenever the dashboard covers the
         // faces: the change happens unseen and the crossfade back reveals it.
@@ -480,7 +543,7 @@ Item {
         id: faces
         anchors.fill: parent
         readonly property real blur: Math.max(content.morphBlur, content.dashboardReveal)
-        opacity: content.morphOpacity * (1 - content.dashboardReveal)
+        opacity: content.morphOpacity * (1 - content.dashboardReveal) * (1 - content.switcherReveal)
         visible: faces.opacity > 0.001
 
         // The layer only exists while the blur is on screen: an always-on layer would
@@ -516,8 +579,8 @@ Item {
             height: widgetLoader.ownBox ? content.contractedHeight : parent.height
 
             active: content.hasWidget && !content.isSearch && !content.isOsd && !content.isWallpaper
-                && !content.isSession && !content.isColorPicker && !content.isLocalSendRequest
-                && !content.isAskpass
+                && !content.isSession && !content.isColorPicker && !content.isDisplayModes
+                && !content.isLocalSendRequest && !content.isAskpass
             source: content.sourcePath
             /**
              * Built over a few frames rather than in one. The swap lands in the middle of
@@ -782,6 +845,23 @@ Item {
         }
 
         Loader {
+            id: displayModesLoader
+            anchors.centerIn: parent
+            active: content.isDisplayModes || content.activityId === "displayModes"
+            visible: content.isDisplayModes
+            opacity: content.isDisplayModes ? 1 : 0
+
+            Behavior on opacity {
+                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(displayModesLoader)
+            }
+
+            sourceComponent: DisplayModesPopupContent {
+                hosted: true
+                onDismissed: GlobalStates.displayModesPopupOpen = false
+            }
+        }
+
+        Loader {
             id: localSendRequestLoader
             anchors.centerIn: parent
             active: content.isLocalSendRequest
@@ -947,8 +1027,8 @@ Item {
             restHeight: content.restingHeight
             sportsGame: content.controller.sources.sports.liveGame
             visible: !content.hasWidget && !content.isSearch && !content.isOsd && !content.isWallpaper
-                && !content.isSession && !content.isColorPicker && !content.isLocalSendRequest
-                && !content.isAskpass
+                && !content.isSession && !content.isColorPicker && !content.isDisplayModes
+                && !content.isLocalSendRequest && !content.isAskpass
         }
     }
 
@@ -989,6 +1069,27 @@ Item {
             property: "availableHeight"
             value: content.dashboardAvailableHeight
             when: dashboardLoader.item !== null
+        }
+    }
+
+    // ── Alt+Tab ──────────────────────────────────────────────────────────────
+    // Over everything else, faces and dashboard alike; built only while it can be seen.
+    Loader {
+        id: windowSwitcherLoader
+        anchors.fill: parent
+        active: content.isWindowSwitcher || content.switcherReveal > 0.001
+        visible: content.switcherReveal > 0.001
+        opacity: content.switcherReveal
+
+        sourceComponent: IslandWindowSwitcher {
+            shown: content.isWindowSwitcher
+            coverWidth: content.switcherMetrics.coverWidth
+            coverHeight: content.switcherMetrics.coverHeight
+            topPadding: content.switcherMetrics.topPadding
+            titleGap: content.switcherMetrics.titleGap
+            titleHeight: content.switcherMetrics.titleHeight
+            searchHeight: content.switcherMetrics.searchHeight
+            hintsHeight: content.switcherMetrics.hintsHeight
         }
     }
 }

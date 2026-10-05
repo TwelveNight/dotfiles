@@ -63,6 +63,7 @@ Scope {
                 && controller.centerId !== "search"
                 && controller.centerId !== "wallpaper"
                 && controller.centerId !== "session"
+                && controller.centerId !== "windowSwitcher"
                 && controller.centerId !== "askpass"
                 && (root.eventRevealed || !hoverIntent.hovered))
             return root.eventId;
@@ -181,7 +182,7 @@ Scope {
      */
     property bool dashboardClicked: false
     readonly property bool dashboardActive: !root.searchActive && !root.wallpaperActive && !root.sessionActive
-        && !root.askpassActive
+        && !root.askpassActive && !root.windowSwitcherActive
         && (root.dashboardRequested || root.pagedId === "dashboard" || root.dashboardPinned
             || (root.expanded && (!root.hasExpanded || root.dashboardClicked)))
 
@@ -342,6 +343,8 @@ Scope {
         || root.sessionActive
         || (controller.sources.askpass && controller.sources.askpass.active)
         || root.askpassActive
+        || (controller.sources.windowSwitcher && controller.sources.windowSwitcher.active)
+        || root.windowSwitcherActive
         || GlobalStates.overviewOpen
         || GlobalStates.appDrawerOpen
         || GlobalStates.screenLocked
@@ -355,7 +358,10 @@ Scope {
 
     function forceCollapse() {
         const shown = root.pagedId;
-        if (root.expanded && shown !== "" && shown !== "search" && shown !== "wallpaper"
+        // Alt+Tab passing over an expanded card collapses it but does not dismiss it: the
+        // island is meant to come back to what it was showing.
+        const switching = controller.sources.windowSwitcher && controller.sources.windowSwitcher.active;
+        if (root.expanded && !switching && shown !== "" && shown !== "search" && shown !== "wallpaper"
                 && shown !== "session" && shown !== "askpass" && shown !== "clock") {
             const source = controller.sources.sourceFor(shown);
             if (source && typeof source.dismiss === "function")
@@ -567,8 +573,12 @@ Scope {
     onPagedIdChanged: Qt.callLater(root.syncSourceHover)
     Connections {
         target: hoverIntent
+        // Deferred like the one above, for the same reason: `pagedId` reads
+        // `hoverIntent.hovered`, and a source's `hovered` feeds its activity, so
+        // syncing inside this notification changed what `pagedId` was being
+        // evaluated from (a binding loop on every arrival or hover at boot).
         function onHoveredChanged() {
-            root.syncSourceHover();
+            Qt.callLater(root.syncSourceHover);
         }
     }
 
@@ -586,6 +596,14 @@ Scope {
 
     /** The session menu, drawn as one of the island's faces; see IslandSessionMenu. */
     readonly property bool sessionActive: root.pagedId === "session"
+
+    /**
+     * Alt+Tab, drawn as one of the island's faces; see IslandWindowSwitcher. Its keys are
+     * compositor binds (WindowSwitcher), so unlike the session menu it never takes the
+     * keyboard; it only has to stop a hover over its icons from opening the dashboard.
+     */
+    readonly property bool windowSwitcherActive: root.pagedId === "windowSwitcher"
+    onWindowSwitcherActiveChanged: if (root.windowSwitcherActive) root.expandedBubbleId = ""
 
     // ── Password prompts ─────────────────────────────────────────────────────
     /** A password prompt, drawn as one of the island's faces; see IslandAskpassCard. */
@@ -655,6 +673,7 @@ Scope {
 
     /** The picked-colour card and an incoming transfer, both the popups' own layouts. */
     readonly property bool colorPickerActive: root.pagedId === "colorPicker"
+    readonly property bool displayModesActive: root.pagedId === "displayModes"
     readonly property bool localSendRequestActive: root.pagedId === "localSend"
         && !root.localSendDragging
         && notchContent.localSendRequestTargetHeight > 0
@@ -775,6 +794,8 @@ Scope {
     readonly property real heightCap: win.screen ? win.screen.height * 0.7 : 600
 
     readonly property real targetWidth: {
+        if (root.windowSwitcherActive)
+            return Math.min(root.widthCap, notchContent.windowSwitcherTargetWidth);
         if (root.dashboardActive)
             return root.dashboardWidth;
         if (root.searchActive) {
@@ -801,6 +822,8 @@ Scope {
         }
         if (root.colorPickerActive && notchContent.colorPickerTargetWidth > 0)
             return Math.min(root.widthCap, notchContent.colorPickerTargetWidth);
+        if (root.displayModesActive && notchContent.displayModesTargetWidth > 0)
+            return Math.min(root.widthCap, notchContent.displayModesTargetWidth);
         if (root.localSendRequestActive)
             return Math.min(root.widthCap, notchContent.localSendRequestTargetWidth);
         // The indicator declares its own size; see NotchContent.osdTargetWidth.
@@ -895,6 +918,8 @@ Scope {
     }
 
     readonly property real targetHeight: {
+        if (root.windowSwitcherActive)
+            return Math.min(root.heightCap, notchContent.windowSwitcherTargetHeight);
         if (root.dashboardActive)
             return root.dashboardHeight;
         if (root.searchActive) {
@@ -928,6 +953,8 @@ Scope {
         }
         if (root.colorPickerActive && notchContent.colorPickerTargetHeight > 0)
             return Math.min(root.heightCap, notchContent.colorPickerTargetHeight);
+        if (root.displayModesActive && notchContent.displayModesTargetHeight > 0)
+            return Math.min(root.heightCap, notchContent.displayModesTargetHeight);
         if (root.localSendRequestActive)
             return Math.min(root.heightCap, notchContent.localSendRequestTargetHeight);
         if (root.pagedId === "osd" && notchContent.osdTargetHeight > 0)
@@ -1072,7 +1099,10 @@ Scope {
      * anything that leaves the bar's centre empty for a frame shows a hole in the bar.
      */
     readonly property bool hidden: {
-        if (root.searchActive || root.wallpaperActive || root.sessionActive || root.dashboardPinned)
+        // Alt+Tab included: over a fullscreen window and under auto-hide alike, the
+        // switcher is the reason the user is looking at the island.
+        if (root.searchActive || root.wallpaperActive || root.sessionActive || root.dashboardPinned
+                || root.windowSwitcherActive)
             return false;
         // A password prompt is never hidden: not by auto-hide, not by a fullscreen window.
         if (root.askpassActive || (controller.sources.askpass && controller.sources.askpass.active))
@@ -1545,6 +1575,7 @@ Scope {
         || root.bubbleAway.length > 0
     /** A page the island grows into as far as the launcher does: the bubbles go in for all of them. */
     readonly property bool largePageActive: root.searchActive || root.wallpaperActive || root.sessionActive
+        || root.windowSwitcherActive
     property real swallowClock: root.swallowing ? 1 : 0
     Behavior on swallowClock {
         NumberAnimation {
@@ -1596,6 +1627,7 @@ Scope {
     property string expandedBubbleId: ""
     readonly property bool bubbleMayExpand: root.expandedBubbleId === "" && !root.expanded
         && !root.searchActive && !root.wallpaperActive && !root.sessionActive && !root.dashboardActive && !root.hidden
+        && !root.windowSwitcherActive
 
     function requestBubbleExpand(activityId) {
         if (root.bubbleMayExpand && root.bubbleHeld.indexOf(activityId) !== -1)
@@ -1613,7 +1645,6 @@ Scope {
         if (root.expandedBubbleId !== "" && root.bubbleHeld.indexOf(root.expandedBubbleId) === -1)
             root.expandedBubbleId = "";
     }
-    onSearchActiveChanged: if (root.searchActive) root.expandedBubbleId = ""
     onWallpaperActiveChanged: if (root.wallpaperActive) root.expandedBubbleId = ""
     onSessionActiveChanged: if (root.sessionActive) root.expandedBubbleId = ""
     onDashboardActiveChanged: if (root.dashboardActive) root.expandedBubbleId = ""
@@ -1690,6 +1721,56 @@ Scope {
         }
     }
 
+    /**
+     * A second chance at the keyboard for the launcher.
+     *
+     * OnDemand is only granted on a *change* of interactivity, and the launcher can
+     * open without one: the surface already asked for the keyboard for the face it
+     * replaces (dashboard, picker, session menu), or the grant landed before the
+     * island had taken its shape. The field then sat focused inside a window the
+     * compositor never gave the keyboard to, until the pointer moved over it.
+     * Shortly after opening, a window that is still not active drops the request for
+     * a moment and asks again, which is the edge the grant waits for.
+     */
+    property bool keyboardNudge: false
+    property int keyboardNudgeTries: 0
+
+    onSearchActiveChanged: {
+        if (root.searchActive)
+            root.expandedBubbleId = "";
+        root.keyboardNudgeTries = 0;
+        if (root.searchActive)
+            keyboardGrantCheck.restart();
+        else
+            keyboardGrantCheck.stop();
+    }
+
+    Timer {
+        id: keyboardGrantCheck
+        interval: 180
+        repeat: false
+        onTriggered: {
+            if (!root.searchActive || fullWindow.Window.active)
+                return;
+            if (root.keyboardNudgeTries >= 2)
+                return;
+            root.keyboardNudgeTries++;
+            root.keyboardNudge = true;
+            keyboardNudgeRelease.restart();
+        }
+    }
+
+    Timer {
+        id: keyboardNudgeRelease
+        interval: 50
+        repeat: false
+        onTriggered: {
+            root.keyboardNudge = false;
+            notchContent.focusSearch();
+            keyboardGrantCheck.restart();
+        }
+    }
+
     PanelWindow {
         id: win
 
@@ -1724,7 +1805,7 @@ Scope {
         // never appeared at all. Every face that types asks OnDemand instead, and a
         // change of face is the change Hyprland grants on.
         WlrLayershell.keyboardFocus: (root.wallpaperActive || root.searchActive || root.sessionActive
-                || root.askpassActive || notchContent.dashboardWantsKeyboard)
+                || root.askpassActive || notchContent.dashboardWantsKeyboard) && !root.keyboardNudge
             ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
         anchors {
@@ -2046,7 +2127,7 @@ Scope {
              * is chasing a target that is itself in motion.
              */
             readonly property bool largeFace: root.searchActive || root.wallpaperActive || root.sessionActive
-                || root.askpassActive || root.colorPickerActive || root.localSendRequestActive
+                || root.askpassActive || root.colorPickerActive || root.displayModesActive || root.localSendRequestActive
                 || root.dashboardActive
 
             /**
@@ -2061,7 +2142,7 @@ Scope {
              * its length, so the next small-face change gets its bounce back.
              */
             property bool settlingLarge: false
-            readonly property bool dampedMorph: largeFace || settlingLarge
+            readonly property bool dampedMorph: largeFace || settlingLarge || container.switcherMorph
             onLargeFaceChanged: container.settlingLarge = !largeFace
             Timer {
                 id: settlingTimer
@@ -2069,6 +2150,21 @@ Scope {
                 onTriggered: container.settlingLarge = false
             }
             onSettlingLargeChanged: if (settlingLarge) settlingTimer.restart()
+
+            /**
+             * Alt+Tab is a large face: the cover flow is most of a screen wide, and it grows
+             * and shrinks on the same damped curve and clock as the dashboard - long enough
+             * to read as the island changing shape, without the overshoot a surface that
+             * size would wobble with. (It once ran on a 200 ms clock so a quick release
+             * never met a half-grown island; that read as instant, not dynamic.)
+             *
+             * Read off the service rather than `windowSwitcherActive`: a Behaviour takes its
+             * duration the frame the size changes, and the face id changing is that frame,
+             * so a flag derived from the face id may or may not have caught up. The service
+             * is armed 150 ms before the face arrives and keeps `settling` for the way back.
+             */
+            readonly property bool switcherMorph: WindowSwitcher.presenter === "island"
+                && (WindowSwitcher.active || WindowSwitcher.settling)
 
             readonly property int morphMs: Math.round((container.dampedMorph ? 420 : 500) * Appearance.animMultiplier)
 
@@ -2355,6 +2451,7 @@ Scope {
                     contractedHeight: root.contractedHeight
                     sideIds: root.sideBound
                     restingHeight: root.restingHeight
+                    screenWidth: win.screen ? win.screen.width : 1920
                     dashboardAvailableWidth: root.widthCap
                     dashboardAvailableHeight: root.dashboardHeightCap
                     // The workspace overview, drawn inside the body under the search

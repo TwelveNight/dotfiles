@@ -3,6 +3,8 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.panels.shellSwitcher
+import qs.modules.common.panels.windowSwitcher
+import qs.modules.ii.displayModesPopup
 import qs.modules.ii.background
 import qs.modules.ii.background.desktopMenu
 import qs.modules.ii.bar
@@ -139,8 +141,12 @@ Scope {
     }
     UrlPanelLoader { panelUrl: Qt.resolvedUrl("../modules/ii/screenTranslator/ScreenTranslator.qml") }
     UrlPanelLoader { panelUrl: Qt.resolvedUrl("../modules/ii/colorPickerPopup/ColorPickerPopup.qml") }
+    UrlPanelLoader { panelUrl: Qt.resolvedUrl("../modules/ii/displayModesPopup/DisplayModesPopup.qml") }
     UrlPanelLoader { panelUrl: Qt.resolvedUrl("../modules/ii/sessionScreen/SessionScreen.qml") }
     UrlPanelLoader { panelUrl: Qt.resolvedUrl("../modules/common/panels/shellSwitcher/ShellSwitcher.qml") }
+    // Always loaded so switching off Alt+Tab also releases its bindings.
+    UrlPanelLoader { panelUrl: Qt.resolvedUrl("../modules/common/panels/windowSwitcher/WindowSwitcherPanel.qml") }
+    UrlPanelLoader { panelUrl: Qt.resolvedUrl("../modules/common/panels/windowSwitcher/WindowSwitcherPeek.qml") }
     UrlPanelLoader {
         panelUrl: Qt.resolvedUrl("../modules/ii/sidebarPolicies/SidebarPolicies.qml")
         extraCondition: !GlobalStates.connectModeActive || GlobalStates.connectSidebarsSeparate

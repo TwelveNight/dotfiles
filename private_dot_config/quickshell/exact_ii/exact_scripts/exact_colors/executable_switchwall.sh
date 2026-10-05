@@ -185,6 +185,74 @@ is_desktop_target() {
     [[ -z "$lockscreen_flag" && -z "$lightmode_flag" ]]
 }
 
+# "shell" means Quickshell plays the video inside its own wallpaper plane
+# (modules/ii/background/wallpaper/VideoWallpaper.qml); mpvpaper is then neither
+# required nor started, and no restore script relaunches it at login.
+video_backend_is_shell() {
+    [[ "$(jq -r '.background.videoBackend // "mpvpaper"' "$SHELL_CONFIG_FILE" 2>/dev/null)" == "shell" ]]
+}
+
+PROXY_SCRIPT="$SCRIPT_DIR/../videos/video-proxy.sh"
+
+# Play a screen-sized copy of videos bigger than the screen (videos/video-proxy.sh).
+video_downscale_enabled() {
+    # Not `// true`: jq's alternative operator treats an explicit false as missing.
+    [[ "$(jq -r '.background.videoDownscale' "$SHELL_CONFIG_FILE" 2>/dev/null)" != "false" ]]
+}
+
+# The file mpvpaper and the shell player should open for `video`: its copy when
+# one is ready. When a copy is worth making and missing, it is made in the
+# background and the wallpaper re-applied once it exists (if still current).
+resolve_video_playback() {
+    local video="$1" proxy
+    if ! video_downscale_enabled; then
+        echo "$video"
+        return
+    fi
+    proxy="$("$PROXY_SCRIPT" path "$video")"
+    if [[ -n "$proxy" ]]; then
+        echo "$proxy"
+        return
+    fi
+    if [[ "$colors_only_flag" != "1" && "$noswitch_flag" != "1" ]] && is_desktop_target && "$PROXY_SCRIPT" needed "$video"; then
+        nohup setsid bash -c '"$1" ensure "$2" >/dev/null || exit 0
+            [[ "$(jq -r ".background.wallpaperPath" "$3")" == "$2" ]] || exit 0
+            exec bash "$4" --image "$2"' \
+            _ "$PROXY_SCRIPT" "$video" "$SHELL_CONFIG_FILE" "$SCRIPT_DIR/switchwall.sh" >/dev/null 2>&1 &
+    fi
+    echo "$video"
+}
+
+# Seconds into `video` that colors and the poster frame are taken from
+# (.background.videoFrameTimes, set in Settings > Background), 0 = first frame.
+video_frame_time() {
+    jq -r --arg p "$1" '[.background.videoFrameTimes // [] | .[] | select(.path == $p) | .seconds][0] // 0' \
+        "$SHELL_CONFIG_FILE" 2>/dev/null || echo 0
+}
+
+# Poster/color frame of `video` at its configured time, into $THUMBNAIL_DIR.
+# The time is part of the file name, so a new choice is a new path and every
+# Image showing the old poster reloads instead of serving its cache.
+extract_video_frame() {
+    local video="$1" seconds name out
+    seconds="$(video_frame_time "$video")"
+    [[ "$seconds" =~ ^[0-9]+(\.[0-9]+)?$ ]] || seconds=0
+    name="$(basename "$video")"
+    if [[ "$seconds" == "0" ]]; then
+        out="$THUMBNAIL_DIR/$name.jpg"
+    else
+        out="$THUMBNAIL_DIR/$name@${seconds}s.jpg"
+    fi
+    rm -f "$out"
+    ffmpeg -y -ss "$seconds" -i "$video" -frames:v 1 "$out" 2>/dev/null
+    # Past the end of the video ffmpeg writes nothing: use the first frame.
+    if [[ ! -s "$out" && "$seconds" != "0" ]]; then
+        out="$THUMBNAIL_DIR/$name.jpg"
+        ffmpeg -y -i "$video" -frames:v 1 "$out" 2>/dev/null
+    fi
+    echo "$out"
+}
+
 kill_existing_mpvpaper() {
     pkill -f -9 mpvpaper || true
 }
@@ -698,7 +766,7 @@ done"
             mkdir -p "$THUMBNAIL_DIR"
 
             missing_deps=()
-            if [[ "$colors_only_flag" != "1" && "$noswitch_flag" != "1" ]] && ! command -v mpvpaper &> /dev/null; then
+            if [[ "$colors_only_flag" != "1" && "$noswitch_flag" != "1" ]] && ! video_backend_is_shell && ! command -v mpvpaper &> /dev/null; then
                 missing_deps+=("mpvpaper")
             fi
             if ! command -v ffmpeg &> /dev/null; then
@@ -734,11 +802,14 @@ done"
             fi
 
             # Set video wallpaper
-            local video_path="$imgpath"
-            if [[ -f "${imgpath%.*}_1080p.mp4" ]]; then
-                video_path="${imgpath%.*}_1080p.mp4"
-            fi
+            local video_path
+            video_path="$(resolve_video_playback "$imgpath")"
+            # The shell player reads which file to open from here (VideoWallpaper.qml).
             if is_desktop_target && [[ "$colors_only_flag" != "1" && "$noswitch_flag" != "1" ]]; then
+                update_config_value_if_changed '.background.videoPlaybackSource' string "$imgpath" '""'
+                update_config_value_if_changed '.background.videoPlaybackPath' string "$video_path" '""'
+            fi
+            if is_desktop_target && [[ "$colors_only_flag" != "1" && "$noswitch_flag" != "1" ]] && ! video_backend_is_shell; then
                 monitors=$(hyprctl monitors -j | jq -r '.[] | .name')
                 for monitor in $monitors; do
                     nohup setsid mpvpaper -o "$VIDEO_OPTS input-ipc-server=/tmp/mpvpaper-$monitor.sock" "$monitor" "$video_path" >/dev/null 2>&1 &
@@ -746,13 +817,14 @@ done"
                 done
             fi
 
-            # Extract first frame for color generation
-            thumbnail="$THUMBNAIL_DIR/$(basename "$imgpath").jpg"
-            ffmpeg -y -i "$imgpath" -vframes 1 "$thumbnail" 2>/dev/null
+            # The frame colors are generated from (first frame unless the user
+            # picked a moment in Settings > Background).
+            thumbnail="$(extract_video_frame "$imgpath")"
 
             # Set thumbnail path. Global, so it belongs to the desktop wallpaper —
             # a lockscreen or light-mode pick must not repaint the desktop preview.
-            if is_desktop_target && [[ "$colors_only_flag" != "1" && "$noswitch_flag" != "1" ]]; then
+            # --refresh-frame is a --noswitch run that only re-picks the frame.
+            if is_desktop_target && [[ ( "$colors_only_flag" != "1" && "$noswitch_flag" != "1" ) || "$refresh_frame_flag" == "1" ]]; then
                 set_thumbnail_path "$thumbnail"
             fi
 
@@ -761,7 +833,11 @@ done"
                 matugen_args+=(image "$thumbnail")
                 generate_colors_material_args=(--path "$thumbnail")
                 if is_desktop_target && [[ "$colors_only_flag" != "1" && "$noswitch_flag" != "1" ]]; then
-                    create_restore_script "$video_path"
+                    if video_backend_is_shell; then
+                        remove_restore
+                    else
+                        create_restore_script "$video_path"
+                    fi
                 fi
             else
                 echo "Cannot create image to colorgen"
@@ -853,6 +929,11 @@ done"
                 rm -f -- "$theme_colors_file"
                 return 1
             fi
+            color_overrides="$(get_color_overrides "$mode_flag")"
+            if [[ -n "$color_overrides" ]] && ! run_color_overrides patch-flat "$theme_colors_file" --mode "$mode_flag" --overrides "$color_overrides"; then
+                rm -f -- "$theme_colors_file"
+                return 1
+            fi
             if cmp -s -- "$theme_colors_file" "$STATE_DIR/user/generated/colors.json"; then
                 rm -f -- "$theme_colors_file"
             else
@@ -867,6 +948,7 @@ done"
         matugen_exit_code=0
         atomic_colors_file=""
         atomic_matugen_config=""
+        matugen_config_args=()
         if [[ -f "$SHELL_MATUGEN_CONFIG" && -z "$preset_apps_only_flag" ]]; then
             # Quickshell watches colors.json. Always publish that one template
             # atomically, even when the normal Matugen config also updates
@@ -876,19 +958,39 @@ done"
             atomic_matugen_config=$(mktemp "${TMPDIR:-/tmp}/ii-matugen-shell.XXXXXX.toml")
             sed "s#output_path = '.*colors.json'#output_path = '$atomic_colors_file'#" \
                 "$SHELL_MATUGEN_CONFIG" > "$atomic_matugen_config"
+            matugen_config_args+=(--config "$atomic_matugen_config")
         fi
-        if [[ -z "$colors_only_flag" ]] && ! matugen "${matugen_args[@]}"; then
+        color_overrides="$(get_color_overrides "$mode_flag")"
+        if [[ -n "$color_overrides" ]]; then
+            # Matugen cannot pin a role, but it renders templates from a dump:
+            # generate the dump, patch the picked colors in, render from it.
+            matugen_dump="$(mktemp --suffix=.json)"
+            if matugen "${matugen_args[@]}" --dry-run -q -j hex --include-image-in-json true > "$matugen_dump" \
+                && run_color_overrides patch-dump "$matugen_dump" --mode "$mode_flag" --overrides "$color_overrides" \
+                && { [[ -n "$colors_only_flag" ]] || matugen json "$matugen_dump"; } \
+                && { [[ -n "$preset_apps_only_flag" ]] || matugen "${matugen_config_args[@]}" json "$matugen_dump"; }; then
+                rm -f "$STATE_DIR/matugen_error_notified"
+            else
+                matugen_exit_code=$?
+            fi
+            rm -f "$matugen_dump"
+        elif [[ -z "$colors_only_flag" ]] && ! matugen "${matugen_args[@]}"; then
             matugen_exit_code=1
         elif [[ -n "$preset_apps_only_flag" ]]; then
-            # The earlier colors-only pass has already published colors.json.
-            # App templates above still run, but do not generate the shell
-            # palette again and invalidate all its bindings a second time.
-            :
-        elif matugen --config "$atomic_matugen_config" "${matugen_args[@]}"; then
+            : # The shell palette was already published by the colors-only pass.
+        elif matugen "${matugen_config_args[@]}" "${matugen_args[@]}"; then
+            rm -f "$STATE_DIR/matugen_error_notified"
+        else
+            matugen_exit_code=$?
+        fi
+        if [[ $matugen_exit_code -eq 0 ]]; then
             if [[ -n "$atomic_colors_file" ]]; then
                 if jq -e 'type == "object" and length > 0' "$atomic_colors_file" >/dev/null 2>&1; then
                     if [[ "$type_flag" == "scheme-intense" ]]; then
                         python3 "$SCRIPT_DIR/boost_surface_chroma.py" "$atomic_colors_file" --mode "$mode_flag" || matugen_exit_code=1
+                        if [[ -n "$color_overrides" ]]; then
+                            run_color_overrides patch-flat "$atomic_colors_file" --mode "$mode_flag" --overrides "$color_overrides" || matugen_exit_code=1
+                        fi
                     fi
                     if [[ $matugen_exit_code -eq 0 ]]; then
                         if cmp -s -- "$atomic_colors_file" "$STATE_DIR/user/generated/colors.json"; then
@@ -903,8 +1005,6 @@ done"
                 fi
             fi
             [[ $matugen_exit_code -eq 0 ]] && rm -f "$STATE_DIR/matugen_error_notified"
-        else
-            matugen_exit_code=$?
         fi
         rm -f -- "$atomic_matugen_config"
         if [[ $matugen_exit_code -ne 0 ]]; then
@@ -983,6 +1083,23 @@ main() {
     get_accent_color_from_config() {
         jq -r '.appearance.palette.accentColor' "$SHELL_CONFIG_FILE" 2>/dev/null || echo ""
     }
+    # The user's hand-picked key colors for a mode, as compact JSON; empty
+    # when none of them is set (see color_overrides.py).
+    get_color_overrides() {
+        local mode="${1:-dark}"
+        jq -c --arg mode "$mode" '(.appearance.palette.overrides[$mode] // {})
+            | with_entries(select((.value | type) == "string" and (.value | test("^#?[0-9A-Fa-f]{6}$"))))
+            | select(length > 0)' "$SHELL_CONFIG_FILE" 2>/dev/null
+    }
+    run_color_overrides() {
+        bash "$SCRIPT_DIR/color_overrides.sh" "$@"
+    }
+    apply_color_overrides_flat() {
+        local overrides
+        overrides="$(get_color_overrides "${1:-dark}")"
+        [[ -z "$overrides" ]] && return 0
+        run_color_overrides patch-flat "$STATE_DIR/user/generated/colors.json" --mode "${1:-dark}" --overrides "$overrides"
+    }
     set_accent_color() {
         local color="$1"
         update_config_value_if_changed '.appearance.palette.accentColor' string "$color" '""'
@@ -999,6 +1116,7 @@ main() {
     lockscreen_flag=""
     colors_only_flag=""
     lightmode_flag=""
+    refresh_frame_flag=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -1057,6 +1175,12 @@ main() {
             --request-seq)
                 request_seq_flag="$2"
                 shift 2
+                ;;
+            --refresh-frame)
+                # Use with --noswitch: re-extract the current video's color frame
+                # and regenerate colors, leaving the running video alone.
+                refresh_frame_flag="1"
+                shift
                 ;;
             --noswitch)
                 noswitch_flag="1"

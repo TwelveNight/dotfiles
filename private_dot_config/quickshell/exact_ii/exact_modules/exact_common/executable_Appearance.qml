@@ -762,6 +762,25 @@ Singleton {
             }
         }
 
+        /**
+         * A selection that follows the keyboard (Alt+Tab's highlight). Shorter than
+         * elementMoveFast so a held key reads as one motion, and deliberately without
+         * `alwaysRunToEnd`: a Behavior retargets from wherever the value is, and running
+         * each leg to its end would queue every press behind the last one.
+         */
+        property QtObject elementMoveSnap: QtObject {
+            property int duration: Math.round(150 * root.animMultiplier)
+            property int type: Easing.BezierSpline
+            property list<real> bezierCurve: animationCurves.expressiveFastSpatial
+            property Component numberAnimation: Component {
+                NumberAnimation {
+                    duration: root.animation.elementMoveSnap.duration
+                    easing.type: root.animation.elementMoveSnap.type
+                    easing.bezierCurve: root.animation.elementMoveSnap.bezierCurve
+                }
+            }
+        }
+
         property QtObject elementResize: QtObject {
             property int duration: Math.round(300 * root.animMultiplier)
             property int type: Easing.BezierSpline
@@ -865,29 +884,26 @@ Singleton {
             }
         }
 
-        // One lens shared by every dock icon, driven by two critically damped
-        // springs (see DockMagnification.js). pointerLag is how far the lens
-        // trails the cursor at speed, in milliseconds, and the spring's time
-        // constant: it is what turns a fast sweep from a per-icon snap into one
-        // glide that settles. strengthDuration is how long the lens takes to
-        // reach full size when the cursor arrives, and past the window edge
-        // there are no pointer samples left, so the exit is timed instead:
-        // exitDuration, on a curve that starts and ends gently.
+        // One lens shared by every dock icon. pointerLag smooths the pointer the
+        // lens follows (critically damped, never overshoots); strengthDuration
+        // is how long the lens takes to grow in on enter. Past the window edge
+        // there are no pointer samples, so the exit is timed: exitDuration, on
+        // a curve that starts and ends gently.
         property QtObject dockMagnificationScale: QtObject {
             property QtObject fast: QtObject {
-                property real pointerLag: Math.round(50 * root.animMultiplier)
+                property real pointerLag: 0
+                property int strengthDuration: Math.round(90 * root.animMultiplier)
+                property int exitDuration: Math.round(220 * root.animMultiplier)
+            }
+            property QtObject balanced: QtObject {
+                property real pointerLag: 28
                 property int strengthDuration: Math.round(150 * root.animMultiplier)
                 property int exitDuration: Math.round(280 * root.animMultiplier)
             }
-            property QtObject balanced: QtObject {
-                property real pointerLag: Math.round(120 * root.animMultiplier)
-                property int strengthDuration: Math.round(320 * root.animMultiplier)
-                property int exitDuration: Math.round(480 * root.animMultiplier)
-            }
             property QtObject smooth: QtObject {
-                property real pointerLag: Math.round(170 * root.animMultiplier)
-                property int strengthDuration: Math.round(420 * root.animMultiplier)
-                property int exitDuration: Math.round(600 * root.animMultiplier)
+                property real pointerLag: 60
+                property int strengthDuration: Math.round(220 * root.animMultiplier)
+                property int exitDuration: Math.round(340 * root.animMultiplier)
             }
             property int hoverExitGrace: 90
         }

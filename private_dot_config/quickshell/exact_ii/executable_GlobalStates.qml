@@ -23,6 +23,15 @@ Singleton {
     // react to GlobalStates reliably.
     property bool presetBarHidden: false
     property bool presetRecoloring: false
+    // True while the preset's heavy work runs (config sections, panel windows,
+    // palette). Nothing on screen may start moving then — the work stalls the
+    // GUI thread and anything animating through it stutters — so widgets keep
+    // their places, the wallpaper transition waits and the palette snaps in
+    // instead of crossfading, and everything moves once this drops.
+    property bool presetHoldMotion: false
+    // The first part of that hold, while the bar is still leaving: external
+    // config changes wait for it, so the slide-out runs on an idle thread.
+    property bool presetWorkDeferred: false
     property bool phoneCameraRunning: false
     property bool phoneMicRunning: false
     property int mediaModeCount: 0
@@ -468,7 +477,7 @@ Singleton {
     /// the whole surface instead of revealing the empty overview grid.
     property bool panelOpenedDirectly: false
     property bool wallpaperSelectorOpen: false
-    property string wallpaperSelectorTarget: "desktop" // "desktop" or "lockscreen"
+    property string wallpaperSelectorTarget: "desktop" // "desktop", "lockscreen", "lightmode" or "screen:<name>" (one screen's own, WallpaperLayout)
     property bool workspaceShowNumbers: false
     property bool filePickerOpen: false
     property bool videoEditorPopupOpen: false
@@ -550,7 +559,8 @@ Singleton {
     //   widgets  "category:<key>"
     //   bar      "appearance" | "component:<id>"
     //   dock     "appearance" | "widgets" | "apps:<key>"
-    //   style    "wallpapers" | "colours"
+    //   wallpaper "wallpapers" | "wallpapers:lockscreen" | "wallpapers:lightmode" | "wallpapers:screen"
+    //   style    "colours"
     //
     // A page address belongs to the section that minted it, and the panel
     // ignores one that does not - rather than this clearing it on every
@@ -866,7 +876,7 @@ Singleton {
             return;
         // The bar and the dock are no part of the lock's face: asking for one
         // of them from the lock preview means the desktop.
-        if (root.editLockPreview && section !== "widgets" && section !== "lock" && section !== "style")
+        if (root.editLockPreview && section !== "widgets" && section !== "lock" && section !== "style" && section !== "wallpaper")
             root.editTab = EditModeLogic.desktopTab;
         root.editDrawerOpen = true;
     }
@@ -904,10 +914,18 @@ Singleton {
     // entry waits for the exit's animation, since a mode that is still on
     // the way out refuses to open.
     property string _editReopenMonitor: ""
+    // The Wallpaper catalogue survives the hop: going from one screen's
+    // picture to the next is the whole point of having one per screen, and
+    // the exit would otherwise close the panel on the way.
+    property string _editReopenPage: ""
+    property bool _editReopenWallpaper: false
     function switchEditMonitor(monitorName) {
         if (!root.editMode || !monitorName || monitorName === root.editModeMonitor)
             return;
         root._editReopenMonitor = monitorName;
+        root._editReopenWallpaper = root.editDrawerOpen && root.editDrawerSection === "wallpaper"
+            && !root.editLockPreview;
+        root._editReopenPage = root._editReopenWallpaper ? root.editDrawerPage : "";
         root.closeEditMode();
         editReopenTimer.restart();
     }
@@ -917,8 +935,16 @@ Singleton {
         repeat: false
         onTriggered: {
             const monitor = root._editReopenMonitor;
+            const wallpaper = root._editReopenWallpaper;
+            const page = root._editReopenPage;
             root._editReopenMonitor = "";
-            if (monitor !== "")
+            root._editReopenWallpaper = false;
+            root._editReopenPage = "";
+            if (monitor === "")
+                return;
+            if (wallpaper)
+                root.openEditCatalogue("wallpaper", monitor, page);
+            else
                 root.openEditMode(monitor);
         }
     }
@@ -1112,6 +1138,10 @@ Singleton {
     // push order would leave the widget at 60.
     property var _editHistoryBatch: null
     property bool _editHistoryReplaying: false
+    // Sent before an undo or redo: a store still holding an edit it has not
+    // written yet (a run of wheel steps waiting for its timer) writes it now,
+    // so Ctrl+Z takes that edit back instead of reverting under it.
+    signal editHistoryWillReplay()
 
     function editHistoryBeginBatch() {
         if (root._editHistoryBatch === null)
@@ -1162,6 +1192,7 @@ Singleton {
     }
 
     function editUndo() {
+        root.editHistoryWillReplay();
         if (root._editHistoryBatch !== null)
             root.editHistoryEndBatch();
         const popped = EditModeLogic.undoPop(root.editUndoStack);
@@ -1173,6 +1204,7 @@ Singleton {
     }
 
     function editRedo() {
+        root.editHistoryWillReplay();
         const popped = EditModeLogic.undoPop(root.editRedoStack);
         root.editRedoStack = popped.stack;
         if (popped.entry === null)
@@ -1394,6 +1426,13 @@ Singleton {
                 });
             }
         }
+    }
+
+    // Display modes popup (Win+P style: extend, duplicate, only on one screen)
+    property bool displayModesPopupOpen: false
+
+    function toggleDisplayModes() {
+        root.displayModesPopupOpen = !root.displayModesPopupOpen;
     }
 
     function launchColorPicker() {
@@ -1932,6 +1971,13 @@ Singleton {
     property bool islandOwnsSearch: false
 
     /**
+     * Whether search would open in the island if it were opened now. `islandOwnsSearch`
+     * only turns true once it has; this is the answer beforehand, for a caller that has to
+     * choose how to open it. Written by IslandPolicy as well.
+     */
+    property bool islandHostsSearch: false
+
+    /**
      * Whether the island draws the wallpaper picker instead of the standalone selector.
      * Written by IslandPolicy, for the same reason as `islandOwnsSearch` above.
      */
@@ -1961,8 +2007,12 @@ Singleton {
      */
     property bool islandOwnsColorPicker: false
     property bool islandOwnsLocalSendRequest: false
+    /** The display modes card is drawn on the island instead of floating. */
+    property bool islandOwnsDisplayModes: false
     /** A ringing alarm is the island's, not the fullscreen popup's or a notification's. */
     property bool islandOwnsAlarm: false
+    /** Alt+Tab draws on the island rather than as the floating panel. See WindowSwitcher. */
+    property bool islandOwnsWindowSwitcher: false
     /** A reminder's full-screen alert shows on the island instead. */
     property bool islandOwnsReminder: false
     /** Music recognition reports on the island instead of in notifications. */
@@ -2152,19 +2202,58 @@ Singleton {
     // open caused massive CPU usage (380%+) because every minor visual
     // change (timer ticks, notification syncs, infinite pulse animations)
     // forced a full FBO re-render of the entire sidebar subtree.
-    readonly property bool leftSidebarAnimating: leftSidebarAnimation.running
-    readonly property bool rightSidebarAnimating: rightSidebarAnimation.running
+    readonly property bool leftSidebarAnimating: leftSidebarAnimation.running || leftSidebarDragging
+    readonly property bool rightSidebarAnimating: rightSidebarAnimation.running || rightSidebarDragging
+
+    // ── Surfaces held by a touchpad gesture (services/TouchpadGestures.qml) ─
+    // A panel that follows the fingers is opened for real the moment the swipe starts -
+    // its flag, focus and content all behave as for any other open - and only its reveal
+    // is taken away from the animation and held at `gestureDragProgress` until the fingers
+    // lift and the service has settled it. Everything below that draws a reveal reads one
+    // of the three `*Dragging` flags to know its own clock is not the one in charge.
+    /// "sidebarLeft", "sidebarRight", "overview", or "" when nothing is held.
+    property string gestureDragSurface: ""
+    /// How far open the held surface is, 0..1.
+    property real gestureDragProgress: 0
+    readonly property bool policiesDragging: gestureDragSurface === "sidebarLeft"
+    readonly property bool dashboardDragging: gestureDragSurface === "sidebarRight"
+    readonly property bool overviewDragging: gestureDragSurface === "overview"
+    /// The same two sidebars by the screen edge they occupy, as Connect mode draws them.
+    readonly property bool leftSidebarDragging: {
+        switch (Config.options.sidebar.position) {
+        case "inverted":
+            return dashboardDragging;
+        case "left":
+            return dashboardDragging || policiesDragging;
+        case "right":
+            return false;
+        default:
+            return policiesDragging;
+        }
+    }
+    readonly property bool rightSidebarDragging: {
+        switch (Config.options.sidebar.position) {
+        case "inverted":
+            return policiesDragging;
+        case "left":
+            return false;
+        case "right":
+            return dashboardDragging || policiesDragging;
+        default:
+            return dashboardDragging;
+        }
+    }
 
     // ── Sidebar slide ───────────────────────────────────────────────────────
     // 0 = off screen, 1 = seated. A Behavior rather than a handler (the open flags already
     // have theirs below). The Default-style sidebar windows stay mapped until their
     // progress is back at 0.
-    property real dashboardSlideProgress: dashboardPanelOpen ? 1 : 0
-    property real policiesSlideProgress: policiesPanelOpen ? 1 : 0
+    property real dashboardSlideProgress: dashboardDragging ? gestureDragProgress : (dashboardPanelOpen ? 1 : 0)
+    property real policiesSlideProgress: policiesDragging ? gestureDragProgress : (policiesPanelOpen ? 1 : 0)
 
     Behavior on dashboardSlideProgress {
         id: dashboardSlideBehavior
-        enabled: !Appearance.reducedMotion
+        enabled: !Appearance.reducedMotion && !root.dashboardDragging
         NumberAnimation {
             id: dashboardSlideAnimation
             duration: Appearance.animation.sidebarSlide.enterDuration
@@ -2175,7 +2264,7 @@ Singleton {
 
     Behavior on policiesSlideProgress {
         id: policiesSlideBehavior
-        enabled: !Appearance.reducedMotion
+        enabled: !Appearance.reducedMotion && !root.policiesDragging
         NumberAnimation {
             id: policiesSlideAnimation
             duration: Appearance.animation.sidebarSlide.enterDuration
@@ -2258,8 +2347,23 @@ Singleton {
         easing.type: Easing.OutQuart
     }
 
-    onLeftSidebarTargetWidthChanged: {
+    onLeftSidebarTargetWidthChanged: root._chaseLeftSidebarWidth()
+    onRightSidebarTargetWidthChanged: root._chaseRightSidebarWidth()
+    onLeftSidebarDraggingChanged: root._chaseLeftSidebarWidth()
+    onRightSidebarDraggingChanged: root._chaseRightSidebarWidth()
+    onGestureDragProgressChanged: {
+        if (root.leftSidebarDragging)
+            root._chaseLeftSidebarWidth();
+        if (root.rightSidebarDragging)
+            root._chaseRightSidebarWidth();
+    }
+
+    function _chaseLeftSidebarWidth() {
         leftSidebarAnimation.stop();
+        if (root.leftSidebarDragging) {
+            animatedLeftSidebarWidth = leftSidebarTargetWidth * root.gestureDragProgress;
+            return;
+        }
         if ((Config.options?.appearance?.animationMultiplier ?? 1.0) <= 0.25) {
             animatedLeftSidebarWidth = leftSidebarTargetWidth;
             return;
@@ -2273,8 +2377,12 @@ Singleton {
         leftSidebarAnimation.start();
     }
 
-    onRightSidebarTargetWidthChanged: {
+    function _chaseRightSidebarWidth() {
         rightSidebarAnimation.stop();
+        if (root.rightSidebarDragging) {
+            animatedRightSidebarWidth = rightSidebarTargetWidth * root.gestureDragProgress;
+            return;
+        }
         if ((Config.options?.appearance?.animationMultiplier ?? 1.0) <= 0.25) {
             animatedRightSidebarWidth = rightSidebarTargetWidth;
             return;

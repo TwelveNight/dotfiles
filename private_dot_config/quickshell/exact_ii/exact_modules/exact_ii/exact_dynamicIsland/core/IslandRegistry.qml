@@ -132,6 +132,24 @@ Singleton {
             content: {}
         },
         {
+            // Alt+Tab (WindowSwitcher). Ahead of everything, a password prompt included: it
+            // is only up while Alt is held, and Alt+Tab is how you get to the window asking.
+            id: "windowSwitcher",
+            tier: "interrupt",
+            priority: -2,
+            interactive: true,         // icons to hover and click: hovering must not open the dashboard
+            icon: "tab",
+            label: "Window switcher",
+            preferredSide: "right",
+            canDetach: false,
+            settleMs: 0,
+            // Sized by NotchContent from the window count.
+            compact: { width: 0, height: 0 },
+            orb: { size: -1 },
+            expanded: { width: 0, height: 0 },
+            content: {}
+        },
+        {
             id: "colorPicker",
             tier: "interrupt",
             icon: "colorize",
@@ -139,7 +157,26 @@ Singleton {
             preferredSide: "right",
             canDetach: false,
             settleMs: 0,
+            // Copy, apply and the scheme page are buttons: hovering must not open the
+            // dashboard. The card holds itself open while the pointer is on it.
+            interactive: true,
             // Sized by the picker card itself, which is the popup's own layout.
+            compact: { width: 0, height: 0 },
+            orb: { size: -1 },
+            expanded: { width: 0, height: 0 },
+            content: {}
+        },
+        {
+            id: "displayModes",
+            tier: "interrupt",
+            icon: "desktop_windows",
+            label: "Display modes",
+            preferredSide: "right",
+            canDetach: false,
+            settleMs: 0,
+            // Mode rows and a drag stage: hovering must not open the dashboard.
+            interactive: true,
+            // Sized by the card itself, like the colour picker.
             compact: { width: 0, height: 0 },
             orb: { size: -1 },
             expanded: { width: 0, height: 0 },
