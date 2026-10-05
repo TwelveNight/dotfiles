@@ -4,7 +4,7 @@
 hl.window_rule({match = {class = "^()$", title = "^()$" },                   no_blur = true })
 
 -- Disable blur for every window except transparent apps
-hl.window_rule({match = {class = "^(?!(kitty|code|code-url-handler|vscodium|antigravity-ide)).*" }, no_blur = true })
+hl.window_rule({match = {class = "negative:^(kitty|code|code-url-handler|vscodium|antigravity-ide).*" }, no_blur = true })
 
 -- Floating
 -- Tablet Family shell tools are regular xdg toplevels, so they behave like apps on the
