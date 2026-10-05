@@ -61,12 +61,27 @@ Scope {
     /// Peek at the whole workspace, not the lone window.
     readonly property bool whole: WindowSwitcher.peekWholeWorkspace
 
-    readonly property string wallpaperPath: Config.options?.background?.wallpaperPath ?? ""
-    readonly property bool wallpaperIsVideo: /\.(mp4|webm|mkv|avi|mov)$/i.test(root.wallpaperPath)
-    readonly property string wallpaperSource: root.wallpaperPath === "" ? ""
-        : Qt.resolvedUrl(root.wallpaperIsVideo ? (Config.options?.background?.thumbnailPath ?? "") : root.wallpaperPath)
+    property bool watchingWallpaperState: WindowSwitcher.active || root.holding || root.lingering
+    property bool wallpaperStateAcquired: false
+    function syncWallpaperStateConsumer(): void {
+        if (wallpaperStateAcquired === watchingWallpaperState) return;
+        wallpaperStateAcquired = watchingWallpaperState;
+        if (wallpaperStateAcquired) Wallpapers.acquireSkwdWallpaperState();
+        else Wallpapers.relinquishSkwdWallpaperState();
+    }
+    onWatchingWallpaperStateChanged: syncWallpaperStateConsumer()
+    Component.onCompleted: syncWallpaperStateConsumer()
+    Component.onDestruction: {
+        if (wallpaperStateAcquired) Wallpapers.relinquishSkwdWallpaperState();
+        root.redim();
+    }
+
+    readonly property string wallpaperPath: Wallpapers.activeWallpaperPath
+    readonly property bool wallpaperIsVideo: Wallpapers.isVideoFile(root.wallpaperPath)
+    readonly property string wallpaperPreviewPath: root.wallpaperMoving ? Wallpapers.activeThumbnailPath : root.wallpaperPath
+    readonly property string wallpaperSource: root.wallpaperPreviewPath === "" ? "" : Qt.resolvedUrl(root.wallpaperPreviewPath)
     /// The background blurs the wallpaper behind open windows, except for moving wallpapers.
-    readonly property bool wallpaperMoving: root.wallpaperIsVideo || (Config.options?.background?.useWallpaperEngine ?? false)
+    readonly property bool wallpaperMoving: root.wallpaperIsVideo || Wallpapers.activeUseWallpaperEngine
     readonly property bool wallpaperBlurred: (Config.options?.background?.blurWhenWindowsOpen ?? false) && !root.wallpaperMoving
     /// The background's zoom (BackgroundRoot.recalcWallpaperScale): the workspace zoom, and 3 %
     /// more whenever a blur is on, which pushes the blur's dark edges off the screen.
@@ -254,7 +269,7 @@ Scope {
     }
 
     // A shell reload mid-peek must not leave windows undimmed for good.
-    Component.onDestruction: root.redim()
+    // redim() runs with wallpaper-state cleanup in Component.onDestruction.
 
     function noDimChunk(address: string, on: bool): string {
         const value = on ? "1" : "unset";

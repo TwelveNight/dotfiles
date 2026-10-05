@@ -14,20 +14,34 @@ Item {
     /// "desktop", "lockscreen" or "lightmode".
     property string targetMode: "desktop"
 
+    property bool watchingWallpaperState: root.visible
+    property bool wallpaperStateAcquired: false
+    function syncWallpaperStateConsumer(): void {
+        if (wallpaperStateAcquired === watchingWallpaperState) return;
+        wallpaperStateAcquired = watchingWallpaperState;
+        if (wallpaperStateAcquired) Wallpapers.acquireSkwdWallpaperState();
+        else Wallpapers.relinquishSkwdWallpaperState();
+    }
+    onWatchingWallpaperStateChanged: syncWallpaperStateConsumer()
+    Component.onCompleted: syncWallpaperStateConsumer()
+    Component.onDestruction: {
+        if (wallpaperStateAcquired) Wallpapers.relinquishSkwdWallpaperState();
+    }
+
     readonly property var background: Config.options.background
     readonly property string effectivePath: {
         if (root.targetMode === "lockscreen" && (root.background.lockscreenWallpaperPath ?? "") !== "")
             return root.background.lockscreenWallpaperPath;
         if (root.targetMode === "lightmode" && (root.background.lightModeWallpaperPath ?? "") !== "")
             return root.background.lightModeWallpaperPath;
-        return root.background.wallpaperPath ?? "";
+        return Wallpapers.activeWallpaperPath;
     }
-    readonly property bool usesWallpaperEngine: root.targetMode === "desktop" && root.background.useWallpaperEngine
+    readonly property bool usesWallpaperEngine: root.targetMode === "desktop" && Wallpapers.activeUseWallpaperEngine
     readonly property string defaultPath: `${Directories.assetsPath}/images/default_wallpaper.png`
 
     readonly property string fileName: {
         if (root.usesWallpaperEngine) {
-            const parts = (root.background.wallpaperEngineId ?? "").split("/");
+            const parts = Wallpapers.activeWallpaperEngineId.split("/");
             return parts[parts.length - 1];
         }
         if (root.effectivePath === "")
@@ -42,6 +56,8 @@ Item {
     // once; the card-sized one replaces it when it is cached too, or once it is generated.
     // Hidden cards (no separate lock/light wallpaper) load nothing.
     readonly property string thumbnailSource: !root.visible || root.usesWallpaperEngine ? ""
+        : root.targetMode === "desktop" && Wallpapers.isVideoFile(root.effectivePath) && Wallpapers.activeThumbnailPath !== ""
+            ? Wallpapers.activeThumbnailPath
         : root.effectivePath !== "" ? root.effectivePath : root.defaultPath
 
     ThumbnailImage {
@@ -67,7 +83,7 @@ Item {
         visible: root.usesWallpaperEngine && status !== Image.Error
         fillMode: Image.PreserveAspectCrop
         cache: false
-        source: root.usesWallpaperEngine ? "file:///tmp/wpe_screenshot.png?t=" + root.background.wallpaperEngineId : ""
+        source: root.usesWallpaperEngine && Wallpapers.activeThumbnailPath !== "" ? Qt.resolvedUrl(Wallpapers.activeThumbnailPath) + "?t=" + Wallpapers.activeWallpaperEngineId : ""
     }
 
     // Only once nothing above can show: the file is unreadable and no thumbnail could be made.

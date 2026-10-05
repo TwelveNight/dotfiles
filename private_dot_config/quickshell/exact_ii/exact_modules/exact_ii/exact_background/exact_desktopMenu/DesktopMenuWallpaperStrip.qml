@@ -25,17 +25,34 @@ import qs.modules.common.functions
 Item {
     id: root
 
+    property bool watchingWallpaperState: root.visible
+    property bool wallpaperStateAcquired: false
+    function syncWallpaperStateConsumer(): void {
+        if (wallpaperStateAcquired === watchingWallpaperState) return;
+        wallpaperStateAcquired = watchingWallpaperState;
+        if (wallpaperStateAcquired) Wallpapers.acquireSkwdWallpaperState();
+        else Wallpapers.relinquishSkwdWallpaperState();
+    }
+    onWatchingWallpaperStateChanged: syncWallpaperStateConsumer()
+    Component.onCompleted: syncWallpaperStateConsumer()
+    Component.onDestruction: {
+        if (wallpaperStateAcquired) Wallpapers.relinquishSkwdWallpaperState();
+    }
+
     readonly property var recents: Wallpapers.recentWallpapers
     // Drawn once per open (reset()), so the strip does not reshuffle under
     // the pointer; the recents always come first.
     property var fillers: []
     readonly property var paths: {
-        const recents = Array.from(root.recents);
+        const recents = Array.from(root.recents).filter(p => p !== root.currentPath);
+        if (root.currentPath !== "") recents.unshift(root.currentPath);
         const extra = root.fillers.filter(p => !recents.includes(p));
         return recents.concat(extra).slice(0, Wallpapers.recentLimit);
     }
     readonly property int count: root.paths.length
-    readonly property string currentPath: FileUtils.trimFileProtocol(String(Config.options?.background?.wallpaperPath ?? ""))
+    readonly property string currentPath: FileUtils.trimFileProtocol(Wallpapers.activeUseWallpaperEngine ? Wallpapers.activeThumbnailPath : Wallpapers.activeWallpaperPath)
+
+    onCurrentPathChanged: root.expanded = 0
 
     // The expanded tile. Put back on the current wallpaper each time the
     // menu opens (reset()), so the strip starts on what is on screen.
@@ -180,7 +197,7 @@ Item {
                 anchors.centerIn: parent
                 width: root.largeWidth
                 height: root.height
-                sourcePath: tile.modelData
+                sourcePath: tile.isCurrent && Wallpapers.activeThumbnailPath !== "" ? Wallpapers.activeThumbnailPath : tile.modelData
                 thumbnailService: Wallpapers
                 fillMode: Image.PreserveAspectCrop
             }
