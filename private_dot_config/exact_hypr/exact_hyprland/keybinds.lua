@@ -103,9 +103,9 @@ hl.bind("CTRL + SUPER + T", hl.dsp.exec_cmd(qsIsAlive .. " || " .. qsScripts .. 
 --##! User
 -- `qs kill` is the only shutdown that also takes the shell's child processes
 -- down with it, and it returns once the instance is really gone; killall is
--- kept for an instance too wedged to answer over IPC.
+-- kept for an instance too wedged to answer over IPC. MALLOC_CONF: see execs.lua.
 hl.bind("CTRL + SUPER + R",
-    hl.dsp.exec_cmd("killall ydotool; qs kill -c $qsConfig || killall qs quickshell 2>/dev/null; qs -c $qsConfig &"),
+    hl.dsp.exec_cmd("killall ydotool; qs kill -c $qsConfig || killall qs quickshell 2>/dev/null; MALLOC_CONF=narenas:1 qs -c $qsConfig &"),
     { description = "Shell: Restart widgets" })
 --##! Bar & panels
 hl.bind("CTRL + SUPER + P", hl.dsp.global("quickshell:panelFamilyCycle"), { description = "Shell: Cycle panel family" })
@@ -139,6 +139,9 @@ hl.bind("SUPER + SHIFT + C", hl.dsp.global("quickshell:colorPickerLaunch"),
     { description = "Utilities: Pick color #RRGGBB >> clipboard" })
 hl.bind("SUPER + SHIFT + C",
     hl.dsp.exec_cmd(qsIpcCall .. " colorPickerLaunch trigger || hyprpicker -a"))
+--# Display modes (extend, duplicate, single screen)
+hl.bind("SUPER + ALT + P", hl.dsp.global("quickshell:displayModesToggle"),
+    { description = "Utilities: Display modes (extend, duplicate, single screen)" })
 --##! Screenshot & recording
 --# Recording stuff
 hl.bind("SUPER + SHIFT + R", hl.dsp.global("quickshell:regionRecord"),
@@ -169,6 +172,11 @@ hl.bind("SUPER + SHIFT + ALT + mouse:273", hl.dsp.exec_cmd(hyprScripts .. "/ai/p
 
 --#!
 --##! Window
+--# Window switcher: bound at runtime by the shell (services/WindowSwitcher.qml) while
+--# Settings > Windows > Window switcher is on, so it is documented here only
+--#/# bind = ALT, Tab,, # Switch windows (hold Alt, Tab to cycle)
+--#/# bind = ALT + SHIFT, Tab,, # Switch windows backwards
+--#/# bind = ALT, grave,, # Switch between this app's windows (the key above Tab)
 --# Focusing
 hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true, description = "Window: Move" })
 hl.bind("SUPER + mouse:274", hl.dsp.window.drag(), { mouse = true })
@@ -259,7 +267,7 @@ end
 --#/# bind = SUPER+SHIFT, Scroll ↑/↓,, # Send to workspace left/right
 for i = 1, 4 do
     local key = { "SUPER + SHIFT + mouse_", "SUPER + ALT + mouse_" }
-    local keycombos = { key[1] .. "down", key[1] .. "up", key[2] .. "down", key[2] .. "up" }
+    local keycombos = { key[1] .. "up", key[1] .. "down", key[2] .. "up", key[2] .. "down" }
     local prefix = { "r-", "r+", "-", "+" }
     hl.bind(keycombos[i], hl.dsp.window.move({ workspace = prefix[i] .. "1" }))
 end

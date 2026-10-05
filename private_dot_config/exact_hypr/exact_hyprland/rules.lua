@@ -22,12 +22,17 @@ hl.window_rule({match = {title = "^(Open File)(.*)$" },                      cen
 hl.window_rule({match = {title = "^(ii Notes)$" },                           float = true})
 hl.window_rule({match = {title = "^(ii Notes)$" },                           center = true})
 hl.window_rule({match = {title = "^(ii Notes)$" },                           size = "1500 940"})
--- The clock app, like the notes app: a real toplevel that floats, centred, at the size
--- Usage and Modes open at, so the three whole-app windows read as one family.
+-- The clock app, like the notes app: a real toplevel that floats, centred. Usage, Modes
+-- and EasyEffects are built from the clock's parts and open at its size, so the
+-- whole-app windows read as one family.
 hl.window_rule({match = {title = "^(ii Clock)$" },                           float = true})
 hl.window_rule({match = {title = "^(ii Clock)$" },                           center = true})
 hl.window_rule({match = {title = "^(ii EasyEffects)$" },                     float = true})
 hl.window_rule({match = {title = "^(ii EasyEffects)$" },                     center = true})
+hl.window_rule({match = {title = "^(ii Usage)$" },                           float = true})
+hl.window_rule({match = {title = "^(ii Usage)$" },                           center = true})
+hl.window_rule({match = {title = "^(ii Modes)$" },                           float = true})
+hl.window_rule({match = {title = "^(ii Modes)$" },                           center = true})
 -- The throwaway mirror the shell opens only so a phone's lockscreen can be
 -- dismissed from here. It lives for a few seconds, so it must not be tiled
 -- into the current layout.
@@ -58,6 +63,8 @@ hl.window_rule({match = {title = "^(Choose wallpaper)(.*)$" },               flo
 hl.window_rule({match = {title = "^(Choose wallpaper)(.*)$" },               size = {"(monitor_w*0.60)", "(monitor_h*0.65)"} })
 hl.window_rule({match = {title = "^(Open Folder)(.*)$" },                    center = true})
 hl.window_rule({match = {title = "^(Open Folder)(.*)$" },                    float = true})
+hl.window_rule({match = {title = "^(Select the mod file to import)(.*)$" },  center = true}) -- Gale
+hl.window_rule({match = {title = "^(Select the mod file to import)(.*)$" },  float = true})
 hl.window_rule({match = {title = "^(Save As)(.*)$" },                        center = true})
 hl.window_rule({match = {title = "^(Save As)(.*)$" },                        float = true})
 hl.window_rule({match = {title = "^(Library)(.*)$" },                        center = true})
@@ -160,10 +167,6 @@ hl.layer_rule({ match = { namespace = "overview[0-9]*" }, blur = true})
 hl.layer_rule({ match = { namespace = "overview[0-9]*" }, ignore_alpha = 0.6})
 hl.layer_rule({ match = { namespace = "cheatsheet[0-9]*" }, blur = true})
 hl.layer_rule({ match = { namespace = "cheatsheet[0-9]*" }, ignore_alpha = 0.6})
-hl.layer_rule({ match = { namespace = "quickshell:usage" }, blur = true})
-hl.layer_rule({ match = { namespace = "quickshell:usage" }, ignore_alpha = 0.6})
-hl.layer_rule({ match = { namespace = "quickshell:modes" }, blur = true})
-hl.layer_rule({ match = { namespace = "quickshell:modes" }, ignore_alpha = 0.6})
 hl.layer_rule({ match = { namespace = "sideright[0-9]*" }, blur = true})
 hl.layer_rule({ match = { namespace = "sideright[0-9]*" }, ignore_alpha = 0.6})
 hl.layer_rule({ match = { namespace = "sideleft[0-9]*" }, blur = true})
@@ -181,6 +184,8 @@ hl.layer_rule({ match = { namespace = "quickshell.*" }, ignore_alpha = 0.19})
 hl.layer_rule({ match = { namespace = "quickshell.*" }, xray = false})
 -- Background is a Bottom-layer wallpaper surface; compositor blur here causes double-blur
 hl.layer_rule({ match = { namespace = "quickshell:background" }, blur = false})
+-- The widgets blur themselves when a window is open; compositor blur would frost a hard-edged patch around them
+hl.layer_rule({ match = { namespace = "quickshell:backgroundWidgets" }, blur = false})
 hl.layer_rule({ match = { namespace = "quickshell:workspaceBlurOverlay" }, order = -1})
 hl.layer_rule({ match = { namespace = "quickshell:workspaceBlurOverlay" }, blur = true})
 hl.layer_rule({ match = { namespace = "quickshell:workspaceBlurOverlay" }, ignore_alpha = 0.0})
@@ -191,8 +196,6 @@ hl.layer_rule({ match = { namespace = "quickshell:cheatsheet" }, animation = "sl
 hl.layer_rule({ match = { namespace = "quickshell:notes" }, blur = true})
 hl.layer_rule({ match = { namespace = "quickshell:notes" }, ignore_alpha = 0.6})
 hl.layer_rule({ match = { namespace = "quickshell:notes" }, animation = "slide bottom"})
-hl.layer_rule({ match = { namespace = "quickshell:usage" }, animation = "slide bottom"})
-hl.layer_rule({ match = { namespace = "quickshell:modes" }, animation = "slide bottom"})
 hl.layer_rule({ match = { namespace = "quickshell:dock" }, animation = "slide bottom"})
 hl.layer_rule({ match = { namespace = "quickshell:screenCorners" }, animation = "popin 120%", order = 10})
 hl.layer_rule({ match = { namespace = "quickshell:lockWindowPusher" }, no_anim = true})
@@ -231,6 +234,19 @@ hl.layer_rule({ match = { namespace = "quickshell:screenshot" }, no_anim = true}
 hl.layer_rule({ match = { namespace = "quickshell:session" }, blur = true})
 hl.layer_rule({ match = { namespace = "quickshell:session" }, no_anim = true})
 hl.layer_rule({ match = { namespace = "quickshell:session" }, ignore_alpha = 0})
+-- Alt+Tab panel: animates itself (fade + scale); blur only behind the panel, not its shadow
+hl.layer_rule({ match = { namespace = "quickshell:windowSwitcher" }, blur = true})
+hl.layer_rule({ match = { namespace = "quickshell:windowSwitcher" }, ignore_alpha = 0.6})
+hl.layer_rule({ match = { namespace = "quickshell:windowSwitcher" }, no_anim = true})
+-- Alt+Tab's peek covers the screen under the island and the switcher panel, never over them
+-- (in the overlay level, order 1 is drawn beneath the default 0). Named outside quickshell.*
+-- so that blur rule misses it: blur under a fading peek pops off at the end of the fade.
+hl.layer_rule({ match = { namespace = "ii-alt-tab-peek" }, no_anim = true})
+hl.layer_rule({ match = { namespace = "ii-alt-tab-peek" }, order = 1})
+-- The invisible surface that takes a click outside the switcher while a search waits with Alt
+-- up, under the island and the panel in the same way.
+hl.layer_rule({ match = { namespace = "ii-alt-tab-catcher" }, no_anim = true})
+hl.layer_rule({ match = { namespace = "ii-alt-tab-catcher" }, order = 1})
 -- The shell slides the sidebars itself (Appearance.animation.sidebarSlide), so the wallpaper
 -- parallax can follow the same curve; a compositor slide on top would move them twice.
 hl.layer_rule({ match = { namespace = "quickshell:sidebarRight" }, no_anim = true, order = 5})

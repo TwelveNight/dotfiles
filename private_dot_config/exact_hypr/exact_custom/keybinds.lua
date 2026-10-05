@@ -191,35 +191,6 @@ hl.bind("SUPER + code:21", hl.dsp.window.resize({ x = 30, y = 0, relative = true
 hl.bind("SUPER + code:20", hl.dsp.window.resize({ x = -30, y = 0, relative = true }), { repeating = true })
 
 -- Workspace navigation
-hl.unbind("ALT + Tab", hl.dsp.global("quickshell:waffleAltTab"))
-hl.unbind("ALT + Tab", hl.dsp.window.cycle_next())
-hl.unbind("ALT + Tab", hl.dsp.window.bring_to_top())
--- Match ii's upstream Alt-Tab pattern: transparent root bindings use the
--- physical Tab key and talk to the switcher over IPC. This keeps Alt's first
--- release visible to Hyprland, instead of relying on a submap entered after
--- Alt was already held.
-hl.bind("ALT + code:23", hl.dsp.exec_cmd("qs -c ii ipc call altTab next"), {
-	transparent = true,
-	repeating = true,
-	description = "Window: Next with preview",
-})
-hl.bind("ALT + SHIFT + code:23", hl.dsp.exec_cmd("qs -c ii ipc call altTab previous"), {
-	transparent = true,
-	repeating = true,
-	description = "Window: Previous with preview",
-})
-hl.bind("ALT + Escape", hl.dsp.exec_cmd("qs -c ii ipc call altTab cancel"), {
-	transparent = true,
-	description = "Window: Cancel preview",
-})
-for _, key in ipairs({ "ALT_L", "ALT_R" }) do
-	hl.bind(key, hl.dsp.exec_cmd("qs -c ii ipc call altTab accept"), {
-		ignore_mods = true,
-		transparent = true,
-		release = true,
-		description = "Window: Confirm preview",
-	})
-end
 hl.bind("SUPER + N", hl.dsp.focus({ workspace = "e+1" }))
 hl.bind("SUPER + P", hl.dsp.focus({ workspace = "e-1" }))
 hl.bind(

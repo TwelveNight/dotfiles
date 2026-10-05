@@ -50,7 +50,6 @@ ShellRoot {
 
     // Stuff for every panel family
     ReloadPopup {}
-    AltTabSwitcher {}
     IdleDim {} // hypridle's 120 s dim, see hypr/hypridle.conf
     BarPopupService {}
 
