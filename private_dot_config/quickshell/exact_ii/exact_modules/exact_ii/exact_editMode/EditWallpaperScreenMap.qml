@@ -21,6 +21,17 @@ import qs.modules.common.functions
 Item {
     id: root
 
+    Component.onCompleted: Wallpapers.acquireSkwdWallpaperState()
+    Component.onDestruction: Wallpapers.relinquishSkwdWallpaperState()
+
+    // skwd owns the desktop output; preset monitor entries describe the shell's
+    // saved layout, not the picture currently rendered on these screens.
+    readonly property bool skwdActive: Wallpapers.skwdWallpaperState.wallpaperPath !== undefined
+        || Wallpapers.skwdWallpaperState.useWallpaperEngine === true
+    readonly property string activePreview: Wallpapers.activeUseWallpaperEngine
+        || Wallpapers.isVideoFile(Wallpapers.activeWallpaperPath)
+            ? Wallpapers.activeThumbnailPath : Wallpapers.activeWallpaperPath
+
     // The screen the mode is on.
     property string screenName: ""
 
@@ -52,8 +63,8 @@ Item {
         required property var modelData
         readonly property string name: tile.modelData.name
         readonly property bool current: tile.name === root.screenName
-        readonly property bool coloursHere: WallpaperLayout.distinctWallpapers && WallpaperLayout.colourScreen === tile.name
-        readonly property string picture: WallpaperLayout.sourcePathFor(tile.name)
+        readonly property bool coloursHere: !root.skwdActive && WallpaperLayout.distinctWallpapers && WallpaperLayout.colourScreen === tile.name
+        readonly property string picture: root.skwdActive ? root.activePreview : WallpaperLayout.sourcePathFor(tile.name)
         readonly property bool hovered: tileHover.hovered
         // Small screens get small actions; the pills keep one height.
         readonly property int actionSize: tile.height >= 76 ? 32 : 26
