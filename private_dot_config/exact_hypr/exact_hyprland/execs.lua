@@ -16,13 +16,10 @@ hl.on("hyprland.start", function()
     -- environment here (and at every other place that starts the shell) - a
     -- `//@ pragma Env` in shell.qml is applied too late to reach the allocator.
     hl.exec_cmd("MALLOC_CONF=narenas:1 qs -c $qsConfig")
-    hl.exec_cmd("$HOME/.config/hypr/custom/scripts/__restore_video_wallpaper.sh")
 
     -- Core components (authentication, lock screen, notification daemon)
     hl.exec_cmd("gnome-keyring-daemon --start --components=secrets")
     hl.exec_cmd("hypridle")
-    hl.exec_cmd("dbus-update-activation-environment --all")
-    hl.exec_cmd("sleep 1 && dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE && systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE && systemctl --user start hyprland-session.target")
 
 
     -- Audio (wait for Quickshell's tray watcher so EasyEffects registers its tray icon successfully)

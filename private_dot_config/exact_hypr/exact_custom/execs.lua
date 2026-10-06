@@ -27,7 +27,7 @@ hl.on("hyprland.start", function()
 	-- 		.. "pgrep -x clash-verge >/dev/null || $HOME/.local/scripts/clash-verge-safe run --silent --no-sandbox --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime"
 	-- )
 	hl.exec_cmd("pgrep -x 1password >/dev/null || 1password --silent --no-sandbox")
-	hl.exec_cmd("pgrep -x cc-switch >/dev/null || cc-switch")
+	-- hl.exec_cmd("pgrep -x cc-switch >/dev/null || cc-switch")
 	-- hl.exec_cmd(
 	-- 	"pgrep -x clash-verge >/dev/null || $HOME/.local/scripts/clash-verge-safe run --silent --no-sandbox --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime"
 	-- )
@@ -36,3 +36,6 @@ end)
 -- Disabled for testing: Hyprland's built-in XWayland may provide better
 -- X11-to-X11 drag-and-drop compatibility.
 -- hl.exec_cmd("xwayland-satellite")
+
+-- Shared Niri/Hyprland session lifecycle.
+require("custom.inir-session")
