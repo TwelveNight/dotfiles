@@ -11,23 +11,149 @@
 
 if [ -f ~/private/win11-credentials.sh ]; then
 	echo "Credential file exists. Using the file."
-	source ~/private/win11-credentials.sh
+	# shellcheck disable=SC1090,SC1091
+	source ~/private/win11-credentials.sh || exit 1
 else
 	win11user="twelvenight"
 	win11pass="8848"
 	vmip="192.168.122.193"
 fi
 
-tmp=$(virsh --connect qemu:///system list | grep " win11-base" | awk '{ print $3}')
-
-if ([ "x$tmp" == "x" ] || [ "x$tmp" != "xrunning" ]); then
-	echo "Virtual Machine win11 is starting now... Waiting 30s before starting xfreerdp."
-	# notify-send "Virtual Machine win11 is starting now..." "Waiting 30s before starting xfreerdp."
-	virsh --connect qemu:///system start win11-base
-	sleep 10
-else
-	notify-send "Virtual Machine win11 is already running." "Launching xfreerdp now!"
-	echo "Starting xfreerdp now..."
+# Wait for readiness rather than guessing how long Windows takes to boot.
+umask 077
+vm_name=${WIN_VM_NAME:-win11-base}
+rdp_port=${WIN_RDP_PORT:-3389}
+rdp_timeout=${WIN_RDP_TIMEOUT:-180}
+window_timeout=${WIN_WINDOW_TIMEOUT:-45}
+attempts=${WIN_CONNECT_ATTEMPTS:-3}
+client=${WIN_RDP_CLIENT:-}
+if [[ -z $client ]]; then
+    if [[ -n ${WAYLAND_DISPLAY:-} ]]; then
+        client=sdl-freerdp3
+    else
+        client=xfreerdp3
+    fi
 fi
 
-xfreerdp3 -grab-keyboard "/v:$vmip" /size:100% /cert:ignore "/u:$win11user" "/p:$win11pass" /d: +dynamic-resolution /sound:sys:alsa /gfx:AVC444:on,progressive:on &
+fail() { printf 'win: %s\n' "$*" >&2; exit 1; }
+for setting in rdp_port rdp_timeout window_timeout attempts; do
+    [[ ${!setting} =~ ^[1-9][0-9]*$ ]] || fail "$setting must be a positive integer."
+done
+((rdp_port <= 65535)) || fail 'RDP port must be at most 65535.'
+for command in virsh nc timeout python3 flock nohup "$client"; do
+    command -v "$command" >/dev/null || fail "Missing command: $command"
+done
+[[ -n ${vmip:-} && -n ${win11user:-} && -n ${win11pass:-} ]] || fail 'Missing Windows connection settings.'
+# /args-from accepts one argument per line; never allow credentials to add options.
+for value in "$vmip" "$win11user" "$win11pass"; do
+    [[ $value != *$'\n'* && $value != *$'\r'* ]] || fail 'Connection settings must not contain newlines.'
+done
+
+state_dir=${XDG_STATE_HOME:-$HOME/.local/state}/win
+mkdir -p "$state_dir" || fail 'Cannot create the log directory.'
+exec 9>"$state_dir/launch.lock" || fail 'Cannot open the launch lock.'
+flock -n 9 || fail 'Another win launch is still waiting; let it finish first.'
+
+state=$(LC_ALL=C virsh --connect qemu:///system domstate "$vm_name") || fail 'Cannot read virtual machine state.'
+case $state in
+    running|blocked) printf 'Virtual machine is running.\n' ;;
+    'shut off')
+        printf 'Starting Windows virtual machine...\n'
+        virsh --connect qemu:///system start "$vm_name" || fail 'Virtual machine start failed.' ;;
+    paused)
+        virsh --connect qemu:///system resume "$vm_name" || fail 'Virtual machine resume failed.' ;;
+    *) fail "Virtual machine state is '$state'; wait for it to finish its transition." ;;
+esac
+
+wait_for_rdp() {
+    local deadline=$((SECONDS + rdp_timeout))
+    printf 'Waiting up to %ss for Windows RDP...\n' "$rdp_timeout"
+    while ((SECONDS < deadline)); do
+        if timeout 2 nc -z -w 1 -- "$vmip" "$rdp_port" 2>/dev/null; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
+desktop=unknown
+if [[ -n ${NIRI_SOCKET:-} ]] && command -v niri >/dev/null; then
+    desktop=niri
+elif [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && command -v hyprctl >/dev/null; then
+    desktop=hyprland
+fi
+window_exists() {
+    local windows
+    if [[ $desktop == niri ]]; then
+        windows=$(niri msg -j windows 2>/dev/null) || return 1
+    else
+        windows=$(hyprctl clients -j 2>/dev/null) || return 1
+    fi
+    python3 -c 'import json,sys
+try:
+    windows=json.load(sys.stdin)
+    sys.exit(0 if any(w.get("pid") == int(sys.argv[1]) for w in windows) else 1)
+except (ValueError, TypeError, AttributeError):
+    sys.exit(1)' "$client_pid" <<<"$windows"
+}
+client_pid=
+stop_pending_client() {
+    if [[ -n $client_pid ]]; then
+        kill "$client_pid" 2>/dev/null || true
+        for ((i=0; i<3; i++)); do
+            kill -0 "$client_pid" 2>/dev/null || break
+            sleep 1
+        done
+        kill -KILL "$client_pid" 2>/dev/null || true
+        wait "$client_pid" 2>/dev/null || true
+        client_pid=
+    fi
+}
+trap stop_pending_client EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+rdp_args=("/v:$vmip:$rdp_port" /size:100% /cert:ignore
+    "/u:$win11user" "/p:$win11pass" /d: +dynamic-resolution
+    /sound:sys:alsa "/gfx:AVC444:on,progressive:on" +grab-keyboard)
+if [[ $client == *sdl-freerdp* && -n ${WAYLAND_DISPLAY:-} ]]; then
+    # SDL3 uses the native Wayland shortcut-inhibit protocol in Niri.
+    export SDL_VIDEO_DRIVER=wayland
+fi
+
+for ((attempt=1; attempt<=attempts; attempt++)); do
+    wait_for_rdp || fail "Windows RDP did not become ready within ${rdp_timeout}s."
+    log_file=$(mktemp "$state_dir/client-XXXXXXXX.log") || fail 'Cannot create client log.'
+    printf 'Connecting (%s/%s). Log: %s\n' "$attempt" "$attempts" "$log_file"
+    # Keep credentials out of the process command line. Close the launch lock in
+    # the client and detach it from the terminal after the window is confirmed.
+    nohup "$client" /args-from:fd:3 3< <(printf '%s\n' "${rdp_args[@]}") \
+        9>&- </dev/null >"$log_file" 2>&1 &
+    client_pid=$!
+    deadline=$((SECONDS + window_timeout))
+    while kill -0 "$client_pid" 2>/dev/null && ((SECONDS < deadline)); do
+        ready=false
+        if [[ $desktop == unknown ]]; then
+            sleep 3
+            kill -0 "$client_pid" 2>/dev/null && ready=true
+        elif window_exists; then
+            ready=true
+        fi
+        if $ready; then
+            if [[ $desktop == unknown ]]; then
+                printf 'Client is running; this desktop has no window confirmation.\n'
+            else
+                printf 'Windows client window is ready.\n'
+            fi
+            disown "$client_pid"
+            client_pid=
+            exit 0
+        fi
+        sleep 1
+    done
+    stop_pending_client
+    printf 'Client exited or no window appeared within %ss. Log: %s\n' "$window_timeout" "$log_file" >&2
+    ((attempt < attempts)) && sleep 2
+done
+fail "Unable to open the Windows client after $attempts attempts."
