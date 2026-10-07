@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""Review or apply conservative Windows VM tuning for the next cold boot."""
+import argparse
+from datetime import datetime
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
+
+URI = "qemu:///system"
+FEATURES = ("vpindex", "synic", "stimer", "tlbflush", "ipi")
+
+
+def virsh(*arguments):
+    return subprocess.run(["virsh", "--connect", URI, *arguments], check=True,
+                          capture_output=True, text=True).stdout
+
+
+def memory_kib(element):
+    factors = {"b": 1 / 1024, "bytes": 1 / 1024, "KB": 1000 / 1024,
+               "k": 1, "KiB": 1, "MB": 1000000 / 1024, "M": 1024,
+               "MiB": 1024, "GB": 1000000000 / 1024, "G": 1048576,
+               "GiB": 1048576}
+    return int(int(element.text) * factors[element.get("unit", "KiB")])
+
+
+def tune(xml, capabilities, memory_gib):
+    root = ET.fromstring(xml)
+    memory = root.find("memory")
+    current = root.find("currentMemory")
+    if memory is None or current is None:
+        raise ValueError("Missing fixed-memory configuration.")
+    if root.find("maxMemory") is not None or root.findall("devices/memory"):
+        raise ValueError("Memory hotplug is configured; review this VM manually.")
+    original_kib = memory_kib(current)
+    target_kib = memory_gib * 1048576
+    if target_kib < max(original_kib, memory_kib(memory)):
+        raise ValueError("This tool will not reduce the existing memory allocation.")
+    for element in (memory, current):
+        element.set("unit", "KiB")
+        element.text = str(target_kib)
+    hyperv = root.find("features/hyperv")
+    if hyperv is None or hyperv.get("mode") != "custom":
+        raise ValueError("Expected an existing custom Hyper-V configuration.")
+    caps = ET.fromstring(capabilities).find("features/hyperv")
+    if caps is None or caps.get("supported") != "yes":
+        raise ValueError("Hyper-V enlightenments are not supported by this host.")
+    supported = {v.text for v in caps.findall("enum[@name='features']/value")}
+    added = []
+    for name in FEATURES:
+        if name not in supported:
+            continue
+        feature = hyperv.find(name)
+        if feature is None:
+            feature = ET.SubElement(hyperv, name, state="on")
+            added.append(name)
+        elif feature.get("state") != "on":
+            raise ValueError(f"Hyper-V {name} was explicitly disabled; review it manually.")
+        if name == "stimer" and feature.find("direct") is None:
+            direct = caps.find("defaults/stimer_direct")
+            if direct is not None and direct.text == "on":
+                ET.SubElement(feature, "direct", state="on")
+    ET.indent(root, space="  ")
+    return ET.tostring(root, encoding="unicode") + "\n", original_kib, added
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--domain", default="win11-base")
+    parser.add_argument("--memory-gib", type=int, default=8)
+    parser.add_argument("--apply", action="store_true", help="Update persistent configuration without restarting the VM")
+    args = parser.parse_args()
+    if args.memory_gib < 1:
+        parser.error("--memory-gib must be positive")
+    original = virsh("dumpxml", args.domain, "--inactive")
+    root = ET.fromstring(original)
+    os_type = root.find("os/type")
+    caps = virsh("domcapabilities", "--arch", os_type.get("arch"),
+                 "--machine", os_type.get("machine"), "--virttype", root.get("type"))
+    updated, original_kib, added = tune(original, caps, args.memory_gib)
+    print(f"{args.domain}: memory {original_kib / 1048576:g} -> {args.memory_gib} GiB")
+    print("Enable Hyper-V features:", ", ".join(added) or "already enabled")
+    if not args.apply:
+        print("Preview only. Add --apply to save for the next cold boot.")
+        return
+    available = next(int(line.split()[1]) for line in Path("/proc/meminfo").read_text().splitlines()
+                     if line.startswith("MemAvailable:"))
+    live_memory = 0
+    state = virsh("domstate", args.domain).strip()
+    if state in ("running", "blocked", "paused"):
+        live_memory = memory_kib(ET.fromstring(virsh("dumpxml", args.domain)).find("currentMemory"))
+    extra = max(0, args.memory_gib * 1048576 - live_memory)
+    if available - extra < 4 * 1048576:
+        raise ValueError("Insufficient available host memory to keep 4 GiB of headroom.")
+    # Do not replace a configuration changed concurrently by virt-manager.
+    if virsh("dumpxml", args.domain, "--inactive") != original:
+        raise ValueError("The VM configuration changed during review; run again.")
+    directory = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "win/vm-backups"
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    safe_name = root.findtext("uuid")
+    backup = directory / f"{safe_name}-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.xml"
+    with backup.open("x") as output:
+        os.chmod(backup, 0o600)
+        output.write(original)
+    with tempfile.TemporaryDirectory(prefix="win-vm-tune-") as temporary:
+        config = Path(temporary) / "domain.xml"
+        config.write_text(updated)
+        os.chmod(config, 0o600)
+        virsh("define", str(config), "--validate")
+    print("Saved. Changes take effect after Windows shuts down and the VM starts again.")
+    print("Backup:", backup)
+    print("Restore with: virsh --connect", URI, "define", backup, "--validate")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except subprocess.CalledProcessError as error:
+        raise SystemExit(f"win-vm-tune: {error.stderr.strip() or error}") from None
+    except (ValueError, KeyError, OSError, ET.ParseError) as error:
+        raise SystemExit(f"win-vm-tune: {error}") from None
