@@ -1,0 +1,16 @@
+// NVIDIA renders Niri and iNiR together. Pinning Quickshell to AMD caused
+// cursor latency on this dual-screen setup; AMD still drives the internal panel.
+// https://niri-wm.github.io/niri/Configuration%3A-Debug-Options.html#render-drm-device
+debug {
+    render-drm-device "/dev/dri/by-path/pci-0000:01:00.0-render"
+}
+
+environment {
+    // Wayland clients also receive Niri's primary GPU through DMA-BUF feedback.
+    // Prefer NVIDIA for GLX/XWayland and Vulkan clients with their own defaults.
+    __NV_PRIME_RENDER_OFFLOAD "1"
+    __GLX_VENDOR_LIBRARY_NAME "nvidia"
+    __VK_LAYER_NV_optimus "NVIDIA_only"
+    // Keep shell surfaces on the compositor GPU, regardless of GPU polling.
+    INIR_SHELL_GPU_PREFERENCE "compositor"
+}
