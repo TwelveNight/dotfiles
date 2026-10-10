@@ -1,0 +1,12 @@
+# Profile Enhancement Merge Template for Clash Verge
+
+profile:
+  store-selected: true
+
+dns:
+  use-system-hosts: false
+
+# Temporary site-scoped CDN selection: HTTPS hostname stays unchanged.
+# Public/campus DNS can alternate with an unreachable CDN at 1.82.232.57.
+hosts:
+  www.speedtest.cn: 1.194.31.54
