@@ -14,6 +14,9 @@ hl.on("hyprland.start", function()
 	-- start the input method explicitly.  Keep the guard for sessions where
 	-- another launcher has already started it.
 	hl.exec_cmd("pgrep -x fcitx5 >/dev/null || fcitx5 -d")
+	-- Clash Verge is also an XDG autostart on Niri; Hyprland needs this hook.
+	-- Use the installed Tauri launcher, not the legacy Electron/snapshot wrapper.
+	hl.exec_cmd("pgrep -x clash-verge >/dev/null || clash-verge")
 	-- hl.exec_cmd("libinput-gestures")
 
 	-- Tray applications must start after Quickshell owns the watcher;
