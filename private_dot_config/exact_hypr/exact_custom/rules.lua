@@ -80,3 +80,6 @@ hl.window_rule({ match = { title = "^(查找和替换)$", class = "^(wps|et|wpp|
 
 -- Layer rules
 hl.layer_rule({ match = { namespace = "vicinae" }, blur = true, ignore_alpha = 0 })
+
+-- Hermes' pop-out pet has its own title; do not match every Hermes window.
+require("custom.hermes_pet")
