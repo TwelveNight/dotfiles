@@ -5,11 +5,12 @@
 Personal Arch Linux configuration managed with [chezmoi](https://www.chezmoi.io/), focused on a reproducible desktop, a comfortable terminal, and a recovery path that is easy to inspect before it changes the machine.
 
 [![Arch Linux](https://img.shields.io/badge/OS-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
-[![Hyprland](https://img.shields.io/badge/WM-Hyprland-58E1FF?logo=wayland&logoColor=111827)](https://hyprland.org/)
+[![Niri](https://img.shields.io/badge/WM-Niri-58E1FF?logo=wayland&logoColor=111827)](https://github.com/YaLTeR/niri)
+[![Hyprland](https://img.shields.io/badge/WM-Hyprland%20(secondary)-8b5cf6?logo=wayland&logoColor=111827)](https://hyprland.org/)
 [![Managed with chezmoi](https://img.shields.io/badge/managed%20with-chezmoi-1f2937?logo=git&logoColor=white)](https://www.chezmoi.io/)
 [![GitHub last commit](https://img.shields.io/github/last-commit/TwelveNight/dotfiles?logo=github)](https://github.com/TwelveNight/dotfiles/commits/main)
 
-✨ Shell · 🪟 Hyprland · 🎨 Quickshell · 🧰 Neovim · 🖥️ Waffle bar · 🧪 Reproducible restore
+✨ Shell · 🪟 Niri · 🎨 Quickshell · 🧰 Neovim · 🖥️ iNiR shell · 🧪 Reproducible restore
 
 </div>
 
@@ -19,8 +20,8 @@ This is a personal, single-machine configuration snapshot. It is designed to res
 
 - 🐚 **Shell and terminal:** Zsh, Fish, Bash, Starship, Kitty, Tmux, Git, Lazygit.
 - 🧑‍💻 **Editors and tools:** Neovim/LazyVim, Yazi, Code, VSCodium, IdeaVim and VsVim.
-- 🪟 **Desktop:** Hyprland Lua configuration, Hypridle, Hyprlock, Fcitx5, Ghostty, Foot, WezTerm and Fastfetch.
-- 🎨 **Quickshell:** a maintained local snapshot of ii/illogical-impulse with the Waffle Windows-style bar, task view, settings pages and personal integrations.
+- 🪟 **Desktop:** Niri compositor configuration (`~/.config/niri`), the secondary Hyprland Lua setup, Fcitx5, Ghostty, Foot, WezTerm and Fastfetch.
+- 🎨 **Quickshell:** the iNiR shell (active, on Niri) and the ii/illogical-impulse shell (secondary, Hyprland-era) — see [Shell checkouts](#-shell-checkouts-quickshell) below.
 - 🔐 **Safety:** credentials, caches, plugin Git metadata and generated state stay outside normal versioned configuration.
 
 ## 🖼️ Optional screenshots
@@ -57,10 +58,37 @@ Apply only the groups you want:
 chezmoi apply ~/.zshenv ~/.config/zsh ~/.config/fish ~/.bashrc ~/.config/starship.toml
 chezmoi apply ~/.config/kitty ~/.config/tmux ~/.config/git ~/.config/lazygit ~/.local/scripts
 chezmoi apply ~/.config/nvim ~/.config/yazi
-chezmoi apply ~/.config/hypr ~/.config/quickshell ~/.config/illogical-impulse
+chezmoi apply ~/.config/niri ~/.config/inir
+chezmoi apply ~/.config/hypr
 ```
 
-The desktop group should be applied after matching Hyprland, Quickshell, Qt6 QML modules, Matugen, Fuzzel, audio tools and input-method packages are installed. Reload the desktop only after reviewing `chezmoi diff`.
+The desktop group should be applied after matching Niri/Hyprland, Quickshell, Qt6 QML modules, Matugen, Fuzzel, audio tools and input-method packages are installed. Reload the desktop only after reviewing `chezmoi diff`.
+
+## 🐚 Shell checkouts (Quickshell)
+
+The desktop UI runs on Quickshell, but the shell bodies are **not** managed by chezmoi. Each shell lives in its own Git repository with its own upstream and personal branch; chezmoi only versions their *settings*, never the code:
+
+| Shell | Checkout | Status | Personal branch |
+|---|---|---|---|
+| **iNiR** (active) | `~/.config/quickshell/inir` | [TwelveNight/iNiR](https://github.com/TwelveNight/iNiR) fork of [snowarch/iNiR](https://github.com/snowarch/iNiR) | `night/personal-overlay` |
+| **ii** (secondary, Hyprland-era) | `~/.config/quickshell/ii` | [TwelveNight/ii-p3drovfx](https://github.com/TwelveNight/ii-p3drovfx) fork of [P3DROVFX/ii-p3drovfx](https://github.com/P3DROVFX/ii-p3drovfx) | `night/personal-overlay` |
+
+Restore a shell by cloning the personal branch, then let its own installer deploy it:
+
+```sh
+git clone --branch night/personal-overlay git@github.com:TwelveNight/iNiR.git ~/Template/github/niri-dots/iNiR
+cd ~/Template/github/niri-dots/iNiR && ./setup install   # or: inir update --local
+```
+
+What chezmoi *does* manage for these shells:
+
+- `~/.config/inir/` — iNiR settings: `config.json`, `migrations.json`, `version*`, and the `matugen/` templates. Runtime state (`backups/`, `actions/`, `installed_*`, locks) is excluded.
+- `~/.config/niri/` — the Niri compositor entry point and modular `config.d/` includes, including the personal bind/overlay files.
+
+What stays unmanaged on purpose:
+
+- `~/.config/quickshell/inir` and `~/.config/quickshell/ii` themselves (code, assets, `.git`). Earlier revisions of this repo vendored a ~4800-file ii snapshot; that was removed in favor of the shells' own repositories.
+- `~/.config/illogical-impulse/` — leftover settings directory from the ii era, kept locally for reference.
 
 ## 🪟 Waffle and Windows-style bar
 
@@ -121,8 +149,8 @@ python scripts/check.py --restore
 When changing the repository directly, use a targeted deployment:
 
 ```sh
-chezmoi diff ~/.config/quickshell/ii/settings.qml
-chezmoi apply ~/.config/quickshell/ii/settings.qml
+chezmoi diff ~/.config/niri/config.d/75-personal-binds.kdl
+chezmoi apply ~/.config/niri/config.d/75-personal-binds.kdl
 ```
 
 Plugin upgrades, desktop reloads and configuration changes are separate operations. Before a larger change, keep a backup of the affected target files and use `git show <commit>:<file>` as a rollback reference.
