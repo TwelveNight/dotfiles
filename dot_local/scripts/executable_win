@@ -121,6 +121,15 @@ if [[ $client == *sdl-freerdp* && -n ${WAYLAND_DISPLAY:-} ]]; then
     # SDL3 uses the native Wayland shortcut-inhibit protocol in Niri.
     export SDL_VIDEO_DRIVER=wayland
 fi
+client_env=()
+if [[ $desktop == niri && $client == *sdl-freerdp* && -n ${WAYLAND_DISPLAY:-} ]]; then
+    shortcut_helper="$HOME/.local/libexec/win-shortcuts/control.py"
+    [[ -x $shortcut_helper ]] || fail 'Missing win-shortcuts helper.'
+    [[ -n ${XDG_RUNTIME_DIR:-} ]] || fail 'Missing XDG_RUNTIME_DIR for shortcut control.'
+    shortcut_library=$("$shortcut_helper" build) || fail 'Cannot build the SDL shortcut policy.'
+    client_env=("WIN_SHORTCUTS_DIR=$XDG_RUNTIME_DIR/win-shortcuts"
+                "LD_PRELOAD=$shortcut_library${LD_PRELOAD:+:$LD_PRELOAD}")
+fi
 
 for ((attempt=1; attempt<=attempts; attempt++)); do
     wait_for_rdp || fail "Windows RDP did not become ready within ${rdp_timeout}s."
@@ -128,7 +137,7 @@ for ((attempt=1; attempt<=attempts; attempt++)); do
     printf 'Connecting (%s/%s). Log: %s\n' "$attempt" "$attempts" "$log_file"
     # Keep credentials out of the process command line. Close the launch lock in
     # the client and detach it from the terminal after the window is confirmed.
-    nohup "$client" /args-from:fd:3 3< <(printf '%s\n' "${rdp_args[@]}") \
+    nohup env "${client_env[@]}" "$client" /args-from:fd:3 3< <(printf '%s\n' "${rdp_args[@]}") \
         9>&- </dev/null >"$log_file" 2>&1 &
     client_pid=$!
     deadline=$((SECONDS + window_timeout))
@@ -139,6 +148,12 @@ for ((attempt=1; attempt<=attempts; attempt++)); do
             kill -0 "$client_pid" 2>/dev/null && ready=true
         elif window_exists; then
             ready=true
+        fi
+        if $ready && ((${#client_env[@]})); then
+            # A loader warning can leave the unmodified client running. Require
+            # the new process's authenticated control endpoint before success.
+            shortcut_state=$("$shortcut_helper" status --pid "$client_pid" --quiet 2>/dev/null) || ready=false
+            [[ $shortcut_state == 'local 0' ]] || ready=false
         fi
         if $ready; then
             if [[ $desktop == unknown ]]; then

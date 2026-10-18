@@ -28,12 +28,18 @@ class LauncherTests(unittest.TestCase):
                         WIN_RDP_TIMEOUT="3", WIN_WINDOW_TIMEOUT="3", WIN_CONNECT_ATTEMPTS="1")
         self.env.pop("WIN_RDP_CLIENT", None)
         self.env.pop("SDL_VIDEO_DRIVER", None)
+        self.env.pop("LD_PRELOAD", None)
+        self.env.pop("WIN_SHORTCUTS_DIR", None)
         self.env.pop("HYPRLAND_INSTANCE_SIGNATURE", None)
         self.script = self.root / "win"
         # Replace the existing credential configuration with harmless fixture data.
         body = SOURCE.read_text().split("# Wait for readiness", 1)[1]
         self.script.write_text("#!/bin/bash\nvmip=127.0.0.1\nwin11user=test\nwin11pass='test secret'\n# Wait for readiness" + body)
         self.script.chmod(0o755)
+        helper = self.root / ".local/libexec/win-shortcuts/control.py"
+        helper.parent.mkdir(parents=True)
+        helper.write_text("#!/bin/sh\ncase $1 in\nbuild) printf 'libc.so.6\\n';;\nstatus) printf 'local 0\\n';;\n*) exit 2;;\nesac\n")
+        helper.chmod(0o755)
         self.write_command("virsh", '''import json,os,sys
 from pathlib import Path
 r=Path(os.environ["TEST_ROOT"])
@@ -54,6 +60,8 @@ args=os.fdopen(3).read().splitlines()
 (r/"args.json").write_text(json.dumps(args))
 (r/"argv.json").write_text(json.dumps(sys.argv))
 (r/"driver").write_text(os.environ.get("SDL_VIDEO_DRIVER", ""))
+(r/"preload").write_text(os.environ.get("LD_PRELOAD", ""))
+(r/"shortcuts_dir").write_text(os.environ.get("WIN_SHORTCUTS_DIR", ""))
 if n <= c["client_failures"]: sys.exit(1)
 (r/"pid").write_text(str(os.getpid()))
 (r/"started").write_text(str(time.monotonic()))
@@ -136,12 +144,29 @@ else: print(json.dumps([{"pid":int((r/"pid").read_text())}]))
         self.assertGreaterEqual(time.monotonic() - start, 1.2)
         self.assertEqual((self.root / "virsh_calls").read_text(), "domstate\nstart\n")
 
+    def test_niri_sdl_shortcut_policy_is_scoped_to_the_client(self):
+        self.listen()
+        result = self.run_launcher()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / "preload").read_text(), "libc.so.6")
+        self.assertTrue((self.root / "shortcuts_dir").read_text().endswith("/win-shortcuts"))
+
     def test_start_failure_never_connects(self):
         self.settings.update(state="shut off", start_ok=False)
         result = self.run_launcher()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("start failed", result.stderr)
         self.assertFalse((self.root / "attempts").exists())
+
+    def test_unloaded_shortcut_policy_stops_only_the_new_client(self):
+        helper = self.root / ".local/libexec/win-shortcuts/control.py"
+        helper.write_text("#!/bin/sh\n[ \"$1\" = build ] || exit 1\nprintf 'libc.so.6\\n'\n")
+        self.env["WIN_WINDOW_TIMEOUT"] = "3"
+        self.listen()
+        result = self.run_launcher()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue((self.root / "stopped").exists())
+        self.assertEqual((self.root / "virsh_calls").read_text(), "domstate\n")
 
     def test_rdp_timeout_never_connects(self):
         self.env["WIN_RDP_TIMEOUT"] = "1"
