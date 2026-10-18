@@ -130,6 +130,7 @@ else: print(json.dumps([{"pid":int((r/"pid").read_text())}]))
         self.assertEqual(json.loads((self.root / "argv.json").read_text())[1:], ["/args-from:fd:3"])
         self.assertIn("/p:test secret", json.loads((self.root / "args.json").read_text()))
         self.assertIn("+grab-keyboard", json.loads((self.root / "args.json").read_text()))
+        self.assertIn("+sdl-allow-screensaver", json.loads((self.root / "args.json").read_text()))
         self.assertEqual((self.root / "driver").read_text(), "wayland")
         self.assertEqual(subprocess.run(["flock", "-n", str(self.root / "state/win/launch.lock"), "true"]).returncode, 0)
         for log in (self.root / "state/win").glob("*.log"):
@@ -231,6 +232,16 @@ else: print(json.dumps([{"pid":int((r/"pid").read_text())}]))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / "driver").read_text(), "")
         self.assertEqual(Path(json.loads((self.root / "argv.json").read_text())[0]).name, "xfreerdp3")
+        self.assertNotIn("+sdl-allow-screensaver", json.loads((self.root / "args.json").read_text()))
+
+    def test_explicit_sdl_client_allows_screensaver_without_wayland(self):
+        self.env.pop("WAYLAND_DISPLAY")
+        self.env["WIN_RDP_CLIENT"] = str(self.bin / "sdl-freerdp3")
+        self.listen()
+        result = self.run_launcher()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("+sdl-allow-screensaver", json.loads((self.root / "args.json").read_text()))
+        self.assertEqual((self.root / "driver").read_text(), "")
 
     def test_concurrent_launcher_is_rejected(self):
         directory = self.root / "state/win"

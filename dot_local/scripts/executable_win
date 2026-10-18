@@ -117,6 +117,10 @@ trap 'exit 143' TERM
 rdp_args=("/v:$vmip:$rdp_port" /size:100% /cert:ignore
     "/u:$win11user" "/p:$win11pass" /d: +dynamic-resolution
     /sound:sys:alsa "/gfx:AVC444:on,progressive:on" +grab-keyboard)
+if [[ $client == *sdl-freerdp* ]]; then
+    # Keep an open RDP connection from blocking local idle lock and screen-off.
+    rdp_args+=(+sdl-allow-screensaver)
+fi
 if [[ $client == *sdl-freerdp* && -n ${WAYLAND_DISPLAY:-} ]]; then
     # SDL3 uses the native Wayland shortcut-inhibit protocol in Niri.
     export SDL_VIDEO_DRIVER=wayland
