@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Hyprland
+Comment=An intelligent dynamic tiling Wayland compositor
+Exec=/home/night/.local/bin/desktop-profile run hyprland-ii
+Type=Application
+DesktopNames=Hyprland
+Keywords=tiling;wayland;compositor;

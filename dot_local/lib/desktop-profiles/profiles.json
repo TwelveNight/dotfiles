@@ -1,0 +1,20 @@
+{
+  "hyprland-ii": {
+    "compositor": "hypr",
+    "links": ["hypr"],
+    "start": ["/usr/bin/start-hyprland"],
+    "source": "/home/night/Template/github/hyprland-dots/ii-p3drovfx"
+  },
+  "inir": {
+    "compositor": "niri",
+    "links": ["niri"],
+    "start": ["/usr/bin/niri-session"],
+    "source": "/home/night/Template/github/niri-dots/iNiR"
+  },
+  "nyxuri": {
+    "compositor": "niri",
+    "links": ["niri", "noctalia", "kitty-nyxuri"],
+    "start": ["/usr/bin/python3", "{home}/.config/niri/scripts/session.py"],
+    "source": "/home/night/Template/github/niri-dots/Nyxuri-personal"
+  }
+}

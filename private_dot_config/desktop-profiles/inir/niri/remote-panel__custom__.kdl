@@ -1,0 +1,4 @@
+// Managed by the shared remote-desktop controller.
+debug {
+    // remote-panel-managed: keep-laptop-panel-on-when-lid-is-closed
+}

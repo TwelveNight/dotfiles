@@ -23,6 +23,7 @@ nvim.log
 **/*.log
 **/*.bak
 **/*.bak.*
+**/*.new
 **/*~
 .config/zsh/.zcompdump*
 .config/zsh/.zsh_history
@@ -61,6 +62,23 @@ nvim.log
 
 # Personal OAuth/API credentials are intentionally unmanaged.
 .config/quickshell/ii/.env
-.config/hypr/custom/variables.lua
+.config/desktop-profiles/hyprland-ii/hypr/custom/variables.lua
 backups
 backups/**
+
+# Desktop manager Python runtime cache.
+.local/lib/desktop-profiles/__pycache__
+.local/lib/desktop-profiles/__pycache__/**
+
+
+# Session selection owns these links. Manage configuration payloads instead.
+.config/hypr
+.config/hypr/**
+.config/niri
+.config/niri/**
+.config/noctalia
+.config/noctalia/**
+.config/kitty-nyxuri
+.config/kitty-nyxuri/**
+.config/desktop-profiles/nyxuri
+.config/desktop-profiles/nyxuri/**

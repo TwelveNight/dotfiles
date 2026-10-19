@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path.home() / ".local/lib/desktop-profiles"))
+from desktop_profiles import main
+
+raise SystemExit(main())

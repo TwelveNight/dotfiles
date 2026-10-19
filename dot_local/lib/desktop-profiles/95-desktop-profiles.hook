@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = niri
+Target = hyprland
+
+[Action]
+Description = Restore personal desktop profile login entries
+When = PostTransaction
+Exec = /usr/bin/python3 /usr/local/lib/desktop-profiles/refresh_sessions.py
