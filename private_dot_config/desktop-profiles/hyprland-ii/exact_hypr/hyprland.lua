@@ -36,6 +36,10 @@ end
 if is_file_exists(HOME .. "/.config/hypr/custom/general.lua") then
     safe_require("custom.general")
 end
+-- Keep the optional personal HyprGlass override before window rules.
+if is_file_exists(HOME .. "/.config/hypr/custom/hyprglass.lua") then
+    safe_require("custom.hyprglass")
+end
 if is_file_exists(HOME .. "/.config/hypr/custom/rules.lua") then
     safe_require("custom.rules")
 end
@@ -48,4 +52,3 @@ end
 
 -- Shell overrides --
 safe_require("hyprland.shellOverrides.main")
-
