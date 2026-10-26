@@ -1,0 +1,89 @@
+{
+  "hyprland-ii": {
+    "compositor": "hypr",
+    "links": [
+      "hypr"
+    ],
+    "start": [
+      "/usr/bin/start-hyprland"
+    ],
+    "source": "/home/night/Template/github/hyprland-dots/ii-p3drovfx"
+  },
+  "inir": {
+    "compositor": "niri",
+    "links": [
+      "niri"
+    ],
+    "start": [
+      "/usr/bin/niri-session"
+    ],
+    "source": "/home/night/Template/github/niri-dots/iNiR"
+  },
+  "nyxuri": {
+    "compositor": "niri",
+    "links": [
+      "niri",
+      "noctalia",
+      "kitty-nyxuri"
+    ],
+    "start": [
+      "/usr/bin/python3",
+      "{home}/.config/niri/scripts/session.py"
+    ],
+    "source": "/home/night/Template/github/niri-dots/Nyxuri-personal"
+  },
+  "sekaipop": {
+    "compositor": "hypr",
+    "links": [
+      "hypr"
+    ],
+    "start": [
+      "/usr/bin/start-hyprland"
+    ],
+    "source": "/home/night/Template/github/hyprland-dots/SekaiPop"
+  },
+  "vitreus": {
+    "compositor": "hypr",
+    "links": [
+      "hypr"
+    ],
+    "start": [
+      "/usr/bin/python3",
+      "{home}/.config/desktop-profiles/vitreus/hypr-session.py"
+    ],
+    "source": "/home/night/Template/github/hyprland-dots/Vitreus"
+  },
+  "vitreus-wm": {
+    "compositor": "pleamar",
+    "links": [
+      "hypr"
+    ],
+    "start": [
+      "/usr/bin/python3",
+      "{home}/.config/desktop-profiles/vitreus-wm/wm-session.py"
+    ],
+    "source": "/home/night/Template/github/hyprland-dots/Vitreus"
+  },
+  "dms-niri": {
+    "compositor": "niri",
+    "links": [
+      "niri"
+    ],
+    "start": [
+      "/usr/bin/python3",
+      "/home/night/.local/libexec/desktop-dms/session.py"
+    ],
+    "source": "/home/night/Template/github/desktop-dms"
+  },
+  "vitreus-niri": {
+    "compositor": "niri",
+    "links": [
+      "niri"
+    ],
+    "start": [
+      "/usr/bin/python3",
+      "{home}/.config/desktop-profiles/vitreus-niri/niri-session.py"
+    ],
+    "source": "/home/night/Template/github/hyprland-dots/Vitreus"
+  }
+}
