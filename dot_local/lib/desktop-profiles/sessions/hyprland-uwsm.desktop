@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Hyprland (uwsm-managed)
 Comment=An intelligent dynamic tiling Wayland compositor
-Exec=/home/night/.local/bin/desktop-profile run hyprland-ii -- /usr/bin/uwsm start -e -D Hyprland /usr/bin/start-hyprland
+Exec=/home/night/.local/bin/desktop-profile run --wallpaper-backend skwd-wall hyprland-ii -- /usr/bin/uwsm start -e -D Hyprland /usr/bin/start-hyprland
 TryExec=uwsm
 DesktopNames=Hyprland
 Type=Application

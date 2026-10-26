@@ -16,7 +16,7 @@ class SessionRefreshTests(unittest.TestCase):
             original = '[Desktop Entry]\nName=Niri new package\nExec=niri-session\nDesktopNames=niri\nX-Test=retained\n'
             session.write_text(original)
             refresh_sessions.refresh(root)
-            expected = original.replace('Exec=niri-session', 'Exec=/home/night/.local/bin/desktop-profile run inir')
+            expected = original.replace('Exec=niri-session', 'Exec=/home/night/.local/bin/desktop-profile run --wallpaper-backend skwd-wall inir')
             self.assertEqual(session.read_text(), expected)
             inode = session.stat().st_ino
             refresh_sessions.refresh(root)

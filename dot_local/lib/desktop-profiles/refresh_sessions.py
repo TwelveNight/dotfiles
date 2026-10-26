@@ -6,9 +6,9 @@ import tempfile
 
 
 COMMANDS = {
-    'niri.desktop': '/home/night/.local/bin/desktop-profile run inir',
-    'hyprland.desktop': '/home/night/.local/bin/desktop-profile run hyprland-ii',
-    'hyprland-uwsm.desktop': '/home/night/.local/bin/desktop-profile run hyprland-ii -- /usr/bin/uwsm start -e -D Hyprland /usr/bin/start-hyprland',
+    'niri.desktop': '/home/night/.local/bin/desktop-profile run --wallpaper-backend skwd-wall inir',
+    'hyprland.desktop': '/home/night/.local/bin/desktop-profile run --wallpaper-backend skwd-wall hyprland-ii',
+    'hyprland-uwsm.desktop': '/home/night/.local/bin/desktop-profile run --wallpaper-backend skwd-wall hyprland-ii -- /usr/bin/uwsm start -e -D Hyprland /usr/bin/start-hyprland',
 }
 
 

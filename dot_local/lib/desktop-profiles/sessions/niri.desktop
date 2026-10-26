@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Niri
 Comment=A scrollable-tiling Wayland compositor
-Exec=/home/night/.local/bin/desktop-profile run inir
+Exec=/home/night/.local/bin/desktop-profile run --wallpaper-backend skwd-wall inir
 Type=Application
 DesktopNames=niri

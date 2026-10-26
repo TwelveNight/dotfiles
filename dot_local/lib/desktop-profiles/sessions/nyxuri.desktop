@@ -1,5 +1,5 @@
 [Desktop Entry]
 Name=Nyxuri (niri + Noctalia)
 Comment=Personal niri desktop session
-Exec=/home/night/.local/bin/desktop-profile run nyxuri
+Exec=/home/night/.local/bin/desktop-profile run --wallpaper-backend skwd-wall nyxuri
 Type=Application
