@@ -62,7 +62,6 @@ nvim.log
 
 # Personal OAuth/API credentials are intentionally unmanaged.
 .config/quickshell/ii/.env
-.config/desktop-profiles/hyprland-ii/hypr/custom/variables.lua
 backups
 backups/**
 
